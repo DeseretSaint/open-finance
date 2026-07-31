@@ -1,0 +1,169 @@
+// plaid-proxy-plugin.kt — P8b phone-solo native Plaid proxy (v1.1 asset).
+// Capacitor plugin: all Plaid REST calls go through OkHttp here (no CORS, no
+// webview fetch), and Plaid Link launches natively via LinkKit (react-plaid-link
+// in a webview is unsupported per plan §10). The web layer calls these methods
+// with the user's own client_id/secret (never stored in the webview).
+
+package com.openfinance.plugin
+
+import android.content.Context
+import com.getcapacitor.JSObject
+import com.getcapacitor.Plugin
+import com.getcapacitor.PluginCall
+import com.getcapacitor.PluginMethod
+import com.getcapacitor.annotation.CapacitorPlugin
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.concurrent.TimeUnit
+
+@CapacitorPlugin(name = "PlaidProxy")
+class PlaidProxyPlugin : Plugin() {
+
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .build()
+
+    private val json = "application/json".toMediaType()
+
+    private fun baseUrl(env: String) = "https://$env.plaid.com"
+
+    private fun post(env: String, path: String, body: JSONObject): JSONObject {
+        val req = Request.Builder()
+            .url(baseUrl(env) + path)
+            .post(body.toString().toRequestBody(json))
+            .build()
+        client.newCall(req).execute().use { resp ->
+            val text = resp.body?.string() ?: "{}"
+            val parsed = if (text.isBlank()) JSONObject() else JSONObject(text)
+            if (!resp.isSuccessful) {
+                val msg = parsed.optString("error_message", "Plaid error ${resp.code}")
+                throw RuntimeException(msg)
+            }
+            return parsed
+        }
+    }
+
+    private fun params(clientId: String, secret: String): JSONObject =
+        JSONObject().put("client_id", clientId).put("secret", secret)
+
+    // testCredentials(clientId, secret, environment) -> {valid: boolean}
+    @PluginMethod
+    fun testCredentials(call: PluginCall) {
+        val clientId = call.getString("clientId") ?: return call.reject("missing clientId")
+        val secret = call.getString("secret") ?: return call.reject("missing secret")
+        val env = call.getString("environment") ?: "sandbox"
+        try {
+            val body = params(clientId, secret)
+                .put("access_token", "probe")
+                .put("options", JSONObject())
+            post(env, "/accounts/balance/get", body)
+            call.resolve(JSObject().put("valid", true))
+        } catch (e: Exception) {
+            // invalid credentials come back as a 400 with an error code — that's
+            // the "invalid" answer, not a plugin failure
+            call.resolve(JSObject().put("valid", false).put("error", e.message))
+        }
+    }
+
+    // createLinkToken(clientId, secret, environment, config) -> {linkToken}
+    @PluginMethod
+    fun createLinkToken(call: PluginCall) {
+        val clientId = call.getString("clientId") ?: return call.reject("missing clientId")
+        val secret = call.getString("secret") ?: return call.reject("missing secret")
+        val env = call.getString("environment") ?: "sandbox"
+        try {
+            val config = call.getObject("config") ?: JSONObject()
+            val body = params(clientId, secret)
+                .put("client_name", config.optString("client_name", "Open Finance"))
+                .put("language", config.optString("language", "en"))
+                .put("country_codes", JSONArray().put(config.optString("country_codes", "US")))
+                .put("user", JSONObject().put("client_user_id", config.optString("client_user_id", "open-finance")))
+                .put("products", config.optJSONArray("products") ?: JSONArray().put("transactions"))
+            val resp = post(env, "/link/token/create", body)
+            call.resolve(JSObject().put("linkToken", resp.optString("link_token")))
+        } catch (e: Exception) {
+            call.reject(e.message ?: "link token failed")
+        }
+    }
+
+    // exchangePublicToken(clientId, secret, environment, publicToken) -> {accessToken, itemId}
+    @PluginMethod
+    fun exchangePublicToken(call: PluginCall) {
+        val clientId = call.getString("clientId") ?: return call.reject("missing clientId")
+        val secret = call.getString("secret") ?: return call.reject("missing secret")
+        val env = call.getString("environment") ?: "sandbox"
+        val publicToken = call.getString("publicToken") ?: return call.reject("missing publicToken")
+        try {
+            val body = params(clientId, secret).put("public_token", publicToken)
+            val resp = post(env, "/item/public_token/exchange", body)
+            call.resolve(
+                JSObject()
+                    .put("accessToken", resp.optString("access_token"))
+                    .put("itemId", resp.optString("item_id"))
+            )
+        } catch (e: Exception) {
+            call.reject(e.message ?: "exchange failed")
+        }
+    }
+
+    // getAccounts(accessToken) -> {accounts: [...]}
+    @PluginMethod
+    fun getAccounts(call: PluginCall) {
+        val clientId = call.getString("clientId") ?: return call.reject("missing clientId")
+        val secret = call.getString("secret") ?: return call.reject("missing secret")
+        val env = call.getString("environment") ?: "sandbox"
+        val accessToken = call.getString("accessToken") ?: return call.reject("missing accessToken")
+        try {
+            val body = params(clientId, secret).put("access_token", accessToken)
+            val resp = post(env, "/accounts/get", body)
+            call.resolve(JSObject().put("accounts", resp.optJSONArray("accounts") ?: JSONArray()))
+        } catch (e: Exception) {
+            call.reject(e.message ?: "accounts failed")
+        }
+    }
+
+    // syncTransactions(accessToken, cursor) -> {added, modified, removed, nextCursor}
+    @PluginMethod
+    fun syncTransactions(call: PluginCall) {
+        val clientId = call.getString("clientId") ?: return call.reject("missing clientId")
+        val secret = call.getString("secret") ?: return call.reject("missing secret")
+        val env = call.getString("environment") ?: "sandbox"
+        val accessToken = call.getString("accessToken") ?: return call.reject("missing accessToken")
+        val cursor = call.getString("cursor")
+        try {
+            val body = params(clientId, secret).put("access_token", accessToken)
+            if (!cursor.isNullOrBlank()) body.put("cursor", cursor)
+            val resp = post(env, "/transactions/sync", body)
+            call.resolve(
+                JSObject()
+                    .put("added", resp.optJSONArray("added") ?: JSONArray())
+                    .put("modified", resp.optJSONArray("modified") ?: JSONArray())
+                    .put("removed", resp.optJSONArray("removed") ?: JSONArray())
+                    .put("nextCursor", resp.optString("next_cursor", cursor ?: ""))
+            )
+        } catch (e: Exception) {
+            call.reject(e.message ?: "sync failed")
+        }
+    }
+
+    // removeItem(accessToken) -> {removed: true}
+    @PluginMethod
+    fun removeItem(call: PluginCall) {
+        val clientId = call.getString("clientId") ?: return call.reject("missing clientId")
+        val secret = call.getString("secret") ?: return call.reject("missing secret")
+        val env = call.getString("environment") ?: "sandbox"
+        val accessToken = call.getString("accessToken") ?: return call.reject("missing accessToken")
+        try {
+            val body = params(clientId, secret).put("access_token", accessToken)
+            post(env, "/item/remove", body)
+            call.resolve(JSObject().put("removed", true))
+        } catch (e: Exception) {
+            call.reject(e.message ?: "remove failed")
+        }
+    }
+}
