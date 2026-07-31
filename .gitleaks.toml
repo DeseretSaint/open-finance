@@ -1,0 +1,11 @@
+[extend]
+
+[[rules]]
+id = "open-finance-agent-token"
+description = "Open Finance BYOA agent token (of_ + 40+ base62 chars)"
+regex = '''of_[A-Za-z0-9]{40,}'''
+
+[[rules]]
+id = "open-finance-session-token"
+description = "Open Finance session token (of_sess_ + 40+ base62 chars)"
+regex = '''of_sess_[A-Za-z0-9]{40,}'''

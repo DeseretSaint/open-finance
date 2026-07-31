@@ -1,0 +1,31 @@
+# dependencies / build
+node_modules/
+.next/
+out/
+dist/
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# runtime data
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# env & secrets
+.env
+.env.*
+!.env.example
+android/key.properties
+*.keystore
+*.jks
+
+# tests
+coverage/
+playwright-report/
+test-results/
+
+# misc
+.DS_Store
+*.log
