@@ -30,6 +30,7 @@ import { createSummaryService } from "@/server/domain/summary";
 import { createReportsService } from "@/server/domain/reports";
 import { createPlanningService } from "@/server/domain/planning";
 import { createProjectionService } from "@/server/domain/projection";
+import { seedSoloDemo } from "@/lib/solo-demo-seed";
 
 export interface SoloRequest {
   method: string;
@@ -162,6 +163,17 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
     }
 
     if (method === "POST" && path === "/api/auth/logout") {
+      return ok({ ok: true });
+    }
+
+    if (method === "POST" && path === "/api/auth/demo") {
+      // Solo demo: bootstrap a throwaway device (no PIN) + seed sample data,
+      // mirroring the server demo experience entirely on-device.
+      if (!(await h.solo.isBootstrapped())) {
+        await h.solo.bootstrap({ displayName: "Demo phone", pin: undefined });
+      }
+      const userId = await h.deviceUserId();
+      await seedSoloDemo(db, userId);
       return ok({ ok: true });
     }
 

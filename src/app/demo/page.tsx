@@ -25,7 +25,10 @@ export default function DemoPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-6">
+    <main
+      className="flex min-h-screen items-center justify-center bg-background p-6"
+      style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
       <div className="w-full max-w-sm text-center">
         <div
           className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl text-xl font-bold"

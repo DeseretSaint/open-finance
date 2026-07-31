@@ -1,66 +1,72 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { isSoloCandidate } from "@/lib/mobile-mode";
 
-export const metadata = {
-  title: "Open Finance — self-hosted, open-source personal finance",
-  description:
-    "Own your data. Bring your own Plaid keys — or track manually. Even bring your own AI agent — optional, but it's the headline.",
-};
-
-/** Landing: try the demo (10s), sign up, or sign in. Demo gated by DEMO_MODE. */
+/** Landing: try the demo (works solo too), sign up, or sign in. */
 export default function Home() {
+  const [solo, setSolo] = useState(false);
+  useEffect(() => {
+    if (typeof window !== "undefined") setSolo(isSoloCandidate(window.location.origin));
+  }, []);
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-background p-6 text-text">
-      <div className="w-full max-w-2xl text-center">
+    <main
+      className="flex min-h-screen flex-col items-center justify-center bg-background px-5 text-text"
+      style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
+      <div className="w-full max-w-md text-center">
         <div
-          className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl text-2xl font-bold"
+          className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl text-xl font-bold"
           style={{ background: "var(--accent)", color: "var(--accent-foreground)" }}
         >
           ₿
         </div>
-        <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Open Finance</h1>
-        <p className="mx-auto mt-4 max-w-xl text-lg text-text-muted">
+        <h1 className="text-3xl font-bold tracking-tight">Open Finance</h1>
+        <p className="mx-auto mt-2 max-w-sm text-sm text-text-muted">
           The finance app that lets you <strong className="text-text">bring your own agent</strong> — and asks
           permission before it looks anywhere. Self-hosted, open source, MIT.
         </p>
-        <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+        <div className="mt-6 flex flex-col gap-2.5">
           <Link
             href="/register"
-            className="w-full rounded-md px-6 py-3 text-center text-sm font-semibold text-white sm:w-auto"
+            className="w-full rounded-md px-6 py-3 text-center text-sm font-semibold text-white"
             style={{ background: "var(--accent)" }}
           >
             Create an account
           </Link>
           <Link
             href="/login"
-            className="w-full rounded-md border border-border bg-surface px-6 py-3 text-center text-sm font-medium text-text sm:w-auto"
+            className="w-full rounded-md border border-border bg-surface px-6 py-3 text-center text-sm font-medium text-text"
           >
             Sign in
           </Link>
           <Link
             href="/demo"
-            className="w-full rounded-md px-6 py-3 text-center text-sm font-medium text-accent sm:w-auto"
+            className="w-full rounded-md px-6 py-2 text-center text-sm font-medium text-accent"
           >
             Try the live demo →
           </Link>
         </div>
 
-        <div className="mx-auto mt-14 grid max-w-2xl gap-4 text-left sm:grid-cols-3">
-          <div className="rounded-xl border border-border bg-surface p-5">
+        <div className="mx-auto mt-8 grid gap-3 text-left">
+          <div className="rounded-xl border border-border bg-surface p-4">
             <p className="text-sm font-semibold">Your data</p>
-            <p className="mt-1 text-sm text-text-muted">A SQLite file on your machine or your hub. We run nothing.</p>
+            <p className="mt-0.5 text-xs text-text-muted">A SQLite file on your machine or your hub. We run nothing.</p>
           </div>
-          <div className="rounded-xl border border-border bg-surface p-5">
+          <div className="rounded-xl border border-border bg-surface p-4">
             <p className="text-sm font-semibold">Your bank</p>
-            <p className="mt-1 text-sm text-text-muted">Bring your own free Plaid keys — or skip banks entirely and track manually.</p>
+            <p className="mt-0.5 text-xs text-text-muted">Bring your own free Plaid keys — or skip banks entirely and track manually.</p>
           </div>
-          <div className="rounded-xl border border-border bg-surface p-5">
+          <div className="rounded-xl border border-border bg-surface p-4">
             <p className="text-sm font-semibold">Your agent</p>
-            <p className="mt-1 text-sm text-text-muted">Read-only by default. You control every read and write — change it anytime.</p>
+            <p className="mt-0.5 text-xs text-text-muted">Read-only by default. You control every read and write — change it anytime.</p>
           </div>
         </div>
 
-        <p className="mt-10 text-xs text-text-muted">
-          Desktop · Hub · Phone — one core, three shapes. Bills, debts, goals &amp; a 12-month projection built in.
+        <p className="mt-6 text-[11px] text-text-muted">
+          {solo ? "This phone runs fully standalone. Connect your own hub later." : "Desktop · Hub · Phone — one core, three shapes."}
         </p>
       </div>
     </main>

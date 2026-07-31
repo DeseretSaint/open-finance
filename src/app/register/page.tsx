@@ -52,7 +52,10 @@ export default function RegisterPage() {
   // After solo bootstrap: show the recovery code once, then proceed.
   if (solo && recoveryCode) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background p-6">
+      <main
+        className="flex min-h-screen items-center justify-center bg-background p-6"
+        style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
         <div className="w-full max-w-sm">
           <div className="mb-6 text-center">
             <h1 className="text-2xl font-bold text-text">Your device is ready</h1>
@@ -81,7 +84,10 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-6">
+    <main
+      className="flex min-h-screen items-center justify-center bg-background p-6"
+      style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
           <h1 className="text-2xl font-bold text-text">

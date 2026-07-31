@@ -20,8 +20,9 @@ export function useTheme() {
     return localStorage.getItem("of-accent") ?? "#10B981";
   });
   const [dark, setDark] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("of-dark") === "1";
+    if (typeof window === "undefined") return true;
+    // Dark is the default; only a stored "0" opts out.
+    return localStorage.getItem("of-dark") !== "0";
   });
 
   useEffect(() => {
