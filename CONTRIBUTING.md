@@ -5,7 +5,7 @@ Thanks for your interest in Open Finance!
 ## Ground rules
 
 - **Read [`docs/PLAN.md`](docs/PLAN.md) first** — it is the contract: architecture, schema,
-  API, design tokens, roadmap, and agent briefs. Changes to behavior should update the plan.
+  API, design tokens, roadmap, and development phases. Changes to behavior should update the plan.
 - **Every feature must have a purpose** — if it doesn't earn its place, it doesn't land.
 - **No secrets, ever.** No real keys, tokens, passwords, or `.env` files in commits
   (gitleaks runs in CI and will fail the build).
