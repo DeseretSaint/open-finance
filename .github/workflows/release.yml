@@ -45,8 +45,12 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  apk:
+    uses: ./.github/workflows/apk-build.yml
+    secrets: inherit
+
   release:
-    needs: docker
+    needs: [docker, apk]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -56,7 +60,12 @@ jobs:
         with:
           name: open-finance-apks
           path: apks
-        continue-on-error: true
+
+      - name: Download SHA256SUMS
+        uses: actions/download-artifact@v4
+        with:
+          name: SHA256SUMS
+          path: apks
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
