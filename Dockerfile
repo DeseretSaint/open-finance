@@ -9,6 +9,12 @@ RUN pnpm install --frozen-lockfile
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
+# Next validates ENCRYPTION_KEY/AUTH_SECRET at module load during build
+# (prerender of API routes). These are build-time dummies; the runner stage
+# gets the real values from the user's env at runtime.
+ARG ENCRYPTION_KEY=build-time-dummy
+ARG AUTH_SECRET=build-time-dummy
+ENV ENCRYPTION_KEY=$ENCRYPTION_KEY AUTH_SECRET=$AUTH_SECRET
 RUN corepack enable
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
