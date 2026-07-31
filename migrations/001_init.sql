@@ -51,6 +51,7 @@ CREATE TABLE plaid_items (
   plaid_item_id TEXT UNIQUE,
   institution_id TEXT,
   institution_name TEXT,
+  environment TEXT NOT NULL DEFAULT 'sandbox',
   access_token_enc TEXT,
   cursor TEXT,
   status TEXT NOT NULL DEFAULT 'active',
