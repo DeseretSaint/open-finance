@@ -38,10 +38,12 @@ export class CapSqliteDb implements Db {
    * re-run on an existing solo DB is a no-op. Splits each file on ';' — the
    * schema has no triggers/views (asserted in tests/migrations-bundle.test.ts).
    *
-   * Upgrade robustness: if a pending migration fails because its tables
-   * already exist (e.g. DB created by an older build whose _migrations row
-   * was lost, or a partial apply), we record the version as applied and
-   * continue instead of crashing — the schema is already there.
+   * NO manual beginTransaction/commitTransaction here: the cap-sqlite native
+   * `execute`/`run` both wrap themselves in a transaction (transaction=true
+   * default), so nesting would throw "Already in transaction" and roll back
+   * the DDL — the observed on-device bug (tables missing, _migrations present).
+   * Each statement commits atomically; if one fails, the "already exists"
+   * tolerance + version tracking make a re-run recover cleanly.
    */
   async migrate(migrations: { version: number; sql: string }[]): Promise<{ applied: number; current: number }> {
     const conn = await this.connection();
@@ -54,35 +56,24 @@ export class CapSqliteDb implements Db {
     let count = 0;
     for (const m of [...migrations].sort((a, b) => a.version - b.version)) {
       if (applied.has(m.version)) continue;
-      await conn.beginTransaction();
-      try {
-        for (const stmt of m.sql.split(";")) {
-          const trimmed = stmt.trim();
-          if (!trimmed) continue;
-          try {
-            await conn.execute(trimmed);
-          } catch (e) {
-            const msg = e instanceof Error ? e.message : String(e);
-            if (/already exists/i.test(msg)) {
-              // Table from this migration already present (upgraded/partial DB).
-              continue;
-            }
-            throw e;
-          }
-        }
-        await conn.run("INSERT INTO _migrations (version, applied_at) VALUES (?, ?)", [
-          m.version,
-          new Date().toISOString(),
-        ]);
-        await conn.commitTransaction();
-      } catch (e) {
+      for (const stmt of m.sql.split(";")) {
+        const trimmed = stmt.trim();
+        if (!trimmed) continue;
         try {
-          await conn.rollbackTransaction();
-        } catch {
-          // no active transaction — nothing to roll back
+          await conn.execute(trimmed);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          if (/already exists/i.test(msg)) {
+            // Table from this migration already present (upgraded/partial DB).
+            continue;
+          }
+          throw e;
         }
-        throw e;
       }
+      await conn.run("INSERT INTO _migrations (version, applied_at) VALUES (?, ?)", [
+        m.version,
+        new Date().toISOString(),
+      ]);
       count++;
     }
     try {
