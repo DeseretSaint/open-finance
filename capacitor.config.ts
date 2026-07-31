@@ -10,15 +10,15 @@ import type { CapacitorConfig } from "@capacitor/cli";
  *     bundled app (webDir) and runs fully on-device against a local
  *     CapSqliteDb; Plaid via the native PlaidProxy plugin + LinkKit.
  *
- * webDir must exist at `cap sync` time. `.next/static` is produced by
- * `pnpm build`; the solo static export (dist/mobile) lands with the P8b solo
- * build (scripts/build-mobile.mjs). cleartext stays on for user-entered
- * LAN/Tailscale hub hosts; docs steer to Tailscale/TLS.
+ * webDir must exist at `cap sync` time. `dist/mobile` is the P8b solo static
+ * export (scripts/build-mobile.mjs → output: "export"); the fallback
+ * `.next/static` keeps CI green before the export exists. cleartext stays on
+ * for user-entered LAN/Tailscale hub hosts; docs steer to Tailscale/TLS.
  */
 const config: CapacitorConfig = {
   appId: "com.openfinance.app",
   appName: "Open Finance",
-  webDir: process.env.CAP_WEB_DIR ?? ".next/static",
+  webDir: process.env.CAP_WEB_DIR ?? "dist/mobile",
   server: process.env.CAP_SERVER_URL
     ? { url: process.env.CAP_SERVER_URL, cleartext: true }
     : { cleartext: true },

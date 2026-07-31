@@ -17,6 +17,7 @@
     "seed": "node scripts/seed.js",
     "gen:migrations": "node scripts/gen-migrations-bundle.mjs",
     "check:migrations": "node scripts/gen-migrations-bundle.mjs --check",
+    "build:mobile": "node scripts/build-mobile.mjs",
     "screenshots": "node scripts/screenshots.mjs",
     "og:image": "node scripts/og-crop.js"
   },

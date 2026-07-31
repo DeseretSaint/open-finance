@@ -45,23 +45,25 @@ jobs:
           ENCRYPTION_KEY: build-time-dummy
           AUTH_SECRET: build-time-dummy
 
-      - name: Prepare mobile web assets (solo placeholder or connected URL)
+      - name: Build mobile solo export (dist/mobile)
+        run: node scripts/build-mobile.mjs
+        env:
+          ENCRYPTION_KEY: build-time-dummy
+          AUTH_SECRET: build-time-dummy
+
+      - name: Prepare mobile web assets (solo export or connected URL)
         env:
           CAP_SERVER_URL: ${{ inputs.cap_server_url }}
         run: |
-          # Until the P8b solo export (dist/mobile) lands, webDir needs an
-          # index.html for cap sync. A connected build never serves it (the
-          # webview loads CAP_SERVER_URL); a solo build will once the export
-          # exists — this placeholder keeps the pipeline green meanwhile.
-          mkdir -p .next/static
-          echo '<!doctype html><html><body>Open Finance</body></html>' > .next/static/index.html
           if [ -n "$CAP_SERVER_URL" ]; then
+            # Connected build: webview loads the hub; webDir only needs to exist.
+            mkdir -p dist/mobile
+            echo '<!doctype html><html><body>Open Finance</body></html>' > dist/mobile/index.html
             echo "connected build → webview loads $CAP_SERVER_URL"
+          else
+            echo "solo build → bundled app in dist/mobile"
           fi
-          # If a real solo export (dist/mobile) exists, prefer it.
-          if [ -d dist/mobile ]; then
-            echo "solo export found — using dist/mobile"
-          fi
+          test -f dist/mobile/index.html && echo "webDir OK: dist/mobile/index.html"
 
       - name: Prepare Capacitor android project
         env:

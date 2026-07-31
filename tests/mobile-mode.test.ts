@@ -3,23 +3,21 @@ import { isSoloCandidate, resolveMobileMode } from "@/lib/mobile-mode";
 
 type GlobalWithCap = typeof globalThis & {
   Capacitor?: { isNativePlatform?: () => boolean };
-  Keystore?: { getHubUrl: (opts: unknown) => Promise<{ url: string | null }> };
 };
 
+const g = globalThis as GlobalWithCap;
+
 function setNative(native: boolean) {
-  (globalThis as GlobalWithCap).Capacitor = native
-    ? { isNativePlatform: () => true }
-    : { isNativePlatform: () => false };
+  g.Capacitor = { isNativePlatform: () => native };
 }
 
 afterEach(() => {
-  delete (globalThis as GlobalWithCap).Capacitor;
-  delete (globalThis as GlobalWithCap).Keystore;
+  delete (g as Record<string, unknown>).Capacitor;
 });
 
 describe("mobile mode detection (P8b)", () => {
   it("plain web (no Capacitor) is always connected", async () => {
-    delete (globalThis as GlobalWithCap).Capacitor;
+    delete (g as Record<string, unknown>).Capacitor;
     expect(await resolveMobileMode("https://my-hub.example.com", null)).toBe("connected");
     expect(isSoloCandidate("https://my-hub.example.com")).toBe(false);
   });
@@ -28,6 +26,14 @@ describe("mobile mode detection (P8b)", () => {
     setNative(true);
     expect(await resolveMobileMode("capacitor://localhost", null)).toBe("solo");
     expect(isSoloCandidate("capacitor://localhost")).toBe(true);
+  });
+
+  it("native bundled app on http(s)://localhost → solo (the P8b webview default)", async () => {
+    setNative(true);
+    expect(await resolveMobileMode("https://localhost", null)).toBe("solo");
+    expect(isSoloCandidate("https://localhost")).toBe(true);
+    expect(isSoloCandidate("http://localhost")).toBe(true);
+    expect(isSoloCandidate("http://127.0.0.1")).toBe(true);
   });
 
   it("native pointed at a stored hub URL → connected", async () => {

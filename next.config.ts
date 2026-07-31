@@ -26,18 +26,31 @@ const securityHeaders = [
 /**
  * PWA is desktop-local only (service workers need a secure context, so the
  * launcher opens localhost). Hub/web/LAN/Tailscale never register the SW.
+ * Disabled entirely for the mobile export (P8b solo webview).
  */
 const withSerwist = withSerwistInit({
   swSrc: "src/app/sw.ts",
   swDest: "public/sw.js",
-  disable: process.env.NODE_ENV !== "production",
+  disable: process.env.NODE_ENV !== "production" || process.env.MOBILE_EXPORT === "1",
   reloadOnOnline: true,
   register: false, // we register manually, gated to localhost (see app/layout.tsx)
 });
 
+/**
+ * MOBILE_EXPORT=1 → P8b solo webview build:
+ *  - output: "export" (static site — no Node server on the phone)
+ *  - distDir: dist/mobile (cap-sqlite webDir for the APK)
+ * The build script (build-mobile.mjs) hides src/app/api first, since export
+ * mode refuses route handlers — the solo router answers /api/* in-process.
+ * Otherwise → the server build (standalone hub) with the full API surface.
+ */
+const isMobileExport = process.env.MOBILE_EXPORT === "1";
+
 const nextConfig: NextConfig = {
-  output: "standalone",
-  outputFileTracingRoot: path.join(__dirname),
+  output: isMobileExport ? "export" : "standalone",
+  ...(isMobileExport
+    ? { distDir: "dist/mobile", images: { unoptimized: true } }
+    : { outputFileTracingRoot: path.join(__dirname) }),
   serverExternalPackages: ["better-sqlite3"],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

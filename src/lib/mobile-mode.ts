@@ -75,9 +75,19 @@ export async function resolveMobileMode(
   return "solo";
 }
 
-/** Synchronous quick check used by render paths that can't await. */
+/**
+ * Synchronous quick check used by render paths that can't await.
+ * True when: native platform AND the webview is serving the BUNDLED app
+ * (origin hostname is localhost — Capacitor's default for webDir content).
+ * A paired hub has a real hostname/IP → not solo.
+ */
 export function isSoloCandidate(origin: string): boolean {
   if (!isNativePlatform()) return false;
-  // Native + origin is not an http(s) hub → bundled solo load.
-  return !/^https?:\/\//.test(origin);
+  try {
+    const host = new URL(origin).hostname;
+    return host === "localhost" || host === "127.0.0.1";
+  } catch {
+    // Non-URL origin (e.g. capacitor://localhost on iOS) → bundled solo load.
+    return true;
+  }
 }
