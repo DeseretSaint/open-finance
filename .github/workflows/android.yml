@@ -39,6 +39,9 @@ jobs:
 
       - name: Build web bundle
         run: pnpm build
+        env:
+          ENCRYPTION_KEY: build-time-dummy
+          AUTH_SECRET: build-time-dummy
 
       - name: Prepare Capacitor android project
         run: |
