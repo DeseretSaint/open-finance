@@ -12,13 +12,11 @@
 
 ---
 
-## Status
-
-Master plan **v5** is complete, audited, and wired. Build pipeline: **DeepSeek builds the fundamentals (P0–P8b) → Kimi K3 beauty pass → verification & release.** The first code push lands at P0.
+## Documentation
 
 | Document | Where |
 |---|---|
-| Master build plan (architecture, schema, API, BYOA, roadmap, agent briefs) | [`docs/PLAN.md`](docs/PLAN.md) |
+| Master build plan (architecture, schema, API, BYOA, roadmap) | [`docs/PLAN.md`](docs/PLAN.md) |
 | Design tokens & visual contract | [`docs/DESIGN.md`](docs/DESIGN.md) |
 | AI-agent integration manual (BYOA) | [`docs/AGENTS.md`](docs/AGENTS.md) |
 | Machine-readable agent manifest | [`agent-manifest.json`](agent-manifest.json) |
