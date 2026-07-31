@@ -67,7 +67,10 @@ export function DeviceLockGate({ children }: { children: React.ReactNode }) {
   // locked → PIN pad
   if (lock.data.locked) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background p-6">
+      <div
+        className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-background p-6"
+        style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
         <h1 className="text-xl font-semibold">Device locked</h1>
         <p className="text-sm text-muted-foreground">Enter your PIN to unlock.</p>
         <Input
@@ -90,7 +93,10 @@ export function DeviceLockGate({ children }: { children: React.ReactNode }) {
   if (!lock.data.configured) {
     return (
       <>
-        <div className="fixed inset-x-0 top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
+        <div
+          className="fixed inset-x-0 top-0 z-40 border-b border-border bg-background/95 backdrop-blur"
+          style={{ paddingTop: "env(safe-area-inset-top)" }}
+        >
           <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-2 text-sm">
             <span>Set a device PIN to lock the app on this phone.</span>
             <div className="flex items-center gap-2">
@@ -108,7 +114,7 @@ export function DeviceLockGate({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </div>
-        <div className="pt-10">{children}</div>
+        <div className="pt-10 md:pt-12">{children}</div>
       </>
     );
   }

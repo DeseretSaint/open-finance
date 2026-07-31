@@ -22,7 +22,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (isLoading || !data) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background text-text-muted">
+      <div className="flex min-h-dvh items-center justify-center bg-background text-text-muted">
         Loading…
       </div>
     );
@@ -30,11 +30,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <DeviceLockGate>
-      <UpdateBanner />
-      <div className="flex h-screen bg-background text-text">
+      <div
+        className="flex min-h-dvh bg-background text-text md:h-dvh md:overflow-hidden"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
         <Sidebar />
-        <main className="flex-1 overflow-y-auto p-6 md:p-8">
-          <header className="mb-6">
+        <main className="flex-1 overflow-y-auto px-4 pb-24 pt-4 md:p-8">
+          <header className="mb-4 md:mb-6">
             <h2 className="text-sm text-text-muted">Welcome back,</h2>
             <h1 className="text-2xl font-bold">{data.user.display_name}</h1>
           </header>
@@ -42,6 +44,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <OfflineToast />
         </main>
       </div>
+      <UpdateBanner />
     </DeviceLockGate>
   );
 }
