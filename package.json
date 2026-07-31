@@ -19,6 +19,10 @@
     "og:image": "node scripts/og-crop.js"
   },
   "dependencies": {
+    "@capacitor/app": "7.1.2",
+    "@capacitor/core": "7.6.8",
+    "@capacitor/preferences": "7.0.4",
+    "@capacitor/status-bar": "7.0.6",
     "@modelcontextprotocol/sdk": "~1.10.2",
     "@serwist/next": "9.5.12",
     "@tanstack/react-query": "^5.101.4",
@@ -43,6 +47,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@capacitor/android": "7.6.8",
+    "@capacitor/cli": "7.6.8",
     "@eslint/eslintrc": "^3",
     "@google/design.md": "^0.4.0",
     "@playwright/test": "^1.62.0",

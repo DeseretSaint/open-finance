@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Open Finance</string>
+    <string name="title_activity_main">Open Finance</string>
+    <string name="package_name">com.openfinance.app</string>
+    <string name="custom_url_scheme">com.openfinance.app</string>
+</resources>

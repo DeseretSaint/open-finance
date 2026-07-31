@@ -38,8 +38,8 @@ jobs:
 
       - name: Prepare Capacitor android project
         run: |
-          npx cap add android
           npx cap sync android
+          npx cap copy android
 
       - name: Grant gradle wrapper permission
         run: chmod +x android/gradlew

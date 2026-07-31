@@ -1,0 +1,72 @@
+import { describe, expect, it } from "vitest";
+import { createDeviceLockService, derivePinHash } from "@/server/domain/device-lock";
+import { createTestDb, seedUser } from "./helpers";
+
+describe("device lock (P8a)", () => {
+  it("setPin stores a PBKDF2 hash, never the raw PIN", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const svc = createDeviceLockService(db);
+    await svc.setPin(user.id, "1234");
+    const row = (await db.get("SELECT pin_hash, pin_salt FROM device_lock WHERE user_id = ?", user.id)) as { pin_hash: string; pin_salt: string } | null;
+    expect(row?.pin_hash).toBeTruthy();
+    expect(row?.pin_hash).not.toContain("1234");
+    expect(row?.pin_hash?.length).toBe(64); // sha256 hex
+    expect((await svc.state(user.id)).configured).toBe(true);
+  });
+
+  it("rejects non-digit PINs", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const svc = createDeviceLockService(db);
+    await expect(svc.setPin(user.id, "12a4")).rejects.toThrow();
+  });
+
+  it("unlocks with the right PIN, wrong PIN is a 401", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const svc = createDeviceLockService(db);
+    await svc.setPin(user.id, "4321");
+    await expect(svc.unlock(user.id, "0000")).rejects.toMatchObject({ status: 401, code: "wrong_pin" });
+    await svc.unlock(user.id, "4321");
+    const state = await svc.state(user.id);
+    expect(state.locked).toBe(false);
+  });
+
+  it("locks after 5 failed attempts with escalating cooldown", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const svc = createDeviceLockService(db);
+    await svc.setPin(user.id, "9876");
+    for (let i = 0; i < 4; i++) {
+      await expect(svc.unlock(user.id, "0000")).rejects.toMatchObject({ status: 401 });
+    }
+    // 5th failure → locked
+    await expect(svc.unlock(user.id, "0000")).rejects.toMatchObject({ status: 423 });
+    const state = await svc.state(user.id);
+    expect(state.locked).toBe(true);
+    expect(state.retryAfterMs).toBeGreaterThan(0);
+    // even the right PIN is rejected while locked
+    await expect(svc.unlock(user.id, "9876")).rejects.toMatchObject({ status: 423 });
+    // base cooldown is 30s (a few ms may have elapsed between lock and read)
+    expect(state.retryAfterMs!).toBeGreaterThanOrEqual(29_000);
+  });
+
+  it("biometric flag toggles", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const svc = createDeviceLockService(db);
+    await svc.setBiometric(user.id, true);
+    expect((await svc.state(user.id)).biometricEnabled).toBe(true);
+    await svc.setBiometric(user.id, false);
+    expect((await svc.state(user.id)).biometricEnabled).toBe(false);
+  });
+
+  it("derivePinHash is deterministic and differs across salts", () => {
+    const a = derivePinHash("1234", "salt1");
+    const b = derivePinHash("1234", "salt1");
+    const c = derivePinHash("1234", "salt2");
+    expect(a).toBe(b);
+    expect(a).not.toBe(c);
+  });
+});

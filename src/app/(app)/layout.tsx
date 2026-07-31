@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { api } from "@/lib/api-client";
 import { Sidebar } from "@/components/sidebar";
+import { OfflineToast } from "@/components/offline-toast";
+import { DeviceLockGate } from "@/components/device-lock-gate";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -26,15 +28,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen bg-background text-text">
-      <Sidebar />
-      <main className="flex-1 overflow-y-auto p-6 md:p-8">
-        <header className="mb-6">
-          <h2 className="text-sm text-text-muted">Welcome back,</h2>
-          <h1 className="text-2xl font-bold">{data.user.display_name}</h1>
-        </header>
-        {children}
-      </main>
-    </div>
+    <DeviceLockGate>
+      <div className="flex h-screen bg-background text-text">
+        <Sidebar />
+        <main className="flex-1 overflow-y-auto p-6 md:p-8">
+          <header className="mb-6">
+            <h2 className="text-sm text-text-muted">Welcome back,</h2>
+            <h1 className="text-2xl font-bold">{data.user.display_name}</h1>
+          </header>
+          {children}
+          <OfflineToast />
+        </main>
+      </div>
+    </DeviceLockGate>
   );
 }

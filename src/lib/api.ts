@@ -14,6 +14,8 @@ export class ApiError extends Error {
 
 export const apiErrors = {
   unauthorized: () => new ApiError(401, "unauthorized", "You must be signed in."),
+  wrongPin: (msg = "Wrong PIN.") => new ApiError(401, "wrong_pin", msg),
+  locked: (msg: string) => new ApiError(423, "locked", msg),
   forbidden: (msg = "You do not have permission to do that.") => new ApiError(403, "forbidden", msg),
   notFound: (what = "Resource") => new ApiError(404, "not_found", `${what} not found.`),
   badRequest: (msg = "Invalid request.") => new ApiError(400, "bad_request", msg),
