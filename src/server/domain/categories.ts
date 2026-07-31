@@ -1,6 +1,6 @@
-import { randomUUID } from "node:crypto";
-import { apiErrors } from "@/lib/api";
-import { getDb, type Db } from "@/server/db/adapter";
+import { randomUUID } from "@/lib/uuid";
+import { apiErrors } from "@/lib/api-error";
+import { getDb, type Db } from "@/server/db/registry";
 
 export interface CategoryRow {
   id: string;

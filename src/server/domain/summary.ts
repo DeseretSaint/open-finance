@@ -1,4 +1,4 @@
-import { getDb, type Db } from "@/server/db/adapter";
+import { getDb, type Db } from "@/server/db/registry";
 import { monthBounds } from "@/server/domain/budgets";
 import { createBudgetsService } from "@/server/domain/budgets";
 import { withAllowlist, type AllowlistCtx } from "@/server/db/allowlist";

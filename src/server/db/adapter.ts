@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import { env } from "@/lib/env";
 import type { Db, DbRow } from "@/server/db/types";
+import { registerDbProvider } from "@/server/db/registry";
 
 export type { Db, DbRow } from "@/server/db/types";
 
@@ -57,6 +58,10 @@ export function getDb(): Db {
   if (!_db) _db = new SqliteDb(env.DATABASE_PATH);
   return _db;
 }
+
+// Register the server Db provider for the shared registry (domain services use
+// getDb() from @/server/db/registry; the solo webview registers CapSqliteDb).
+registerDbProvider(getDb);
 
 /** Close + drop the singleton (used by backup/restore to swap the DB file). */
 export function resetDb(): void {

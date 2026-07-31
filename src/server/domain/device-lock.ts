@@ -1,5 +1,5 @@
-import { apiErrors } from "@/lib/api";
-import { getDb, type Db } from "@/server/db/adapter";
+import { apiErrors } from "@/lib/api-error";
+import { getDb, type Db } from "@/server/db/registry";
 import {
   derivePinHashHex,
   randomSaltHex,

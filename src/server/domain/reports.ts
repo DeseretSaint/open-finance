@@ -1,4 +1,4 @@
-import { getDb, type Db } from "@/server/db/adapter";
+import { getDb, type Db } from "@/server/db/registry";
 import { addMonthsISO, todayISO } from "@/server/domain/dates";
 import { withAllowlist, type AllowlistCtx } from "@/server/db/allowlist";
 

@@ -1,4 +1,4 @@
-import { getDb, type Db } from "@/server/db/adapter";
+import { getDb, type Db } from "@/server/db/registry";
 import { addMonthsISO, monthlyEquivalent, monthsBetween, todayISO } from "@/server/domain/dates";
 import { createPlanningService } from "@/server/domain/planning";
 
