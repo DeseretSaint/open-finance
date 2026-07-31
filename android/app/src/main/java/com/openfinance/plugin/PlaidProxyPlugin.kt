@@ -184,7 +184,8 @@ class PlaidProxyPlugin : Plugin() {
             val config = LinkTokenConfiguration.Builder()
                 .token(linkToken)
                 .build()
-            val handler = Plaid.create(activity.applicationContext, config)
+            val app = activity.application as android.app.Application
+            val handler = Plaid.create(app, config)
             pendingCall = call
             linkLauncher.launch(handler)
         } catch (e: Exception) {
