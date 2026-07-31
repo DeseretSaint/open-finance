@@ -28,6 +28,7 @@ COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
 COPY --from=build /app/migrations ./migrations
+COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/scripts/entrypoint.sh ./scripts/entrypoint.sh
 RUN chmod +x ./scripts/entrypoint.sh && mkdir -p /app/data && chown -R ofuser:ofuser /app/data
 USER ofuser

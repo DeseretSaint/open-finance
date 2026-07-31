@@ -3,11 +3,17 @@ import path from "path";
 import { randomUUID } from "node:crypto";
 import { createDb, SqliteDb, type Db } from "@/server/db/adapter";
 
-/** In-memory DB with the real schema applied (single exec of 001_init.sql). */
+/** In-memory DB with the real schema applied (all migrations, like production). */
 export function createTestDb(): Db {
   const db = createDb(":memory:");
-  const sql = fs.readFileSync(path.join(process.cwd(), "migrations", "001_init.sql"), "utf8");
-  (db as SqliteDb).exec(sql);
+  const files = fs
+    .readdirSync(path.join(process.cwd(), "migrations"))
+    .filter((f) => /^\d+_.*\.sql$/.test(f))
+    .sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+  for (const f of files) {
+    const sql = fs.readFileSync(path.join(process.cwd(), "migrations", f), "utf8");
+    (db as SqliteDb).exec(sql);
+  }
   return db;
 }
 

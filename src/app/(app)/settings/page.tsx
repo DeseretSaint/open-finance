@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { useTheme } from "@/components/providers";
+import { UpdatesCard } from "@/components/updates-card";
 
 interface Me {
   user: { display_name: string; username: string | null; email: string | null };
@@ -260,6 +261,7 @@ export default function SettingsPage() {
 
       <HubPanel setMsg={setMsg} setErr={setErr} />
       <BackupPanel setMsg={setMsg} setErr={setErr} />
+      <UpdatesCard />
 
       {msg && <p className="text-sm text-success lg:col-span-2">{msg}</p>}
       {err && <p className="text-sm text-danger lg:col-span-2">{err}</p>}

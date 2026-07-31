@@ -7,6 +7,7 @@ import { api } from "@/lib/api-client";
 import { Sidebar } from "@/components/sidebar";
 import { OfflineToast } from "@/components/offline-toast";
 import { DeviceLockGate } from "@/components/device-lock-gate";
+import { UpdateBanner } from "@/components/update-banner";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -29,6 +30,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <DeviceLockGate>
+      <UpdateBanner />
       <div className="flex h-screen bg-background text-text">
         <Sidebar />
         <main className="flex-1 overflow-y-auto p-6 md:p-8">
