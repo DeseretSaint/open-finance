@@ -51,6 +51,11 @@ export class SqliteDb implements Db {
     }
   }
 
+  /** Execute raw multi-statement SQL (schema application). Not on the Db interface. */
+  exec(sql: string): void {
+    this.db.exec(sql);
+  }
+
   close(): void {
     this.db.close();
   }
