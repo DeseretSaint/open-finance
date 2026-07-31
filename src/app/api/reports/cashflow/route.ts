@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { apiErrors, ok, route } from "@/lib/api";
-import { requireSession } from "@/server/auth/service";
+import { apiErrors, ok } from "@/lib/api";
+import { requireSessionOrAgent, agentRoute } from "@/server/authz/agent-auth";
 import { createReportsService } from "@/server/domain/reports";
 import { getDb } from "@/server/db/adapter";
 
@@ -11,15 +11,16 @@ const monthsSchema = z.object({
   months: z.coerce.number().int().min(1).max(36).default(6),
 });
 
+/** Monthly cashflow — user session or agent token (read:reports), allowlist-aware. */
 export async function GET(req: NextRequest) {
-  return route(async (req) => {
-    const session = await requireSession(req);
+  return agentRoute(async (req) => {
+    const auth = await requireSessionOrAgent(req, ["read:reports"], "get_cashflow");
     const raw = Object.fromEntries([...req.nextUrl.searchParams].filter(([, v]) => v !== ""));
     const parsed = monthsSchema.safeParse(raw);
-    if (!parsed.success) {
-      throw apiErrors.badRequest(parsed.error.issues.map((i) => i.message).join("; "));
-    }
-    const rows = await createReportsService(getDb()).cashflow(session.userId, parsed.data.months);
+    if (!parsed.success) throw apiErrors.badRequest(parsed.error.issues.map((i) => i.message).join("; "));
+    const userId = auth.kind === "agent" ? auth.ctx.userId : auth.userId;
+    const allowlist = auth.kind === "agent" ? auth.ctx.allowlist : null;
+    const rows = await createReportsService(getDb()).cashflow(userId, parsed.data.months, allowlist);
     return ok({ rows });
   })(req, { params: Promise.resolve({}) });
 }

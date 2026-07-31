@@ -38,6 +38,40 @@ export function createAccountsService(db: Db = getDb()) {
       );
     },
 
+    /**
+     * Agent-facing list: scoped by token scopes (read:investments only sees
+     * investment accounts unless read:banking is also held) AND account allowlist.
+     */
+    async listForAgent(userId: string, scopes: string[], accountIds: string[] | null): Promise<AccountRow[]> {
+      const conditions: string[] = ["a.user_id = ?"];
+      const params: unknown[] = [userId];
+      const seeBanking = scopes.includes("read:banking");
+      const seeInvestments = scopes.includes("read:investments");
+      if (!seeBanking && seeInvestments) {
+        conditions.push("a.type = 'investment'");
+      } else if (seeBanking && !seeInvestments) {
+        conditions.push("(a.type IS NULL OR a.type != 'investment')");
+      } else if (!seeBanking && !seeInvestments) {
+        conditions.push("0 = 1"); // no account scopes at all
+      }
+      if (accountIds !== null) {
+        if (accountIds.length === 0) {
+          conditions.push("0 = 1");
+        } else {
+          conditions.push(`a.id IN (${accountIds.map(() => "?").join(", ")})`);
+          params.push(...accountIds);
+        }
+      }
+      return db.all<AccountRow>(
+        `SELECT a.*, i.institution_name
+           FROM accounts a
+           LEFT JOIN plaid_items i ON i.id = a.item_id
+          WHERE ${conditions.join(" AND ")}
+          ORDER BY a.type, a.name COLLATE NOCASE`,
+        ...params
+      );
+    },
+
     async get(userId: string, id: string): Promise<AccountRow> {
       const row = await db.get<AccountRow>(
         `SELECT a.*, i.institution_name

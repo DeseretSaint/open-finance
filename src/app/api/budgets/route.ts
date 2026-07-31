@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { ok, parseBody, route } from "@/lib/api";
 import { requireCsrf, requireSession } from "@/server/auth/service";
+import { requireSessionOrAgent, agentRoute } from "@/server/authz/agent-auth";
 import { createBudgetsService } from "@/server/domain/budgets";
 import { getDb } from "@/server/db/adapter";
 
@@ -14,11 +15,13 @@ const createSchema = z.object({
   categoryIds: z.array(z.string()).optional(),
 });
 
+/** Budgets — user session, or agent token (read:budgets / budgets:write). */
 export async function GET(req: NextRequest) {
-  return route(async (req) => {
-    const session = await requireSession(req);
+  return agentRoute(async (req) => {
+    const auth = await requireSessionOrAgent(req, ["read:budgets"], "get_budgets");
     const reference = req.nextUrl.searchParams.get("referenceDate") ?? undefined;
-    const budgets = await createBudgetsService(getDb()).list(session.userId, reference);
+    const userId = auth.kind === "agent" ? auth.ctx.userId : auth.userId;
+    const budgets = await createBudgetsService(getDb()).list(userId, reference);
     return ok({ budgets });
   })(req, { params: Promise.resolve({}) });
 }

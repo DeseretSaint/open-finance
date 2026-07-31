@@ -26,6 +26,7 @@ export interface TransactionRow {
 
 export interface TransactionFilters {
   accountId?: string;
+  accountIds?: string[] | null; // agent allowlist
   from?: string;
   to?: string;
   categoryId?: string;
@@ -48,6 +49,14 @@ export function createTransactionsService(db: Db = getDb()) {
       if (f.accountId) {
         where.push("t.account_id = ?");
         params.push(f.accountId);
+      }
+      if (f.accountIds !== undefined && f.accountIds !== null) {
+        if (f.accountIds.length === 0) {
+          where.push("0 = 1");
+        } else {
+          where.push(`t.account_id IN (${f.accountIds.map(() => "?").join(", ")})`);
+          params.push(...f.accountIds);
+        }
       }
       if (f.from) {
         if (!DATE_RE.test(f.from)) throw apiErrors.badRequest("from must be YYYY-MM-DD");

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { ok, parseBody, route } from "@/lib/api";
 import { requireCsrf, requireSession } from "@/server/auth/service";
+import { requireSessionOrAgent, agentRoute } from "@/server/authz/agent-auth";
 import { createAccountsService } from "@/server/domain/accounts";
 import { getDb } from "@/server/db/adapter";
 
@@ -17,14 +18,20 @@ const createSchema = z.object({
   currency: z.string().optional(),
 });
 
+/** Accounts — user session, or agent token scoped by read:banking/read:investments + allowlist. */
 export async function GET(req: NextRequest) {
-  return route(async (req) => {
-    const session = await requireSession(req);
-    const accounts = await createAccountsService(getDb()).list(session.userId);
+  return agentRoute(async (req) => {
+    const auth = await requireSessionOrAgent(req, ["read:banking", "read:investments"], "list_accounts");
+    if (auth.kind === "session") {
+      const accounts = await createAccountsService(getDb()).list(auth.userId);
+      return ok({ accounts });
+    }
+    const accounts = await createAccountsService(getDb()).listForAgent(auth.ctx.userId, auth.ctx.scopes, auth.ctx.accountIds);
     return ok({ accounts });
   })(req, { params: Promise.resolve({}) });
 }
 
+/** Manual account create — user session only (registry: not agent-accessible). */
 export async function POST(req: NextRequest) {
   return route(async (req) => {
     const session = await requireSession(req);

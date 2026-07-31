@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { ok, parseBody, route } from "@/lib/api";
 import { requireCsrf, requireSession } from "@/server/auth/service";
+import { requireSessionOrAgent, agentRoute } from "@/server/authz/agent-auth";
 import { createPlanningService } from "@/server/domain/planning";
 import { getDb } from "@/server/db/adapter";
 
@@ -20,9 +21,9 @@ const createSchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
-  return route(async (req) => {
-    const session = await requireSession(req);
-    const goals = await createPlanningService(getDb()).listGoals(session.userId);
+  return agentRoute(async (req) => {
+    const auth = await requireSessionOrAgent(req, ["read:planning"], "get_planning_items");
+    const goals = await createPlanningService(getDb()).listGoals(auth.kind === "agent" ? auth.ctx.userId : auth.userId);
     return ok({ goals });
   })(req, { params: Promise.resolve({}) });
 }

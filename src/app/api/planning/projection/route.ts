@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { apiErrors, ok, route } from "@/lib/api";
-import { requireSession } from "@/server/auth/service";
+import { apiErrors, ok } from "@/lib/api";
+import { requireSessionOrAgent, agentRoute } from "@/server/authz/agent-auth";
 import { createProjectionService } from "@/server/domain/projection";
 import { getDb } from "@/server/db/adapter";
 
@@ -16,15 +16,15 @@ const querySchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
-  return route(async (req) => {
-    const session = await requireSession(req);
+  return agentRoute(async (req) => {
+    const auth = await requireSessionOrAgent(req, ["read:planning"], "get_planning_items");
     const raw = Object.fromEntries([...req.nextUrl.searchParams].filter(([, v]) => v !== ""));
     const parsed = querySchema.safeParse(raw);
     if (!parsed.success) {
       throw apiErrors.badRequest(parsed.error.issues.map((i) => i.message).join("; "));
     }
     const projection = await createProjectionService(getDb()).project(
-      session.userId,
+      auth.kind === "agent" ? auth.ctx.userId : auth.userId,
       parsed.data.months,
       parsed.data.includeGoals
     );

@@ -1,6 +1,7 @@
 import { getDb, type Db } from "@/server/db/adapter";
 import { monthBounds } from "@/server/domain/budgets";
 import { createBudgetsService } from "@/server/domain/budgets";
+import { withAllowlist, type AllowlistCtx } from "@/server/db/allowlist";
 
 /** Dashboard one-call briefing. */
 export interface Summary {
@@ -23,13 +24,24 @@ export interface Summary {
 
 export function createSummaryService(db: Db = getDb()) {
   return {
-    async get(userId: string, referenceDate: string = new Date().toISOString().slice(0, 10)): Promise<Summary> {
+    /**
+     * @param allowlist BYOA account allowlist (null = all accounts). Every
+     * account-derived figure flows through withAllowlist — the single choke point.
+     */
+    async get(
+      userId: string,
+      referenceDate: string = new Date().toISOString().slice(0, 10),
+      allowlist?: AllowlistCtx | null
+    ): Promise<Summary> {
       const { start, end } = monthBounds(referenceDate);
+      const allowAccounts = withAllowlist(allowlist ?? null, "id");
+      const allowTxns = withAllowlist(allowlist ?? null, "a.id");
 
       const totals = await db.all<{ type: string | null; balance: number }>(
         `SELECT type, COALESCE(SUM(current_balance_cents), 0) AS balance
-           FROM accounts WHERE user_id = ? GROUP BY type`,
-        userId
+           FROM accounts WHERE user_id = ?${allowAccounts.clause} GROUP BY type`,
+        userId,
+        ...allowAccounts.params
       );
       const byType: Record<string, number> = {};
       let totalBalanceCents = 0;
@@ -44,10 +56,12 @@ export function createSummaryService(db: Db = getDb()) {
            COALESCE(SUM(CASE WHEN t.amount_cents > 0 THEN t.amount_cents ELSE 0 END), 0) AS expense
            FROM transactions t
            JOIN accounts a ON a.id = t.account_id
-          WHERE a.user_id = ? AND t.date >= ? AND t.date < ? AND t.pending = 0 AND t.exclude_from_budgets = 0`,
+          WHERE a.user_id = ? AND t.date >= ? AND t.date < ? AND t.pending = 0 AND t.exclude_from_budgets = 0
+            ${allowTxns.clause}`,
         userId,
         start,
-        end
+        end,
+        ...allowTxns.params
       );
       const monthIncomeCents = month?.income ?? 0;
       const monthExpenseCents = month?.expense ?? 0;
@@ -67,10 +81,11 @@ export function createSummaryService(db: Db = getDb()) {
            FROM transactions t
            JOIN accounts a ON a.id = t.account_id
            LEFT JOIN categories c ON c.id = t.user_category_id
-          WHERE a.user_id = ?
+          WHERE a.user_id = ?${allowTxns.clause}
           ORDER BY t.date DESC, t.created_at DESC
           LIMIT 8`,
-        userId
+        userId,
+        ...allowTxns.params
       );
 
       return {

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { apiErrors, ok, parseBody, route } from "@/lib/api";
 import { requireCsrf, requireSession } from "@/server/auth/service";
+import { requireSessionOrAgent, agentRoute } from "@/server/authz/agent-auth";
 import { createTransactionsService } from "@/server/domain/transactions";
 import { getDb } from "@/server/db/adapter";
 
@@ -26,9 +27,10 @@ const createSchema = z.object({
   userNote: z.string().max(500).nullable().optional(),
 });
 
+/** Transactions — user session, or agent token (read:banking/read:investments + allowlist). */
 export async function GET(req: NextRequest) {
-  return route(async (req) => {
-    const session = await requireSession(req);
+  return agentRoute(async (req) => {
+    const auth = await requireSessionOrAgent(req, ["read:banking", "read:investments"], "list_transactions");
     const raw = Object.fromEntries(
       [...req.nextUrl.searchParams].filter(([, v]) => v !== "")
     );
@@ -36,7 +38,9 @@ export async function GET(req: NextRequest) {
     if (!parsed.success) {
       throw apiErrors.badRequest(parsed.error.issues.map((i) => i.message).join("; "));
     }
-    const result = await createTransactionsService(getDb()).list(session.userId, parsed.data);
+    const userId = auth.kind === "agent" ? auth.ctx.userId : auth.userId;
+    const filters = { ...parsed.data, accountIds: auth.kind === "agent" ? auth.ctx.accountIds : undefined };
+    const result = await createTransactionsService(getDb()).list(userId, filters);
     return ok(result);
   })(req, { params: Promise.resolve({}) });
 }

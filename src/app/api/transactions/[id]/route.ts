@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { noContent, ok, parseBody, parseParam, route } from "@/lib/api";
 import { requireCsrf, requireSession } from "@/server/auth/service";
+import { requireSessionOrAgent, agentRoute } from "@/server/authz/agent-auth";
 import { createTransactionsService } from "@/server/domain/transactions";
 import { getDb } from "@/server/db/adapter";
 
@@ -17,22 +18,26 @@ const updateSchema = z.object({
   accountId: z.string().optional(),
 });
 
+/** Single transaction — user session, or agent token (read:banking/read:investments). */
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  return route(async (req, ctx) => {
-    const session = await requireSession(req);
+  return agentRoute(async (req, ctx) => {
+    const auth = await requireSessionOrAgent(req, ["read:banking", "read:investments"], "get_transaction");
     const id = await parseParam(ctx, "id");
-    const transaction = await createTransactionsService(getDb()).get(session.userId, id);
+    const userId = auth.kind === "agent" ? auth.ctx.userId : auth.userId;
+    const transaction = await createTransactionsService(getDb()).get(userId, id);
     return ok({ transaction });
   })(req, ctx);
 }
 
+/** Edit category/note/exclude — user session, or agent token (transactions:edit). */
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  return route(async (req, ctx) => {
-    const session = await requireSession(req);
-    requireCsrf(req);
+  return agentRoute(async (req, ctx) => {
+    const auth = await requireSessionOrAgent(req, ["transactions:edit"], "set_transaction_category");
+    if (auth.kind === "session") requireCsrf(req);
     const id = await parseParam(ctx, "id");
     const body = await parseBody(updateSchema, req);
-    const transaction = await createTransactionsService(getDb()).update(session.userId, id, body);
+    const userId = auth.kind === "agent" ? auth.ctx.userId : auth.userId;
+    const transaction = await createTransactionsService(getDb()).update(userId, id, body);
     return ok({ transaction });
   })(req, ctx);
 }
