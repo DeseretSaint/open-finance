@@ -20,6 +20,14 @@ const eslintConfig = [
       "next-env.d.ts",
     ],
   },
+  {
+    // Plain-JS runner scripts (migrations, entrypoints) legitimately use require().
+    files: ["migrations/**/*.js", "scripts/**/*.js", "site/**"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+      "@typescript-eslint/no-var-requires": "off",
+    },
+  },
 ];
 
 export default eslintConfig;

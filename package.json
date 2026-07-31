@@ -9,8 +9,12 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
-    "start": "next start",
-    "lint": "eslint"
+    "start": "node .next/standalone/server.js",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "migrate": "node migrations/up.js",
+    "seed": "node scripts/seed.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "~1.10.2",
@@ -37,13 +41,20 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@google/design.md": "^0.4.0",
+    "@playwright/test": "^1.62.0",
     "@tailwindcss/postcss": "^4",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.5.22",
+    "playwright": "^1.62.0",
+    "sharp": "^0.35.3",
+    "supertest": "^7.2.2",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }
