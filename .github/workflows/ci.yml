@@ -46,7 +46,7 @@ jobs:
         run: pnpm dlx @google/design.md lint docs/DESIGN.md
 
       - name: Dependency audit
-        run: pnpm audit --prod || true
+        run: pnpm audit --prod
 
       - name: Secret scan
         uses: gitleaks/gitleaks-action@v2
