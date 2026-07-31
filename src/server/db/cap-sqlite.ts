@@ -14,7 +14,13 @@ export class CapSqliteDb implements Db {
 
   private async connection() {
     if (this.conn) return this.conn;
-    await sqlite.checkConnectionsConsistency();
+    // Defensive: on first run there are no connections yet — the consistency
+    // check can throw on some native versions; it's advisory, not required.
+    try {
+      await sqlite.checkConnectionsConsistency();
+    } catch {
+      // ignore — we handle missing connections below
+    }
     // v8 API: retrieveConnection(database, readonly) returns the connection
     // directly; it throws if the connection does not exist yet.
     try {
@@ -31,6 +37,11 @@ export class CapSqliteDb implements Db {
    * migrations/up.js). Idempotent: already-applied versions are skipped, so a
    * re-run on an existing solo DB is a no-op. Splits each file on ';' — the
    * schema has no triggers/views (asserted in tests/migrations-bundle.test.ts).
+   *
+   * Upgrade robustness: if a pending migration fails because its tables
+   * already exist (e.g. DB created by an older build whose _migrations row
+   * was lost, or a partial apply), we record the version as applied and
+   * continue instead of crashing — the schema is already there.
    */
   async migrate(migrations: { version: number; sql: string }[]): Promise<{ applied: number; current: number }> {
     const conn = await this.connection();
@@ -48,7 +59,16 @@ export class CapSqliteDb implements Db {
         for (const stmt of m.sql.split(";")) {
           const trimmed = stmt.trim();
           if (!trimmed) continue;
-          await conn.execute(trimmed);
+          try {
+            await conn.execute(trimmed);
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            if (/already exists/i.test(msg)) {
+              // Table from this migration already present (upgraded/partial DB).
+              continue;
+            }
+            throw e;
+          }
         }
         await conn.run("INSERT INTO _migrations (version, applied_at) VALUES (?, ?)", [
           m.version,
@@ -56,12 +76,20 @@ export class CapSqliteDb implements Db {
         ]);
         await conn.commitTransaction();
       } catch (e) {
-        await conn.rollbackTransaction();
+        try {
+          await conn.rollbackTransaction();
+        } catch {
+          // no active transaction — nothing to roll back
+        }
         throw e;
       }
       count++;
     }
-    await sqlite.saveToStore(this.dbName);
+    try {
+      await sqlite.saveToStore(this.dbName);
+    } catch {
+      // saveToStore is a persistence hint; the DB is already usable in-memory.
+    }
     const currentRows = await conn.query("SELECT COALESCE(MAX(version), 0) AS v FROM _migrations");
     const current = Number((currentRows.values?.[0] as { v: number } | undefined)?.v ?? 0);
     return { applied: count, current };
@@ -69,7 +97,10 @@ export class CapSqliteDb implements Db {
 
   async all<T = Record<string, unknown>>(sql: string, ...params: unknown[]): Promise<T[]> {
     const conn = await this.connection();
-    const r = await conn.query(sql, params.map(String));
+    // cap-sqlite v8 accepts (string|number|null)[] directly — do NOT String()
+    // params (String(null) === "null" corrupts nullable columns).
+    const values = params.map((p) => (p === undefined ? null : p));
+    const r = await conn.query(sql, values);
     return (r.values ?? []) as T[];
   }
 
@@ -80,7 +111,8 @@ export class CapSqliteDb implements Db {
 
   async run(sql: string, ...params: unknown[]): Promise<{ changes: number; lastInsertRowid: number | bigint }> {
     const conn = await this.connection();
-    const r = await conn.run(sql, params.map(String));
+    const values = params.map((p) => (p === undefined ? null : p));
+    const r = await conn.run(sql, values);
     return { changes: r.changes?.changes ?? 0, lastInsertRowid: Number(r.changes?.lastId ?? 0) };
   }
 

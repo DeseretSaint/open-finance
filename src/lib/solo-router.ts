@@ -66,8 +66,12 @@ function toApiError(e: unknown): { status: number; code: string; message: string
   if (e instanceof ApiError) {
     return { status: e.status, code: e.code, message: e.message };
   }
+  // Local-only app: surface the real message so on-device debugging is
+  // possible (the server route layer keeps the generic "Something went
+  // wrong." for remote clients; here there is no remote client).
+  const msg = e instanceof Error ? e.message : String(e);
   console.error("Unhandled solo router error:", e);
-  return { status: 500, code: "internal", message: "Something went wrong." };
+  return { status: 500, code: "internal", message: msg || "Something went wrong." };
 }
 
 function ok(data: unknown, status = 200): SoloResponse {
