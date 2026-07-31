@@ -1,0 +1,41 @@
+import { NextRequest } from "next/server";
+import { z } from "zod";
+import { apiErrors, ok, parseBody, route } from "@/lib/api";
+import { requireCsrf } from "@/server/auth/service";
+import { hashSecret } from "@/lib/crypto";
+import { getDb } from "@/server/db/adapter";
+import { createSession } from "@/server/auth/sessions";
+import { PAIRING_TTL_MS } from "@/lib/pairing";
+
+export const runtime = "nodejs";
+
+const acceptSchema = z.object({
+  code: z.string().min(8).max(200),
+  deviceLabel: z.string().max(100).optional(),
+});
+
+/** Accept a pairing code from a phone: single-use, 10-min TTL, creates a hub session. */
+export async function POST(req: NextRequest) {
+  return route(async (req) => {
+    requireCsrf(req);
+    const body = await parseBody(acceptSchema, req);
+    const db = getDb();
+    const codeHash = hashSecret(body.code);
+    const row = await db.get<{ user_id: string; expires_at: string; used: number }>(
+      "SELECT user_id, expires_at, used FROM pairing_codes WHERE code_hash = ?",
+      codeHash
+    );
+    if (!row) throw apiErrors.notFound("Pairing code");
+    if (row.used) throw apiErrors.badRequest("This pairing code has already been used.");
+    if (new Date(row.expires_at).getTime() < Date.now()) throw apiErrors.badRequest("This pairing code has expired.");
+    if (new Date(row.expires_at).getTime() < Date.now() - PAIRING_TTL_MS) {
+      // stale row cleanup
+      await db.run("DELETE FROM pairing_codes WHERE code_hash = ?", codeHash);
+      throw apiErrors.badRequest("This pairing code has expired.");
+    }
+
+    await db.run("UPDATE pairing_codes SET used = 1 WHERE code_hash = ?", codeHash);
+    const session = await createSession(row.user_id, "30d", body.deviceLabel ?? "Paired phone", db);
+    return ok({ userId: row.user_id, token: session.token, expiresAt: session.expiresAt });
+  })(req, { params: Promise.resolve({}) });
+}

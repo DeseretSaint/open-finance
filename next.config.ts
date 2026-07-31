@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import path from "node:path";
+import withSerwistInit from "@serwist/next";
 
 const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
@@ -22,6 +23,18 @@ const securityHeaders = [
   },
 ];
 
+/**
+ * PWA is desktop-local only (service workers need a secure context, so the
+ * launcher opens localhost). Hub/web/LAN/Tailscale never register the SW.
+ */
+const withSerwist = withSerwistInit({
+  swSrc: "src/app/sw.ts",
+  swDest: "public/sw.js",
+  disable: process.env.NODE_ENV !== "production",
+  reloadOnOnline: true,
+  register: false, // we register manually, gated to localhost (see app/layout.tsx)
+});
+
 const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: path.join(__dirname),
@@ -31,4 +44,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSerwist(nextConfig);

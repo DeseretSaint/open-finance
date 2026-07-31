@@ -117,14 +117,14 @@ insAcc.run(checking, demoUserId, "Checking", "depository", 421350, 421350, now()
 insAcc.run(savings, demoUserId, "Savings", "depository", 1250000, 1250000, now());
 insAcc.run(credit, demoUserId, "Credit Card", "credit", -84325, -84325, now());
 
-// ── transactions: 3 months before seed date ────────────────────────────────
+// ── transactions: 3 months before seed date + the seed month itself ─────────
 const insTxn = db.prepare(
   `INSERT INTO transactions (id, account_id, plaid_transaction_id, amount_cents, date, authorized_date, name, merchant_name,
      category_path, personal_finance_category, pending, user_category_id, user_note, exclude_from_budgets, source, created_at)
    VALUES (?, ?, NULL, ?, ?, NULL, ?, NULL, NULL, NULL, 0, ?, NULL, 0, 'manual', ?)`
 );
 // income: 2 paychecks/mo × 3 months
-for (let m = 3; m >= 1; m--) {
+for (let m = 3; m >= 0; m--) {
   const monthStart = addMonths(seedDate, -m);
   const y = monthStart.slice(0, 4);
   const mo = monthStart.slice(5, 7);

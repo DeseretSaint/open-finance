@@ -69,6 +69,20 @@ export function getDb(): Db {
   return _db;
 }
 
+/** Close + drop the singleton (used by backup/restore to swap the DB file). */
+export function resetDb(): void {
+  if (_db) {
+    _db.close();
+    _db = null;
+  }
+}
+
+/** Access the underlying SqliteDb instance for file-level ops (backup/restore). */
+export function getSqliteDb(): SqliteDb {
+  const db = getDb() as SqliteDb;
+  return db;
+}
+
 /** Create an isolated instance (used by tests and the migration runner). */
 export function createDb(path: string): SqliteDb {
   return new SqliteDb(path);

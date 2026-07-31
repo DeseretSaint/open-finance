@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlaidLink } from "react-plaid-link";
 import { api } from "@/lib/api-client";
@@ -258,8 +258,225 @@ export default function SettingsPage() {
         </div>
       </Card>
 
+      <HubPanel setMsg={setMsg} setErr={setErr} />
+      <BackupPanel setMsg={setMsg} setErr={setErr} />
+
       {msg && <p className="text-sm text-success lg:col-span-2">{msg}</p>}
       {err && <p className="text-sm text-danger lg:col-span-2">{err}</p>}
     </div>
+  );
+}
+
+// ── Connection Assistant (hub setup — no env editing) ──────────────────────
+
+function HubPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; setErr: (s: string | null) => void }) {
+  const qc = useQueryClient();
+  const [mode, setMode] = useState<"solo" | "hub">("solo");
+  const [hubUrl, setHubUrl] = useState("");
+
+  const diagnostics = useQuery({
+    queryKey: ["hub", "diagnostics"],
+    queryFn: () =>
+      api.get<{
+        mode: string;
+        savedUrl: string | null;
+        bindAddress: string;
+        publicUrl: string;
+        lanIps: string[];
+        tailscaleUp: boolean;
+        tailscale: { name: string | null; ip: string | null } | null;
+      }>("/api/hub/diagnostics"),
+  });
+  const detect = useQuery({
+    queryKey: ["hub", "detect"],
+    queryFn: () =>
+      api.get<{ lanIps: string[]; tailscale: { name: string | null; ip: string | null } | null; preferredUrl: string }>(
+        "/api/hub/detect"
+      ),
+  });
+
+  const apply = useMutation({
+    mutationFn: () => api.post("/api/hub/apply", { mode, url: mode === "hub" ? hubUrl : "" }),
+    onSuccess: () => {
+      setMsg("Hub mode saved — restart the app for the new bind address to take effect.");
+      qc.invalidateQueries({ queryKey: ["hub"] });
+    },
+    onError: (e) => setErr(e instanceof Error ? e.message : "Failed."),
+  });
+
+  const startPairing = useMutation({
+    mutationFn: () => api.post<{ code: string; url: string; ttlSeconds: number }>("/api/pairing/start"),
+    onSuccess: (d) => {
+      setMsg(`Pairing code: ${d.code} — scan the QR or open ${d.url} on your phone (valid ${d.ttlSeconds / 60} min).`);
+      qc.invalidateQueries({ queryKey: ["hub"] });
+    },
+    onError: (e) => setErr(e instanceof Error ? e.message : "Failed."),
+  });
+
+  const d = diagnostics.data;
+  const preferred = detect.data?.preferredUrl ?? "";
+
+  return (
+    <Card className="lg:col-span-2">
+      <CardTitle>Hub &amp; phone pairing (Connection Assistant)</CardTitle>
+      <p className="mt-1 text-sm text-text-muted">
+        Run as a solo desktop app, or host for your phone. No env-file editing — it&apos;s a Settings action.
+      </p>
+
+      <div className="mt-4 flex flex-wrap gap-3">
+        <button
+          onClick={() => setMode("solo")}
+          className={`flex-1 rounded-lg border px-4 py-3 text-left text-sm transition-colors ${
+            mode === "solo" ? "border-accent bg-accent/5" : "border-border hover:bg-surface-muted"
+          }`}
+        >
+          <p className="font-medium text-text">☝ Solo</p>
+          <p className="mt-0.5 text-xs text-text-muted">This machine only — localhost, no network exposure.</p>
+        </button>
+        <button
+          onClick={() => {
+            setMode("hub");
+            if (!hubUrl && preferred) setHubUrl(preferred);
+          }}
+          className={`flex-1 rounded-lg border px-4 py-3 text-left text-sm transition-colors ${
+            mode === "hub" ? "border-accent bg-accent/5" : "border-border hover:bg-surface-muted"
+          }`}
+        >
+          <p className="font-medium text-text">📱 Host for my phone</p>
+          <p className="mt-0.5 text-xs text-text-muted">LAN or Tailscale — pair by QR, sync anywhere.</p>
+        </button>
+      </div>
+
+      {mode === "hub" && (
+        <div className="mt-4 space-y-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-64 flex-1">
+              <label className="mb-1 block text-xs text-text-muted">Hub URL (detected automatically)</label>
+              <Input value={hubUrl} onChange={(e) => setHubUrl(e.target.value)} placeholder="http://192.168.x.x:3000" />
+            </div>
+            <Button onClick={() => apply.mutate()} disabled={apply.isPending || !hubUrl}>
+              {apply.isPending ? "Saving…" : "Apply hub mode"}
+            </Button>
+            <Button variant="secondary" onClick={() => startPairing.mutate()} disabled={startPairing.isPending}>
+              {startPairing.isPending ? "Creating…" : "Generate pairing QR"}
+            </Button>
+          </div>
+          {detect.data && (
+            <p className="text-xs text-text-muted">
+              Detected: LAN {detect.data.lanIps.join(", ") || "—"}
+              {detect.data.tailscale
+                ? ` · Tailscale ${detect.data.tailscale.name ?? ""} (${detect.data.tailscale.ip ?? ""})`
+                : " · Tailscale not found (install for anywhere access)"}
+            </p>
+          )}
+        </div>
+      )}
+
+      {d && (
+        <div className="mt-4 rounded-lg bg-surface-muted px-4 py-3 text-xs text-text-muted">
+          <p>
+            Mode: <span className="font-medium text-text">{d.mode}</span> · Bind: {d.bindAddress} · Public URL:{" "}
+            {d.publicUrl}
+            {d.tailscaleUp ? " · Tailscale: up" : " · Tailscale: down"}
+          </p>
+          <p className="mt-1">
+            LAN IPs: {d.lanIps.join(", ") || "—"}
+            {d.savedUrl ? ` · Saved URL: ${d.savedUrl}` : ""}
+          </p>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ── Backup & restore ────────────────────────────────────────────────────────
+
+function BackupPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; setErr: (s: string | null) => void }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  function download() {
+    fetch("/api/backup", { credentials: "same-origin" })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Backup failed.");
+        const blob = await res.blob();
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `open-finance-${new Date().toISOString().slice(0, 10)}.ofbak`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        setMsg("Backup downloaded. Keep it with the same ENCRYPTION_KEY that created it.");
+      })
+      .catch((e) => setErr(e instanceof Error ? e.message : "Backup failed."));
+  }
+
+  async function restore() {
+    const file = fileRef.current?.files?.[0];
+    if (!file || !password) {
+      setErr("Choose a backup file and enter your password.");
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("password", password);
+      const res = await fetch("/api/backup/restore", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "x-of-request": "1" },
+        body: form,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error?.message ?? "Restore failed.");
+      }
+      setMsg("Database restored. A pre-restore backup was saved next to the database. Reloading…");
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Restore failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="lg:col-span-2">
+      <CardTitle>Backup &amp; restore</CardTitle>
+      <p className="mt-1 text-sm text-text-muted">
+        Download an encrypted snapshot of your whole database. Restoring replaces everything — a safety backup is
+        written first, and your password is required. Restore only on a machine with the same ENCRYPTION_KEY.
+      </p>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <Button variant="secondary" onClick={download}>
+          ⬇ Download backup (.ofbak)
+        </Button>
+      </div>
+      <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-border pt-4">
+        <div className="min-w-48 flex-1">
+          <label className="mb-1 block text-xs text-text-muted">Backup file</label>
+          <input ref={fileRef} type="file" accept=".ofbak" className="text-sm text-text-muted" />
+        </div>
+        <div className="min-w-48 flex-1">
+          <label className="mb-1 block text-xs text-text-muted">Confirm password</label>
+          <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Your account password" />
+        </div>
+        <label className="flex items-center gap-2 pb-2 text-sm text-text-muted">
+          <input type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} />
+          I understand this replaces my data
+        </label>
+        <Button
+          variant="secondary"
+          className="text-danger"
+          disabled={busy || !confirm || !password}
+          onClick={restore}
+        >
+          {busy ? "Restoring…" : "Restore from backup"}
+        </Button>
+      </div>
+    </Card>
   );
 }
