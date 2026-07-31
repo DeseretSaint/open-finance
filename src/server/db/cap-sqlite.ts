@@ -3,6 +3,17 @@
 // SAME SQL from src/server/domain runs on Android with zero query changes.
 // The Next server keeps better-sqlite3 (SqliteDb); this adapter is used only
 // when the webview runs in solo mode on a device (see src/lib/mobile-mode.ts).
+//
+// TRANSACTION MODEL (critical, learned the hard way):
+// cap-sqlite's Connection.run() and Connection.execute() both default to
+// transaction=true — they wrap themselves in a BEGIN/COMMIT. That breaks two
+// patterns used by the domain layer:
+//   - db.transaction(fn) (bootstrap, budgets.create, …) calls
+//     conn.beginTransaction() and then db.run(...) inside fn → the inner
+//     run's own BEGIN throws "Already in transaction" and rolls back the
+//     outer transaction (the v1.4/v1.5 on-device bugs).
+// So: run/execute are ALWAYS called with transaction=false here. Standalone
+// statements autocommit; db.transaction(fn) is the single transaction layer.
 import type { Db } from "@/server/db/types";
 import { CapacitorSQLite, SQLiteConnection } from "@capacitor-community/sqlite";
 
@@ -38,29 +49,51 @@ export class CapSqliteDb implements Db {
    * re-run on an existing solo DB is a no-op. Splits each file on ';' — the
    * schema has no triggers/views (asserted in tests/migrations-bundle.test.ts).
    *
-   * NO manual beginTransaction/commitTransaction here: the cap-sqlite native
-   * `execute`/`run` both wrap themselves in a transaction (transaction=true
-   * default), so nesting would throw "Already in transaction" and roll back
-   * the DDL — the observed on-device bug (tables missing, _migrations present).
-   * Each statement commits atomically; if one fails, the "already exists"
-   * tolerance + version tracking make a re-run recover cleanly.
+   * Each statement runs with transaction=false (autocommit) — never nested
+   * inside an outer transaction. If a statement fails because its table
+   * already exists (partial/upgraded DB), we tolerate it and continue.
+   *
+   * Self-healing: if a migration version is recorded but its tables are
+   * actually missing (e.g. a previous build rolled the DDL back), the version
+   * is re-applied — recorded versions are only trusted when a sentinel table
+   * from that migration exists.
    */
   async migrate(migrations: { version: number; sql: string }[]): Promise<{ applied: number; current: number }> {
     const conn = await this.connection();
-    await conn.execute(
-      "CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)"
-    );
+    await conn.execute("CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)", false);
     const rows = await conn.query("SELECT version FROM _migrations");
     const applied = new Set((rows.values ?? []).map((r) => Number((r as { version: number }).version)));
 
+    // Sentinel tables per migration — used to re-apply versions whose DDL was
+    // rolled back by a broken build. Map version → first table it creates.
+    const sentinels: Record<number, string> = {};
+    for (const m of migrations) {
+      const create = m.sql.match(/CREATE TABLE(?: IF NOT EXISTS)?\s+([A-Za-z_]+)/i);
+      if (create) sentinels[m.version] = create[1];
+    }
+
     let count = 0;
     for (const m of [...migrations].sort((a, b) => a.version - b.version)) {
-      if (applied.has(m.version)) continue;
+      const sentinel = sentinels[m.version];
+      let reallyApplied = false;
+      if (sentinel) {
+        const check = await conn.query(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+          [sentinel]
+        );
+        reallyApplied = (check.values ?? []).length > 0;
+      }
+      if (applied.has(m.version) && reallyApplied) continue;
+      if (applied.has(m.version) && !reallyApplied) {
+        // Version recorded but DDL missing (broken previous build) — re-apply.
+        await conn.run("DELETE FROM _migrations WHERE version = ?", [m.version], false);
+      }
+
       for (const stmt of m.sql.split(";")) {
         const trimmed = stmt.trim();
         if (!trimmed) continue;
         try {
-          await conn.execute(trimmed);
+          await conn.execute(trimmed, false);
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           if (/already exists/i.test(msg)) {
@@ -73,7 +106,7 @@ export class CapSqliteDb implements Db {
       await conn.run("INSERT INTO _migrations (version, applied_at) VALUES (?, ?)", [
         m.version,
         new Date().toISOString(),
-      ]);
+      ], false);
       count++;
     }
     try {
@@ -103,7 +136,9 @@ export class CapSqliteDb implements Db {
   async run(sql: string, ...params: unknown[]): Promise<{ changes: number; lastInsertRowid: number | bigint }> {
     const conn = await this.connection();
     const values = params.map((p) => (p === undefined ? null : p));
-    const r = await conn.run(sql, values);
+    // transaction=false: autocommit when standalone, joins the outer
+    // transaction when called inside db.transaction(fn).
+    const r = await conn.run(sql, values, false);
     return { changes: r.changes?.changes ?? 0, lastInsertRowid: Number(r.changes?.lastId ?? 0) };
   }
 
@@ -115,7 +150,11 @@ export class CapSqliteDb implements Db {
       await conn.commitTransaction();
       return result;
     } catch (e) {
-      await conn.rollbackTransaction();
+      try {
+        await conn.rollbackTransaction();
+      } catch {
+        // no active transaction — nothing to roll back
+      }
       throw e;
     }
   }
