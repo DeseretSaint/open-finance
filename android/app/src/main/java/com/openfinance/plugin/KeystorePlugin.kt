@@ -5,7 +5,7 @@
 package com.openfinance.plugin
 
 import android.content.Context
-import android.util.Base64
+import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.getcapacitor.JSObject
@@ -17,14 +17,14 @@ import com.getcapacitor.annotation.CapacitorPlugin
 @CapacitorPlugin(name = "Keystore")
 class KeystorePlugin : Plugin() {
 
-    private fun prefs(): androidx.security.crypto.SharedPreferences? {
-        val context: Context = context ?: return null
+    private fun prefs(): SharedPreferences? {
+        val ctx: Context = context ?: return null
         return try {
-            val masterKey = MasterKey.Builder(context)
+            val masterKey = MasterKey.Builder(ctx)
                 .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
                 .build()
             EncryptedSharedPreferences.create(
-                context,
+                ctx,
                 "of_keystore",
                 masterKey,
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
