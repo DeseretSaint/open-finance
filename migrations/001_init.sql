@@ -60,6 +60,7 @@ CREATE TABLE plaid_items (
 
 CREATE TABLE accounts (
   id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
   item_id TEXT,
   plaid_account_id TEXT UNIQUE,
   name TEXT NOT NULL,
@@ -72,6 +73,7 @@ CREATE TABLE accounts (
   currency TEXT NOT NULL DEFAULT 'USD',
   created_at TEXT NOT NULL
 );
+CREATE INDEX idx_accounts_user ON accounts(user_id);
 
 CREATE TABLE balance_history (
   id TEXT PRIMARY KEY,

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 export class ApiError extends Error {
   constructor(
@@ -32,6 +33,30 @@ export function ok<T>(data: T, init?: ResponseInit): NextResponse {
 
 export function noContent(): NextResponse {
   return new NextResponse(null, { status: 204 });
+}
+
+/** Parse a JSON body against a zod schema; converts ZodError to a 400 ApiError. */
+export async function parseBody<T>(schema: z.ZodType<T>, req: Request): Promise<T> {
+  let raw: unknown;
+  try {
+    raw = await req.json();
+  } catch {
+    throw apiErrors.badRequest("Request body must be valid JSON.");
+  }
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    const detail = parsed.error.issues.map((i) => i.message).join("; ");
+    throw apiErrors.badRequest(detail || "Invalid request body.");
+  }
+  return parsed.data;
+}
+
+/** Parse a route param (e.g. sessions/[id]) into a plain string. */
+export async function parseParam(ctx: { params: Promise<Record<string, string>> }, name: string): Promise<string> {
+  const params = await ctx.params;
+  const value = params[name];
+  if (!value) throw apiErrors.badRequest(`Missing :${name} parameter.`);
+  return value;
 }
 
 /** Wrap a route handler: converts ApiError to the standard error envelope and
