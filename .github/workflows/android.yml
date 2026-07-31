@@ -13,6 +13,10 @@ concurrency:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
+    env:
+      ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
     steps:
       - uses: actions/checkout@v4
 
@@ -49,11 +53,7 @@ jobs:
         run: ./gradlew assembleDebug --no-daemon
 
       - name: Sign release APK (guarded — needs secrets)
-        if: ${{ secrets.ANDROID_KEYSTORE_B64 != '' }}
-        env:
-          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        if: ${{ env.ANDROID_KEYSTORE_B64 != '' }}
         run: |
           echo "$ANDROID_KEYSTORE_B64" | base64 -d > android/keystore.jks
           ./android/gradlew -p android assembleRelease \
