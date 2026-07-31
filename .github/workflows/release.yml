@@ -4,6 +4,12 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      cap_server_url:
+        description: "Hub URL for the release APK (e.g. http://100.101.147.65:3000). Empty = bundled/solo build."
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -47,6 +53,8 @@ jobs:
 
   apk:
     uses: ./.github/workflows/apk-build.yml
+    with:
+      cap_server_url: ${{ inputs.cap_server_url || '' }}
     secrets: inherit
 
   release:
