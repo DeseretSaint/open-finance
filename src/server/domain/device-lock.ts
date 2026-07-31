@@ -1,6 +1,10 @@
-import { pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
 import { apiErrors } from "@/lib/api";
 import { getDb, type Db } from "@/server/db/adapter";
+import {
+  derivePinHashHex,
+  randomSaltHex,
+  timingSafeEqualHex,
+} from "@/lib/pin-crypto";
 
 /**
  * Device lock (mobile, P8a §10.4) — PIN at rest via PBKDF2-SHA256 100k +
@@ -9,9 +13,6 @@ import { getDb, type Db } from "@/server/db/adapter";
  * prompt on the device — we only store the enabled flag.
  */
 
-const ITERATIONS = 100_000;
-const KEYLEN = 32;
-const SALT_BYTES = 16;
 const PIN_RE = /^\d{4,12}$/;
 const MAX_ATTEMPTS = 5;
 const BASE_LOCK_MS = 30_000;
@@ -27,8 +28,8 @@ export interface DeviceLockRow {
   updated_at: string;
 }
 
-export function derivePinHash(pin: string, salt: string): string {
-  return pbkdf2Sync(pin, salt, ITERATIONS, KEYLEN, "sha256").toString("hex");
+export function derivePinHash(pin: string, salt: string): Promise<string> {
+  return derivePinHashHex(pin, salt);
 }
 
 function lockMsFor(failed: number): number {
@@ -46,8 +47,8 @@ export function createDeviceLockService(db: Db = getDb()) {
     /** Set or change the PIN. Returns nothing; caller decides session handling. */
     async setPin(userId: string, pin: string): Promise<void> {
       if (!PIN_RE.test(pin)) throw apiErrors.badRequest("PIN must be 4–12 digits.");
-      const salt = randomBytes(SALT_BYTES).toString("hex");
-      const hash = derivePinHash(pin, salt);
+      const salt = randomSaltHex();
+      const hash = await derivePinHash(pin, salt);
       const existing = await this.get(userId);
       if (existing) {
         await db.run(
@@ -97,9 +98,9 @@ export function createDeviceLockService(db: Db = getDb()) {
         row.locked_until = null;
       }
 
-      const expected = Buffer.from(row.pin_hash, "hex");
-      const actual = Buffer.from(derivePinHash(pin, row.pin_salt!), "hex");
-      const ok = expected.length === actual.length && timingSafeEqual(expected, actual);
+      const expected = row.pin_hash;
+      const actual = await derivePinHash(pin, row.pin_salt!);
+      const ok = timingSafeEqualHex(expected, actual);
 
       if (!ok) {
         const failed = row.failed_attempts + 1;

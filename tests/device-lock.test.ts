@@ -62,10 +62,10 @@ describe("device lock (P8a)", () => {
     expect((await svc.state(user.id)).biometricEnabled).toBe(false);
   });
 
-  it("derivePinHash is deterministic and differs across salts", () => {
-    const a = derivePinHash("1234", "salt1");
-    const b = derivePinHash("1234", "salt1");
-    const c = derivePinHash("1234", "salt2");
+  it("derivePinHash is deterministic and differs across salts", async () => {
+    const a = await derivePinHash("1234", "salt1");
+    const b = await derivePinHash("1234", "salt1");
+    const c = await derivePinHash("1234", "salt2");
     expect(a).toBe(b);
     expect(a).not.toBe(c);
   });

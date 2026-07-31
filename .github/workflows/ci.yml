@@ -33,6 +33,9 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Migration bundle parity (solo schema == migrations/)
+        run: pnpm check:migrations
+
       - name: Unit & integration tests
         env:
           ENCRYPTION_KEY: ci-test-encryption-key

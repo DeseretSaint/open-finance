@@ -1,19 +1,8 @@
 import Database from "better-sqlite3";
 import { env } from "@/lib/env";
+import type { Db, DbRow } from "@/server/db/types";
 
-export interface DbRow {
-  [key: string]: unknown;
-}
-
-export interface Db {
-  all<T = DbRow>(sql: string, ...params: unknown[]): Promise<T[]>;
-  get<T = DbRow>(sql: string, ...params: unknown[]): Promise<T | undefined>;
-  run(
-    sql: string,
-    ...params: unknown[]
-  ): Promise<{ changes: number; lastInsertRowid: number | bigint }>;
-  transaction<T>(fn: () => Promise<T>): Promise<T>;
-}
+export type { Db, DbRow } from "@/server/db/types";
 
 /** Async adapter over better-sqlite3 (sync internals, async surface so the
  *  same interface can be implemented with cap-sqlite on Android). */

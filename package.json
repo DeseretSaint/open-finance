@@ -15,10 +15,13 @@
     "test": "vitest run",
     "migrate": "node migrations/up.js",
     "seed": "node scripts/seed.js",
+    "gen:migrations": "node scripts/gen-migrations-bundle.mjs",
+    "check:migrations": "node scripts/gen-migrations-bundle.mjs --check",
     "screenshots": "node scripts/screenshots.mjs",
     "og:image": "node scripts/og-crop.js"
   },
   "dependencies": {
+    "@capacitor-community/sqlite": "^8.1.0",
     "@capacitor/app": "7.1.2",
     "@capacitor/core": "7.6.8",
     "@capacitor/preferences": "7.0.4",

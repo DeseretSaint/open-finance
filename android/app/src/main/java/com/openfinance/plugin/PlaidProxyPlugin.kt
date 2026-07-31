@@ -6,12 +6,18 @@
 
 package com.openfinance.plugin
 
-import android.content.Context
+import androidx.activity.result.ActivityResultLauncher
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
+import com.plaid.link.FastOpenPlaidLink
+import com.plaid.link.Plaid
+import com.plaid.link.PlaidHandler
+import com.plaid.link.configuration.LinkTokenConfiguration
+import com.plaid.link.result.LinkExit
+import com.plaid.link.result.LinkSuccess
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -164,6 +170,57 @@ class PlaidProxyPlugin : Plugin() {
             call.resolve(JSObject().put("removed", true))
         } catch (e: Exception) {
             call.reject(e.message ?: "remove failed")
+        }
+    }
+
+    // launchLink(linkToken) — opens native Plaid Link via LinkKit (v5 handler
+    // API: FastOpenPlaidLink contract + PlaidHandler). The result arrives on
+    // the launcher callback; the web layer then calls exchangePublicToken with
+    // the public token.
+    @PluginMethod
+    fun launchLink(call: PluginCall) {
+        val linkToken = call.getString("linkToken") ?: return call.reject("missing linkToken")
+        try {
+            val config = LinkTokenConfiguration.Builder()
+                .token(linkToken)
+                .build()
+            val handler = Plaid.create(activity.applicationContext, config)
+            pendingCall = call
+            linkLauncher.launch(handler)
+        } catch (e: Exception) {
+            call.reject(e.message ?: "LinkKit launch failed")
+        }
+    }
+
+    private var pendingCall: PluginCall? = null
+
+    private val linkLauncher: ActivityResultLauncher<PlaidHandler> by lazy {
+        activity.registerForActivityResult(FastOpenPlaidLink()) { result ->
+            val call = pendingCall ?: return@registerForActivityResult
+            pendingCall = null
+            when (result) {
+                is LinkSuccess -> call.resolve(
+                    JSObject()
+                        .put("cancelled", false)
+                        .put("publicToken", result.publicToken)
+                        .put("metadata", JSObject().put("institutionName", result.metadata.institution?.name))
+                )
+                is LinkExit -> {
+                    val err = result.error
+                    call.resolve(
+                        JSObject()
+                            .put("cancelled", true)
+                            .put(
+                                "exit",
+                                err?.let {
+                                    JSObject()
+                                        .put("code", it.errorCode.toString())
+                                        .put("message", it.displayMessage ?: it.errorMessage)
+                                }
+                            )
+                    )
+                }
+            }
         }
     }
 }
