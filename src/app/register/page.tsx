@@ -38,7 +38,7 @@ export default function RegisterPage() {
         );
         setRecoveryCode(res.recoveryCode);
       } else {
-        await api.post("/api/auth/register", { username, display_name: displayName, password });
+        await api.post("/api/auth/register", { username, display_name: displayName, password, device_label: "Web browser" });
         router.push("/dashboard");
         router.refresh();
       }

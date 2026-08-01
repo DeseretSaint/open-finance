@@ -74,6 +74,7 @@ export default function ReportsPage() {
     Expenses: r.expenseCents / 100,
     Net: r.netCents / 100,
   }));
+  const hasCashflow = barData.length > 0 && barData.some((r) => r.Income !== 0 || r.Expenses !== 0 || r.Net !== 0);
 
   return (
     <div className="space-y-6">
@@ -146,7 +147,7 @@ export default function ReportsPage() {
 
         <Card>
           <CardTitle>Cash flow — last 6 months</CardTitle>
-          {barData.length === 0 ? (
+          {!hasCashflow ? (
             <ChartEmpty>No cash flow data yet — add transactions to see trends.</ChartEmpty>
           ) : (
             <div className="mt-4 h-64">
@@ -154,7 +155,13 @@ export default function ReportsPage() {
                 <BarChart data={barData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                   <XAxis dataKey="month" tick={{ fill: "var(--text-muted)", fontSize: 12 }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fill: "var(--text-muted)", fontSize: 12 }} tickLine={false} axisLine={false} width={50} />
+                  <YAxis
+                    tick={{ fill: "var(--text-muted)", fontSize: 12 }}
+                    tickFormatter={(v: number) => `$${v}`}
+                    tickLine={false}
+                    axisLine={false}
+                    width={50}
+                  />
                   <Tooltip
                     formatter={(value) => `$${Number(value).toFixed(2)}`}
                     contentStyle={TOOLTIP_STYLE}
@@ -162,7 +169,7 @@ export default function ReportsPage() {
                   />
                   <Legend wrapperStyle={{ fontSize: 12, color: "var(--text-muted)" }} />
                   <Bar dataKey="Income" fill="var(--success)" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Expenses" fill="var(--accent)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Expenses" fill="var(--chart-6)" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="Net" fill="var(--chart-2)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>

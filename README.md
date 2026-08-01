@@ -14,11 +14,19 @@
 
 ## Quickstart
 
-**Option A — desktop solo (no server needed).** `pnpm build && ./scripts/start.sh`, open `http://localhost:3000`, create your account, add Plaid keys or track manually.
+**Option A — desktop solo (no server needed).** One line, any macOS/Linux machine with Node 22:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/DeseretSaint/open-finance/main/scripts/install.sh | bash
+```
+
+It downloads the app, installs dependencies, builds, and opens `http://localhost:3000` — then create your account, add Plaid keys or track manually. (Prefer to run from source? `pnpm install && pnpm build && ./scripts/start.sh`.)
 
 **Option B — hub on your LAN / Tailscale.** Run the app on a desktop or small server, then pair your phone from Settings → Hub & phone pairing. The Connection Assistant detects the right URL (LAN IP or Tailscale MagicDNS) and shows a QR code; the phone scans it and connects in one tap.
 
 **Option C — Docker.** `docker compose up` — the image runs non-root with `HEALTHCHECK /api/health`, SQLite on a volume, env-only secrets.
+
+**Option D — Android APK.** Grab the latest signed APK from the [releases page](https://github.com/DeseretSaint/open-finance/releases) — QR-pair it to your hub (or run it fully on-device in solo mode).
 
 ---
 
