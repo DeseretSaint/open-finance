@@ -14,6 +14,11 @@ interface UpdateStatus {
   scheduledAt: string | null;
   running: boolean;
   source: string;
+  canSelfUpdate: boolean;
+}
+
+function isNativeApp(): boolean {
+  return typeof window !== "undefined" && !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.();
 }
 
 /**
@@ -21,9 +26,14 @@ interface UpdateStatus {
  * now / schedule (default upcoming 3am) / stop notifying. Scheduled or
  * running states collapse to a slim status row. Settings → Updates has the
  * full panel (including update-when-ready).
+ *
+ * On builds that can't self-update (standalone APK / no update script), the
+ * in-place "Update now"/"Schedule" are replaced with a "Download new version"
+ * action that opens the release — fetch + install the APK by hand.
  */
 export function UpdateBanner() {
   const qc = useQueryClient();
+  const native = isNativeApp();
   const [scheduledFor, setScheduledFor] = useState<string | null>(null);
 
   const status = useQuery({
@@ -104,7 +114,8 @@ export function UpdateBanner() {
     );
   }
 
-  // update available → ask
+  // update available → ask (self-update) or point to the new version (standalone)
+  const selfUpdate = s.canSelfUpdate && !native;
   return (
     <div className="fixed inset-x-0 top-0 z-50 border-b border-border bg-background/95 backdrop-blur">
       <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-2 px-4 py-2 text-sm">
@@ -113,16 +124,29 @@ export function UpdateBanner() {
           {s.currentVersion}).
         </span>
         <div className="flex items-center gap-2">
-          <Button size="sm" onClick={() => decide.mutate({ action: "now" })}>
-            Update now
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setScheduledFor(upcomingThreeAmLocal())}
-          >
-            Schedule (3am)
-          </Button>
+          {selfUpdate ? (
+            <Button size="sm" onClick={() => decide.mutate({ action: "now" })}>
+              Update now
+            </Button>
+          ) : s.latestUrl ? (
+            <a
+              href={s.latestUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-8 items-center rounded-md bg-accent px-3 text-sm font-medium text-accent-foreground transition-colors hover:brightness-110"
+            >
+              Download new version
+            </a>
+          ) : null}
+          {selfUpdate && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setScheduledFor(upcomingThreeAmLocal())}
+            >
+              Schedule (3am)
+            </Button>
+          )}
           <Button size="sm" variant="ghost" onClick={() => decide.mutate({ action: "dismiss" })}>
             Stop notifying
           </Button>

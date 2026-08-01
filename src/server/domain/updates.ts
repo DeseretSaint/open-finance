@@ -23,6 +23,9 @@ export interface UpdateStatus {
   running: boolean;
   /** How the check is sourced: github-api (public repo) or custom URL. */
   source: string;
+  /** Whether a self-update script exists on disk (desktop/hub). False on the
+   *  standalone mobile/APK build, where the app can't rebuild itself. */
+  canSelfUpdate: boolean;
 }
 
 export function currentVersion(): string {
@@ -151,6 +154,9 @@ export function createUpdatesService(db: Db = getDb()) {
         getState(db, "scheduled_at"),
         getState(db, "running"),
       ]);
+      const scriptPath = process.env[UPDATE_SCRIPT_ENV] ?? "scripts/update.sh";
+      const fs = await import("node:fs");
+      const canSelfUpdate = fs.existsSync(path.resolve(process.cwd(), scriptPath));
       return {
         currentVersion: currentVersion(),
         latestVersion,
@@ -160,6 +166,7 @@ export function createUpdatesService(db: Db = getDb()) {
         scheduledAt,
         running: running === "1",
         source: UPDATE_CHECK_URL ? "custom-url" : "github-api",
+        canSelfUpdate,
       };
     },
 

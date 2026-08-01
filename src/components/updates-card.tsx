@@ -16,12 +16,20 @@ interface UpdateStatus {
   scheduledAt: string | null;
   running: boolean;
   source: string;
+  canSelfUpdate: boolean;
+}
+
+function isNativeApp(): boolean {
+  return typeof window !== "undefined" && !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.();
 }
 
 /** Settings → Updates: check, update now, schedule, stop-notifying, and the
- *  update-when-ready path (dismissed updates can be un-dismissed here). */
+ *  update-when-ready path (dismissed updates can be un-dismissed here). On
+ *  builds that can't self-update (standalone APK) it offers a download link
+ *  instead of the git-based in-place update. */
 export function UpdatesCard() {
   const qc = useQueryClient();
+  const native = isNativeApp();
   const [scheduledAt, setScheduledAt] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -69,10 +77,9 @@ export function UpdatesCard() {
     <Card className="lg:col-span-2">
       <CardTitle>Updates</CardTitle>
       <p className="mt-1 text-sm text-text-muted">
-        The hub checks GitHub releases (or <code className="rounded bg-muted px-1">UPDATE_CHECK_URL</code>) for newer
-        versions. Updating runs <code className="rounded bg-muted px-1">scripts/update.sh</code> — git pull, rebuild,
-        restart. Docker installs: set <code className="rounded bg-muted px-1">UPDATE_SCRIPT</code> to a script that
-        pulls the image.
+        {native || s?.canSelfUpdate === false
+          ? "This standalone build can't rebuild itself, so it points you to the newest release instead. Download the APK and install it over this app — no uninstall needed (the same signing key signs every build)."
+          : "The hub checks GitHub releases (or UPDATE_CHECK_URL) for newer versions. Updating runs scripts/update.sh — git pull, rebuild, restart. Docker installs: set UPDATE_SCRIPT to a script that pulls the image."}
       </p>
 
       <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
@@ -105,28 +112,38 @@ export function UpdatesCard() {
         <Button variant="secondary" onClick={() => act.mutate({ action: "check" })} disabled={act.isPending}>
           Check for updates
         </Button>
-        {s?.updateAvailable && (
-          <>
-            <Button onClick={() => act.mutate({ action: "now" })} disabled={act.isPending}>
-              Update now
-            </Button>
-            <div className="flex items-center gap-2">
-              <input
-                type="datetime-local"
-                value={scheduledAt || upcomingThreeAm()}
-                onChange={(e) => setScheduledAt(e.target.value)}
-                className="rounded-md border bg-background px-2 py-1 text-sm"
-              />
-              <Button
-                variant="secondary"
-                onClick={() => act.mutate({ action: "scheduled", scheduledAt: new Date(scheduledAt || upcomingThreeAm()).toISOString() })}
-                disabled={act.isPending}
-              >
-                Schedule
+        {s?.updateAvailable &&
+          (s.canSelfUpdate && !native ? (
+            <>
+              <Button onClick={() => act.mutate({ action: "now" })} disabled={act.isPending}>
+                Update now
               </Button>
-            </div>
-          </>
-        )}
+              <div className="flex items-center gap-2">
+                <input
+                  type="datetime-local"
+                  value={scheduledAt || upcomingThreeAm()}
+                  onChange={(e) => setScheduledAt(e.target.value)}
+                  className="rounded-md border bg-background px-2 py-1 text-sm"
+                />
+                <Button
+                  variant="secondary"
+                  onClick={() => act.mutate({ action: "scheduled", scheduledAt: new Date(scheduledAt || upcomingThreeAm()).toISOString() })}
+                  disabled={act.isPending}
+                >
+                  Schedule
+                </Button>
+              </div>
+            </>
+          ) : s.latestUrl ? (
+            <a
+              href={s.latestUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-10 items-center rounded-md bg-accent px-4 text-sm font-medium text-accent-foreground transition-colors hover:brightness-110"
+            >
+              Download v{s.latestVersion}
+            </a>
+          ) : null)}
         {s?.dismissed === s?.latestVersion && s?.latestVersion && (
           <Button variant="ghost" onClick={() => act.mutate({ action: "remind" })} disabled={act.isPending}>
             Remind me about v{s.latestVersion}
