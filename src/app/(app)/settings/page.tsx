@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlaidLink } from "react-plaid-link";
+import { Moon, Sun } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +18,7 @@ interface Me {
 
 export default function SettingsPage() {
   const qc = useQueryClient();
-  const { accent, setAccent, accents } = useTheme();
+  const { accent, setAccent, accents, dark, setDark } = useTheme();
 
   const me = useQuery({ queryKey: ["me"], queryFn: () => api.get<Me>("/api/auth/me") });
   const sessions = useQuery({ queryKey: ["sessions"], queryFn: () => api.get<{ sessions: Array<{ id: string; device_label: string; created_at: string; current: boolean }> }>("/api/auth/sessions") });
@@ -243,19 +244,28 @@ export default function SettingsPage() {
       <Card>
         <CardTitle>Appearance</CardTitle>
         <p className="mt-1 text-sm text-text-muted">Accent color — applied everywhere, charts included.</p>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           {accents.map((c) => (
             <button
               key={c}
               onClick={() => setAccent(c)}
-              className="h-8 w-8 rounded-full border-2 transition-transform hover:scale-110"
+              className="h-9 w-9 rounded-full border-2 transition-transform hover:scale-110"
               style={{
                 background: c,
-                borderColor: accent === c ? "var(--text)" : "transparent",
+                borderColor: accent === c ? "var(--foreground)" : "transparent",
               }}
               aria-label={`Accent ${c}`}
+              aria-pressed={accent === c}
             />
           ))}
+          <button
+            onClick={() => setDark(!dark)}
+            className="ml-2 flex h-9 items-center gap-2 rounded-full border border-border px-3 text-xs font-medium text-text-muted transition-colors hover:text-text"
+            aria-pressed={dark}
+          >
+            {dark ? <Sun size={14} aria-hidden /> : <Moon size={14} aria-hidden />}
+            {dark ? "Light" : "Dark"}
+          </button>
         </div>
       </Card>
 
@@ -263,8 +273,16 @@ export default function SettingsPage() {
       <BackupPanel setMsg={setMsg} setErr={setErr} />
       <UpdatesCard />
 
-      {msg && <p className="text-sm text-success lg:col-span-2">{msg}</p>}
-      {err && <p className="text-sm text-danger lg:col-span-2">{err}</p>}
+      {msg && (
+        <p role="status" className="rounded-xl bg-[var(--success-soft)] px-4 py-3 text-sm font-medium text-success lg:col-span-2">
+          {msg}
+        </p>
+      )}
+      {err && (
+        <p role="alert" className="rounded-xl bg-[var(--danger-soft)] px-4 py-3 text-sm font-medium text-danger lg:col-span-2">
+          {err}
+        </p>
+      )}
     </div>
   );
 }

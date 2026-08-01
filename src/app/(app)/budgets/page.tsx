@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Trash2 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/badge";
@@ -23,6 +24,16 @@ interface Budget {
 interface Category {
   id: string;
   name: string;
+}
+
+function BudgetsSkeleton() {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="skeleton h-36" />
+      ))}
+    </div>
+  );
 }
 
 export default function BudgetsPage() {
@@ -69,54 +80,71 @@ export default function BudgetsPage() {
     setCategoryIds((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));
   }
 
-  if (isLoading || !data) return <p className="text-text-muted">Loading budgets…</p>;
-
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {data.budgets.map((b) => (
-          <Card key={b.id}>
-            <div className="flex items-start justify-between">
-              <CardTitle>{b.name}</CardTitle>
-              <button onClick={() => remove.mutate(b.id)} className="text-xs text-text-muted hover:text-danger">
-                ✕
-              </button>
-            </div>
-            <p className="mt-0.5 text-xs text-text-muted">
-              {b.categoryNames.length > 0 ? b.categoryNames.join(", ") : "Uncategorized"}
-            </p>
-            <div className="mt-4">
-              <div className="mb-1 flex justify-between text-sm">
-                <span className={b.pct > 1 ? "font-medium text-danger" : "text-text"}>
-                  <Money cents={b.spentCents} /> of <Money cents={b.amount_cents} />
-                </span>
-                <span className="text-text-muted">
-                  {b.remainingCents >= 0 ? (
-                    <>
-                      <Money cents={b.remainingCents} /> left
-                    </>
-                  ) : (
-                    <span className="text-danger">
-                      <Money cents={-b.remainingCents} /> over
+      {isLoading || !data ? (
+        <BudgetsSkeleton />
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {data.budgets.map((b) => {
+            const over = b.pct > 1;
+            return (
+              <Card key={b.id}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <CardTitle className="truncate">{b.name}</CardTitle>
+                    <p className="mt-0.5 truncate text-xs text-text-muted">
+                      {b.categoryNames.length > 0 ? b.categoryNames.join(", ") : "Uncategorized"}
+                    </p>
+                  </div>
+                  <button
+                    aria-label={`Delete budget ${b.name}`}
+                    title="Delete budget"
+                    onClick={() => {
+                      if (window.confirm(`Delete budget "${b.name}"?`)) remove.mutate(b.id);
+                    }}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-[var(--danger-soft)] hover:text-danger"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+                <div className="mt-4">
+                  <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
+                    <span className={`money ${over ? "font-medium text-danger" : "text-text"}`}>
+                      <Money cents={b.spentCents} /> of <Money cents={b.amount_cents} />
                     </span>
-                  )}
-                </span>
+                    <span className="money shrink-0 text-text-muted">
+                      {b.remainingCents >= 0 ? (
+                        <>
+                          <Money cents={b.remainingCents} /> left
+                        </>
+                      ) : (
+                        <span className="font-medium text-danger">
+                          <Money cents={-b.remainingCents} /> over
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <Progress value={b.pct} />
+                </div>
+              </Card>
+            );
+          })}
+          {data.budgets.length === 0 && (
+            <Card className="sm:col-span-2 lg:col-span-3">
+              <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
+                <p className="text-sm text-text-muted">No budgets yet — create your first one below.</p>
               </div>
-              <Progress value={b.pct} />
-            </div>
-          </Card>
-        ))}
-        {data.budgets.length === 0 && (
-          <Card className="sm:col-span-2 lg:col-span-3">
-            <p className="text-sm text-text-muted">No budgets yet — create your first one below.</p>
-          </Card>
-        )}
-      </div>
+            </Card>
+          )}
+        </div>
+      )}
 
       <Card>
         <CardTitle>Create a budget</CardTitle>
+        <p className="mt-1 text-sm text-text-muted">Track spending in one or more categories each month.</p>
         <form
-          className="mt-4 space-y-3"
+          className="mt-4 space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
             create.mutate();
@@ -124,12 +152,17 @@ export default function BudgetsPage() {
         >
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-40 flex-1">
-              <label className="mb-1 block text-xs text-text-muted">Name</label>
-              <Input placeholder="e.g. Food" value={name} onChange={(e) => setName(e.target.value)} required />
+              <label htmlFor="bud-name" className="mb-1 block text-xs font-medium text-text-muted">
+                Name
+              </label>
+              <Input id="bud-name" placeholder="e.g. Food" value={name} onChange={(e) => setName(e.target.value)} required />
             </div>
             <div className="min-w-32">
-              <label className="mb-1 block text-xs text-text-muted">Monthly amount ($)</label>
+              <label htmlFor="bud-amount" className="mb-1 block text-xs font-medium text-text-muted">
+                Monthly amount ($)
+              </label>
               <Input
+                id="bud-amount"
                 placeholder="500.00"
                 inputMode="decimal"
                 value={amount}
@@ -141,26 +174,37 @@ export default function BudgetsPage() {
               {create.isPending ? "Creating…" : "Create budget"}
             </Button>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {categories.data?.categories.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => toggleCategory(c.id)}
-                className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                  categoryIds.includes(c.id)
-                    ? "border-accent bg-accent/10 text-accent"
-                    : "border-border text-text-muted hover:text-text"
-                }`}
-              >
-                {c.name}
-              </button>
-            ))}
-          </div>
-          <p className="text-xs text-text-muted">
-            No categories selected = tracks Uncategorized spending.
-          </p>
-          {error && <p className="text-sm text-danger">{error}</p>}
+          {categories.data && categories.data.categories.length > 0 && (
+            <div>
+              <p className="mb-2 text-xs font-medium text-text-muted">Categories to track</p>
+              <div className="flex flex-wrap gap-2">
+                {categories.data.categories.map((c) => {
+                  const selected = categoryIds.includes(c.id);
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => toggleCategory(c.id)}
+                      className={`min-h-[36px] rounded-full border px-4 text-xs font-medium transition-colors ${
+                        selected
+                          ? "border-accent bg-accent/10 text-accent"
+                          : "border-border text-text-muted hover:border-text-muted hover:text-text"
+                      }`}
+                    >
+                      {c.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          <p className="text-xs text-text-muted">No categories selected = tracks Uncategorized spending.</p>
+          {error && (
+            <p role="alert" className="rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-sm text-danger">
+              {error}
+            </p>
+          )}
         </form>
       </Card>
     </div>

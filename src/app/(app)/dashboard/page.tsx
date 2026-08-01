@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { TrendingDown, TrendingUp, Wallet, Scale } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardLabel, CardTitle } from "@/components/ui/card";
-import { Badge, Progress } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/badge";
 import { Money } from "@/components/money";
 
 interface Summary {
@@ -24,39 +26,90 @@ interface Summary {
   }>;
 }
 
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="skeleton h-28" />
+      <div className="grid gap-4 sm:grid-cols-3">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="skeleton h-24" />
+        ))}
+      </div>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="skeleton h-56" />
+        <div className="skeleton h-56" />
+      </div>
+    </div>
+  );
+}
+
+function formatShortDate(iso: string) {
+  const d = new Date(iso.length === 10 ? `${iso}T00:00:00` : iso);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 export default function DashboardPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["summary"],
     queryFn: () => api.get<{ summary: Summary }>("/api/summary"),
   });
 
-  if (isLoading || !data) return <p className="text-text-muted">Loading dashboard…</p>;
+  if (isLoading || !data) return <DashboardSkeleton />;
   const s = data.summary;
+  const netPositive = s.monthNetCents >= 0;
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Hero balance */}
+      <Card
+        className="border-accent/20"
+        style={{ background: "linear-gradient(135deg, var(--accent-soft), transparent 55%), var(--surface)" }}
+      >
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <CardLabel>Total balance</CardLabel>
+            <p className="money mt-1 text-4xl font-bold tracking-tight">
+              <Money cents={s.totalBalanceCents} />
+            </p>
+            <p className="mt-1.5 text-sm text-text-muted">
+              Net this month:{" "}
+              <span className={netPositive ? "font-medium text-success" : "font-medium text-danger"}>
+                <Money cents={s.monthNetCents} signed />
+              </span>
+            </p>
+          </div>
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/10 text-accent" aria-hidden>
+            <Wallet size={24} />
+          </div>
+        </div>
+      </Card>
+
+      {/* Stat cards */}
+      <div className="grid gap-4 sm:grid-cols-3">
         <Card>
-          <CardLabel>Total balance</CardLabel>
-          <p className="mt-1 text-2xl font-bold">
-            <Money cents={s.totalBalanceCents} />
-          </p>
-        </Card>
-        <Card>
-          <CardLabel>Income this month</CardLabel>
-          <p className="mt-1 text-2xl font-bold text-success">
+          <div className="flex items-center gap-2 text-success">
+            <TrendingUp size={16} aria-hidden />
+            <CardLabel>Income this month</CardLabel>
+          </div>
+          <p className="money mt-1.5 text-2xl font-bold text-success">
             <Money cents={s.monthIncomeCents} />
           </p>
         </Card>
         <Card>
-          <CardLabel>Spent this month</CardLabel>
-          <p className="mt-1 text-2xl font-bold">
+          <div className="flex items-center gap-2 text-text-muted">
+            <TrendingDown size={16} aria-hidden />
+            <CardLabel>Spent this month</CardLabel>
+          </div>
+          <p className="money mt-1.5 text-2xl font-bold">
             <Money cents={s.monthExpenseCents} />
           </p>
         </Card>
         <Card>
-          <CardLabel>Net this month</CardLabel>
-          <p className={`mt-1 text-2xl font-bold ${s.monthNetCents >= 0 ? "text-success" : "text-danger"}`}>
+          <div className="flex items-center gap-2 text-text-muted">
+            <Scale size={16} aria-hidden />
+            <CardLabel>Net this month</CardLabel>
+          </div>
+          <p className={`money mt-1.5 text-2xl font-bold ${netPositive ? "text-success" : "text-danger"}`}>
             <Money cents={s.monthNetCents} signed />
           </p>
         </Card>
@@ -64,16 +117,26 @@ export default function DashboardPage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardTitle>Budgets</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Budgets</CardTitle>
+            <Link href="/budgets" className="text-sm font-medium text-accent hover:underline">
+              View all
+            </Link>
+          </div>
           <div className="mt-4 space-y-4">
             {s.budgetOverview.length === 0 && (
-              <p className="text-sm text-text-muted">No budgets yet — add one on the Budgets tab.</p>
+              <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
+                <p className="text-sm text-text-muted">No budgets yet.</p>
+                <Link href="/budgets" className="mt-1 inline-block text-sm font-medium text-accent hover:underline">
+                  Create your first budget →
+                </Link>
+              </div>
             )}
             {s.budgetOverview.map((b) => (
               <div key={b.id}>
-                <div className="mb-1 flex items-center justify-between text-sm">
-                  <span className="font-medium text-text">{b.name}</span>
-                  <span className="text-text-muted">
+                <div className="mb-1 flex items-center justify-between gap-2 text-sm">
+                  <span className="truncate font-medium text-text">{b.name}</span>
+                  <span className={`money shrink-0 ${b.pct > 1 ? "font-medium text-danger" : "text-text-muted"}`}>
                     <Money cents={b.spentCents} /> / <Money cents={b.amountCents} />
                   </span>
                 </div>
@@ -84,34 +147,45 @@ export default function DashboardPage() {
         </Card>
 
         <Card>
-          <CardTitle>Recent transactions</CardTitle>
-          <div className="mt-4 divide-y divide-border">
+          <div className="flex items-center justify-between">
+            <CardTitle>Recent transactions</CardTitle>
+            <Link href="/transactions" className="text-sm font-medium text-accent hover:underline">
+              View all
+            </Link>
+          </div>
+          <div className="mt-2 divide-y divide-border">
             {s.recentTransactions.length === 0 && (
-              <p className="text-sm text-text-muted">
-                Nothing here yet — connect a bank or add a transaction manually.
-              </p>
+              <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
+                <p className="text-sm text-text-muted">Nothing here yet.</p>
+                <p className="mt-1 text-sm">
+                  <Link href="/settings" className="font-medium text-accent hover:underline">
+                    Connect a bank
+                  </Link>
+                  <span className="text-text-muted"> or </span>
+                  <Link href="/transactions" className="font-medium text-accent hover:underline">
+                    add a transaction manually
+                  </Link>
+                </p>
+              </div>
             )}
             {s.recentTransactions.map((t) => (
-              <div key={t.id} className="flex items-center justify-between py-2.5">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-text">{t.name}</p>
-                  <p className="text-xs text-text-muted">
-                    {t.accountName} · {t.categoryName ?? "Uncategorized"}
-                  </p>
+              <div key={t.id} className="flex items-center justify-between gap-3 py-2.5">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    style={{ background: t.categoryColor ?? "var(--border)" }}
+                    aria-hidden
+                  />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-text">{t.name}</p>
+                    <p className="truncate text-xs text-text-muted">
+                      {t.categoryName ?? "Uncategorized"} · {t.accountName} · {formatShortDate(t.date)}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {t.categoryName && (
-                    <Badge
-                      className="text-text-muted"
-                      style={{ background: "color-mix(in srgb, var(--accent) 12%, transparent)" }}
-                    >
-                      {t.categoryName}
-                    </Badge>
-                  )}
-                  <span className="text-sm">
-                    <Money cents={t.amountCents} signed />
-                  </span>
-                </div>
+                <span className="money shrink-0 text-sm font-medium">
+                  <Money cents={t.amountCents} signed />
+                </span>
               </div>
             ))}
           </div>

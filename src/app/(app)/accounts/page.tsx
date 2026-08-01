@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
+import { CreditCard, Landmark, PiggyBank, TrendingUp, Wallet, CircleHelp } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +23,28 @@ interface Account {
 }
 
 const TYPES = ["depository", "credit", "investment", "loan", "other"];
+
+const TYPE_ICONS: Record<string, typeof Landmark> = {
+  depository: Landmark,
+  credit: CreditCard,
+  investment: TrendingUp,
+  loan: PiggyBank,
+  other: Wallet,
+};
+
+function typeIcon(type: string | null) {
+  return (type && TYPE_ICONS[type]) || CircleHelp;
+}
+
+function AccountsSkeleton() {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="skeleton h-32" />
+      ))}
+    </div>
+  );
+}
 
 export default function AccountsPage() {
   const qc = useQueryClient();
@@ -59,49 +83,72 @@ export default function AccountsPage() {
     },
   });
 
-  if (isLoading || !data) return <p className="text-text-muted">Loading accounts…</p>;
-
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {data.accounts.map((a) => (
-          <Card key={a.id}>
-            <div className="flex items-start justify-between">
-              <div>
-                <CardTitle>{a.name}</CardTitle>
-                <p className="mt-0.5 text-xs text-text-muted">
-                  {a.institution_name ?? "Manual"} {a.mask ? `· ••••${a.mask}` : ""}
+      {isLoading || !data ? (
+        <AccountsSkeleton />
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {data.accounts.map((a) => {
+            const Icon = typeIcon(a.type);
+            return (
+              <Card key={a.id}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-muted text-text-muted" aria-hidden>
+                      <Icon size={20} />
+                    </div>
+                    <div className="min-w-0">
+                      <CardTitle className="truncate">{a.name}</CardTitle>
+                      <p className="mt-0.5 truncate text-xs text-text-muted">
+                        {a.institution_name ?? "Manual"} {a.mask ? `· ••••${a.mask}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge className={a.item_id ? "bg-accent/10 text-accent" : "bg-surface-muted text-text-muted"}>
+                    {a.item_id ? "Connected" : "Manual"}
+                  </Badge>
+                </div>
+                <div className="mt-4 flex items-end justify-between gap-2">
+                  <p className="money text-2xl font-bold">
+                    <Money cents={a.current_balance_cents ?? 0} currency={a.currency} />
+                  </p>
+                  {!a.item_id && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-danger"
+                      disabled={remove.isPending}
+                      onClick={() => {
+                        if (window.confirm(`Remove "${a.name}"? This cannot be undone.`)) remove.mutate(a.id);
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
+              </Card>
+            );
+          })}
+          {data.accounts.length === 0 && (
+            <Card className="sm:col-span-2 lg:col-span-3">
+              <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
+                <p className="text-sm text-text-muted">No accounts yet.</p>
+                <p className="mt-1 text-sm">
+                  <Link href="/settings" className="font-medium text-accent hover:underline">
+                    Connect a bank
+                  </Link>
+                  <span className="text-text-muted"> or add a manual account below.</span>
                 </p>
               </div>
-              <Badge className="bg-surface-muted text-text-muted">{a.type ?? "other"}</Badge>
-            </div>
-            <p className="mt-3 text-xl font-bold">
-              <Money cents={a.current_balance_cents ?? 0} currency={a.currency} />
-            </p>
-            {!a.item_id && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="mt-3 text-danger"
-                disabled={remove.isPending}
-                onClick={() => remove.mutate(a.id)}
-              >
-                Remove
-              </Button>
-            )}
-          </Card>
-        ))}
-        {data.accounts.length === 0 && (
-          <Card className="sm:col-span-2 lg:col-span-3">
-            <p className="text-sm text-text-muted">
-              No accounts yet. Add a manual account below, or connect a bank from Settings → Bank connections.
-            </p>
-          </Card>
-        )}
-      </div>
+            </Card>
+          )}
+        </div>
+      )}
 
       <Card>
         <CardTitle>Add a manual account</CardTitle>
+        <p className="mt-1 text-sm text-text-muted">For cash, wallets, or anything not connected through Plaid.</p>
         <form
           className="mt-4 flex flex-wrap items-end gap-3"
           onSubmit={(e) => {
@@ -110,12 +157,16 @@ export default function AccountsPage() {
           }}
         >
           <div className="min-w-40 flex-1">
-            <label className="mb-1 block text-xs text-text-muted">Name</label>
-            <Input placeholder="e.g. Cash wallet" value={name} onChange={(e) => setName(e.target.value)} required />
+            <label htmlFor="acc-name" className="mb-1 block text-xs font-medium text-text-muted">
+              Name
+            </label>
+            <Input id="acc-name" placeholder="e.g. Cash wallet" value={name} onChange={(e) => setName(e.target.value)} required />
           </div>
           <div className="min-w-32">
-            <label className="mb-1 block text-xs text-text-muted">Type</label>
-            <Select value={type} onChange={(e) => setType(e.target.value)}>
+            <label htmlFor="acc-type" className="mb-1 block text-xs font-medium text-text-muted">
+              Type
+            </label>
+            <Select id="acc-type" value={type} onChange={(e) => setType(e.target.value)}>
               {TYPES.map((t) => (
                 <option key={t} value={t}>
                   {t}
@@ -124,16 +175,23 @@ export default function AccountsPage() {
             </Select>
           </div>
           <div className="min-w-32">
-            <label className="mb-1 block text-xs text-text-muted">Balance ($)</label>
+            <label htmlFor="acc-balance" className="mb-1 block text-xs font-medium text-text-muted">
+              Balance ($)
+            </label>
             <Input
+              id="acc-balance"
               placeholder="0.00"
               inputMode="decimal"
               value={balance}
               onChange={(e) => setBalance(e.target.value)}
             />
           </div>
-          {error && <p className="w-full text-sm text-danger">{error}</p>}
-          <Button type="submit" disabled={create.isPending}>
+          {error && (
+            <p role="alert" className="w-full rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-sm text-danger">
+              {error}
+            </p>
+          )}
+          <Button type="submit" disabled={create.isPending || !name}>
             {create.isPending ? "Adding…" : "Add account"}
           </Button>
         </form>

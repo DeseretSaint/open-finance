@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Search, X, Trash2 } from "lucide-react";
 import { api } from "@/lib/api-client";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Money } from "@/components/money";
@@ -31,6 +31,19 @@ interface Account {
 interface Category {
   id: string;
   name: string;
+}
+
+function RowSkeleton() {
+  return (
+    <div className="space-y-1 divide-y divide-border">
+      {[0, 1, 2, 3, 4, 5].map((i) => (
+        <div key={i} className="flex items-center gap-3 px-5 py-4">
+          <div className="skeleton h-9 flex-1" />
+          <div className="skeleton h-6 w-20" />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default function TransactionsPage() {
@@ -103,17 +116,32 @@ export default function TransactionsPage() {
     onError: (e) => setError(e instanceof Error ? e.message : "Add failed."),
   });
 
-  if (isLoading || !data) return <p className="text-text-muted">Loading transactions…</p>;
-
   return (
     <div className="space-y-6">
-      <Card>
+      {/* Sticky filter bar */}
+      <Card className="sticky top-20 z-20 py-3">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="min-w-48 flex-1">
-            <Input placeholder="Search transactions…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <div className="relative min-w-48 flex-1">
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" aria-hidden />
+            <Input
+              aria-label="Search transactions"
+              placeholder="Search transactions…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              className="pl-9 pr-8"
+            />
+            {q && (
+              <button
+                aria-label="Clear search"
+                onClick={() => setQ("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-text-muted hover:text-text"
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
           <div className="min-w-40">
-            <Select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+            <Select aria-label="Filter by account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
               <option value="">All accounts</option>
               {accounts.data?.accounts.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -122,19 +150,32 @@ export default function TransactionsPage() {
               ))}
             </Select>
           </div>
-          <span className="text-sm text-text-muted">{data.total} transactions</span>
+          <span className="text-sm text-text-muted">{data ? `${data.total} transaction${data.total === 1 ? "" : "s"}` : "…"}</span>
         </div>
       </Card>
 
+      {/* Manual add */}
       <Card>
-        <div className="flex flex-wrap items-end gap-3">
+        <CardTitle>Add a transaction</CardTitle>
+        <form
+          className="mt-4 flex flex-wrap items-end gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            add.mutate();
+          }}
+        >
           <div className="min-w-40 flex-1">
-            <label className="mb-1 block text-xs text-text-muted">Name</label>
-            <Input placeholder="e.g. Coffee" value={addName} onChange={(e) => setAddName(e.target.value)} />
+            <label htmlFor="add-name" className="mb-1 block text-xs font-medium text-text-muted">
+              Name
+            </label>
+            <Input id="add-name" placeholder="e.g. Coffee" value={addName} onChange={(e) => setAddName(e.target.value)} />
           </div>
           <div className="min-w-28">
-            <label className="mb-1 block text-xs text-text-muted">Amount ($)</label>
+            <label htmlFor="add-amount" className="mb-1 block text-xs font-medium text-text-muted">
+              Amount ($)
+            </label>
             <Input
+              id="add-amount"
               placeholder="0.00"
               inputMode="decimal"
               value={addAmount}
@@ -142,12 +183,16 @@ export default function TransactionsPage() {
             />
           </div>
           <div className="min-w-36">
-            <label className="mb-1 block text-xs text-text-muted">Date</label>
-            <Input type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)} />
+            <label htmlFor="add-date" className="mb-1 block text-xs font-medium text-text-muted">
+              Date
+            </label>
+            <Input id="add-date" type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)} />
           </div>
           <div className="min-w-36">
-            <label className="mb-1 block text-xs text-text-muted">Account</label>
-            <Select value={addAccount} onChange={(e) => setAddAccount(e.target.value)}>
+            <label htmlFor="add-account" className="mb-1 block text-xs font-medium text-text-muted">
+              Account
+            </label>
+            <Select id="add-account" value={addAccount} onChange={(e) => setAddAccount(e.target.value)}>
               <option value="">Select…</option>
               {accounts.data?.accounts.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -157,8 +202,10 @@ export default function TransactionsPage() {
             </Select>
           </div>
           <div className="min-w-36">
-            <label className="mb-1 block text-xs text-text-muted">Category</label>
-            <Select value={addCategory} onChange={(e) => setAddCategory(e.target.value)}>
+            <label htmlFor="add-category" className="mb-1 block text-xs font-medium text-text-muted">
+              Category
+            </label>
+            <Select id="add-category" value={addCategory} onChange={(e) => setAddCategory(e.target.value)}>
               <option value="">Uncategorized</option>
               {categories.data?.categories.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -167,63 +214,103 @@ export default function TransactionsPage() {
               ))}
             </Select>
           </div>
-          {error && <p className="w-full text-sm text-danger">{error}</p>}
-          <Button
-            disabled={add.isPending || !addName || !addAmount || !addAccount}
-            onClick={() => add.mutate()}
-          >
+          <p className="w-full text-xs text-text-muted">Positive amount = expense, negative = income.</p>
+          {error && (
+            <p role="alert" className="w-full rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-sm text-danger">
+              {error}
+            </p>
+          )}
+          <Button type="submit" disabled={add.isPending || !addName || !addAmount || !addAccount}>
             {add.isPending ? "Adding…" : "Add transaction"}
           </Button>
-        </div>
+        </form>
       </Card>
 
+      {/* List */}
       <Card className="p-0">
-        <div className="divide-y divide-border">
-          {data.rows.length === 0 && <p className="p-6 text-sm text-text-muted">No transactions found.</p>}
-          {data.rows.map((t) => (
-            <div key={t.id} className="flex items-center gap-3 px-5 py-3">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-text">{t.name}</p>
-                <p className="text-xs text-text-muted">
-                  {t.date} · {t.account_name}
-                  {t.exclude_from_budgets ? " · excluded from budgets" : ""}
-                </p>
-              </div>
-              {t.source === "manual" && (
-                <button
-                  onClick={() => remove.mutate(t.id)}
-                  className="text-xs text-text-muted hover:text-danger"
-                  title="Delete"
-                >
-                  ✕
-                </button>
-              )}
-              <label className="flex items-center gap-1 text-xs text-text-muted" title="Exclude from budgets">
-                <input
-                  type="checkbox"
-                  checked={t.exclude_from_budgets === 1}
-                  onChange={(e) => toggleExclude.mutate({ id: t.id, exclude: e.target.checked })}
-                />
-                Exclude
-              </label>
-              <Select
-                className="h-8 w-36 text-xs"
-                value={t.user_category_id ?? ""}
-                onChange={(e) => setCategory.mutate({ id: t.id, categoryId: e.target.value || null })}
+        {isLoading || !data ? (
+          <RowSkeleton />
+        ) : data.rows.length === 0 ? (
+          <div className="px-6 py-12 text-center">
+            <p className="text-sm text-text-muted">
+              {q || accountId ? "No transactions match your filters." : "No transactions yet."}
+            </p>
+            {(q || accountId) && (
+              <button
+                className="mt-1 text-sm font-medium text-accent hover:underline"
+                onClick={() => {
+                  setQ("");
+                  setAccountId("");
+                }}
               >
-                <option value="">Uncategorized</option>
-                {categories.data?.categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </Select>
-              <Badge className={t.amount_cents > 0 ? "bg-surface-muted text-text" : "bg-success/10 text-success"}>
-                <Money cents={t.amount_cents} signed />
-              </Badge>
-            </div>
-          ))}
-        </div>
+                Clear filters
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="divide-y divide-border">
+            {data.rows.map((t) => (
+              <div key={t.id} className="flex items-center gap-3 px-4 py-3 md:px-5">
+                <span
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{ background: t.category_color ?? "var(--border)" }}
+                  aria-hidden
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-text">
+                    {t.name}
+                    {t.exclude_from_budgets === 1 && (
+                      <span className="ml-2 rounded bg-surface-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-muted">
+                        excluded
+                      </span>
+                    )}
+                  </p>
+                  <p className="truncate text-xs text-text-muted">
+                    {t.date} · {t.account_name}
+                  </p>
+                </div>
+                <button
+                  aria-label={t.exclude_from_budgets === 1 ? "Include in budgets" : "Exclude from budgets"}
+                  title={t.exclude_from_budgets === 1 ? "Include in budgets" : "Exclude from budgets"}
+                  onClick={() => toggleExclude.mutate({ id: t.id, exclude: t.exclude_from_budgets !== 1 })}
+                  className={`hidden h-9 shrink-0 items-center rounded-md border px-2 text-xs transition-colors sm:flex ${
+                    t.exclude_from_budgets === 1
+                      ? "border-accent text-accent"
+                      : "border-border text-text-muted hover:text-text"
+                  }`}
+                >
+                  {t.exclude_from_budgets === 1 ? "Included" : "Excluded"}
+                </button>
+                <Select
+                  aria-label={`Category for ${t.name}`}
+                  className="h-9 w-32 shrink-0 text-xs md:w-40"
+                  value={t.user_category_id ?? ""}
+                  onChange={(e) => setCategory.mutate({ id: t.id, categoryId: e.target.value || null })}
+                >
+                  <option value="">Uncategorized</option>
+                  {categories.data?.categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </Select>
+                <span className={`money w-24 shrink-0 text-right text-sm font-semibold ${t.amount_cents > 0 ? "text-text" : "text-success"}`}>
+                  <Money cents={t.amount_cents} signed />
+                </span>
+                {t.source === "manual" && (
+                  <button
+                    aria-label={`Delete ${t.name}`}
+                    title="Delete"
+                    onClick={() => remove.mutate(t.id)}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-[var(--danger-soft)] hover:text-danger"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
     </div>
   );

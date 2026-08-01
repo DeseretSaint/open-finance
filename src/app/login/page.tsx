@@ -7,6 +7,7 @@ import { api } from "@/lib/api-client";
 import { isSoloCandidate } from "@/lib/mobile-mode";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
+import { LogoMark } from "@/components/sidebar";
 
 const DURATIONS = [
   { value: "1h", label: "1 hour" },
@@ -66,53 +67,81 @@ export default function LoginPage() {
     >
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <div
-            className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl text-xl font-bold"
-            style={{ background: "var(--accent)", color: "var(--accent-foreground)" }}
-          >
-            ₿
+          <div className="mx-auto mb-3 w-fit">
+            <LogoMark size={48} />
           </div>
           <h1 className="text-2xl font-bold text-text">Open Finance</h1>
           <p className="mt-1 text-sm text-text-muted">
             {solo ? "This phone is your wallet. Data stays on-device." : "Self-hosted. Your data, your machine."}
           </p>
         </div>
-        <form onSubmit={submit} className="space-y-3 rounded-xl border border-border bg-surface p-6 shadow-[var(--shadow-card)]">
+        <form onSubmit={submit} className="space-y-4 rounded-2xl border border-border bg-surface p-6 shadow-[var(--shadow-card)]">
           {solo ? (
             <>
-              <Input
-                type="password"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={12}
-                placeholder="Enter your PIN"
-                value={pin}
-                onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ""))}
-                autoFocus
-              />
-              {error && <p className="text-sm text-danger">{error}</p>}
-              <Button type="submit" disabled={busy} className="w-full">
+              <div>
+                <label htmlFor="login-pin" className="mb-1 block text-xs font-medium text-text-muted">
+                  Device PIN
+                </label>
+                <Input
+                  id="login-pin"
+                  type="password"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={12}
+                  placeholder="Enter your PIN"
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ""))}
+                  autoFocus
+                />
+              </div>
+              {error && (
+                <p role="alert" className="rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-sm text-danger">
+                  {error}
+                </p>
+              )}
+              <Button type="submit" disabled={busy || !pin} className="w-full" size="lg">
                 {busy ? "Unlocking…" : "Unlock"}
               </Button>
             </>
           ) : (
             <>
-              <Input placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
-              <Input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              <Select value={duration} onChange={(e) => setDuration(e.target.value)}>
-                {DURATIONS.map((d) => (
-                  <option key={d.value} value={d.value}>
-                    Stay signed in for {d.label}
-                  </option>
-                ))}
-              </Select>
-              {error && <p className="text-sm text-danger">{error}</p>}
-              <Button type="submit" disabled={busy} className="w-full">
+              <div>
+                <label htmlFor="login-username" className="mb-1 block text-xs font-medium text-text-muted">
+                  Username
+                </label>
+                <Input id="login-username" autoComplete="username" placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
+              </div>
+              <div>
+                <label htmlFor="login-password" className="mb-1 block text-xs font-medium text-text-muted">
+                  Password
+                </label>
+                <Input
+                  id="login-password"
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+              <div>
+                <label htmlFor="login-duration" className="mb-1 block text-xs font-medium text-text-muted">
+                  Stay signed in
+                </label>
+                <Select id="login-duration" value={duration} onChange={(e) => setDuration(e.target.value)}>
+                  {DURATIONS.map((d) => (
+                    <option key={d.value} value={d.value}>
+                      {d.label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              {error && (
+                <p role="alert" className="rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-sm text-danger">
+                  {error}
+                </p>
+              )}
+              <Button type="submit" disabled={busy || !username || !password} className="w-full" size="lg">
                 {busy ? "Signing in…" : "Sign in"}
               </Button>
             </>

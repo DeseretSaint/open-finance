@@ -63,7 +63,7 @@ export default function RegisterPage() {
               This phone is now your standalone wallet. Everything stays on-device.
             </p>
           </div>
-          <div className="space-y-3 rounded-xl border border-border bg-surface p-6 shadow-[var(--shadow-card)]">
+          <div className="space-y-4 rounded-2xl border border-border bg-surface p-6 shadow-[var(--shadow-card)]">
             <div>
               <p className="text-sm font-medium text-text">Recovery code (save this!)</p>
               <p className="mt-1 rounded-lg bg-background p-3 font-mono text-sm tracking-widest text-accent">
@@ -74,7 +74,7 @@ export default function RegisterPage() {
                 once and never again.
               </p>
             </div>
-            <Button className="w-full" onClick={() => router.push("/dashboard")}>
+            <Button className="w-full" size="lg" onClick={() => router.push("/dashboard")}>
               Continue
             </Button>
           </div>
@@ -99,54 +99,86 @@ export default function RegisterPage() {
               : "Runs entirely on your machine."}
           </p>
         </div>
-        <form onSubmit={submit} className="space-y-3 rounded-xl border border-border bg-surface p-6 shadow-[var(--shadow-card)]">
-          <Input
-            placeholder="Display name (optional)"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            autoFocus
-          />
+        <form onSubmit={submit} className="space-y-4 rounded-2xl border border-border bg-surface p-6 shadow-[var(--shadow-card)]">
+          <div>
+            <label htmlFor="reg-display" className="mb-1 block text-xs font-medium text-text-muted">
+              Display name <span className="font-normal">(optional)</span>
+            </label>
+            <Input
+              id="reg-display"
+              autoComplete="name"
+              placeholder="Shown in the app"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              autoFocus
+            />
+          </div>
           {solo ? (
-            <>
+            <div>
+              <label htmlFor="reg-pin" className="mb-1 block text-xs font-medium text-text-muted">
+                PIN
+              </label>
               <Input
+                id="reg-pin"
                 type="password"
                 inputMode="numeric"
                 pattern="[0-9]*"
                 maxLength={12}
-                placeholder="PIN (4–12 digits)"
+                placeholder="4–12 digits"
                 value={pin}
                 onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ""))}
               />
-              <p className="text-xs text-text-muted">
-                Your PIN unlocks this app. Choose 4–12 digits.
-              </p>
-            </>
+              <p className="mt-1.5 text-xs text-text-muted">Your PIN unlocks this app. Choose 4–12 digits.</p>
+            </div>
           ) : (
             <>
-              <Input
-                placeholder="Username (your login)"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-              />
-              <Input
-                type="password"
-                placeholder="Password (10+ characters)"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <div>
+                <label htmlFor="reg-username" className="mb-1 block text-xs font-medium text-text-muted">
+                  Username
+                </label>
+                <Input
+                  id="reg-username"
+                  autoComplete="username"
+                  placeholder="Your login name"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                />
+              </div>
+              <div>
+                <label htmlFor="reg-password" className="mb-1 block text-xs font-medium text-text-muted">
+                  Password
+                </label>
+                <Input
+                  id="reg-password"
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="Choose a password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <ul className="mt-1.5 list-inside list-disc space-y-0.5 text-xs text-text-muted">
+                  <li className={password.length >= 10 ? "text-success" : undefined}>At least 10 characters</li>
+                  <li>Not your username or a common password</li>
+                </ul>
+              </div>
             </>
           )}
-          {error && <p className="text-sm text-danger">{error}</p>}
-          <Button type="submit" disabled={busy} className="w-full">
+          {error && (
+            <p role="alert" className="rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-sm text-danger">
+              {error}
+            </p>
+          )}
+          <Button
+            type="submit"
+            disabled={busy || (solo ? pin.length < 4 : !username || password.length < 10)}
+            className="w-full"
+            size="lg"
+          >
             {busy ? "Setting up…" : solo ? "Set up device" : "Create account"}
           </Button>
         </form>
         <p className="mt-4 text-center text-sm text-text-muted">
-          {solo ? (
-            "Already set up? "
-          ) : (
-            "Already have an account? "
-          )}
+          {solo ? "Already set up? " : "Already have an account? "}
           <Link href="/login" className="font-medium text-accent">
             Sign in
           </Link>

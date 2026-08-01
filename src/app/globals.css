@@ -12,8 +12,11 @@
   --accent-foreground: #ffffff;
   --accent-hover: #059669;
   --success: #16a34a;
+  --success-soft: rgb(22 163 74 / 0.12);
   --warning: #d97706;
   --danger: #dc2626;
+  --danger-soft: rgb(220 38 38 / 0.1);
+  --accent-soft: rgb(16 185 129 / 0.1);
   --ring: rgb(16 185 129 / 0.4);
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px rgb(0 0 0 / 0.06);
   --chart-1: #10b981;
@@ -30,7 +33,7 @@
   --surface: #1c1917;
   --surface-muted: #292524;
   --border: #44403c;
-  --text-muted: #a8a29e;
+  --text-muted: #b5aea6;
   --accent: #10b981;
   --accent-foreground: #ffffff;
   --accent-hover: #059669;
@@ -59,8 +62,7 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
   --color-chart-6: var(--chart-6);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter);
   --radius: var(--radius-default);
 }
 
@@ -71,7 +73,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   transition: background-color 150ms ease-out, color 150ms ease-out;
 }
 
@@ -83,4 +85,37 @@ body {
 ::selection {
   background: var(--accent);
   color: var(--accent-foreground);
+}
+
+/* Consistent keyboard focus ring */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Loading skeleton */
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+.skeleton {
+  border-radius: 8px;
+  background: var(--surface-muted);
+  animation: skeleton-pulse 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

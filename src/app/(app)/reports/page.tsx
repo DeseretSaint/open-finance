@@ -6,6 +6,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -25,6 +26,22 @@ const CHART_COLORS = [
   "var(--chart-5)",
   "var(--chart-6)",
 ];
+
+const TOOLTIP_STYLE = {
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
+  borderRadius: 12,
+  color: "var(--foreground)",
+  fontSize: 13,
+};
+
+function ChartEmpty({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex h-64 items-center justify-center rounded-xl border border-dashed border-border">
+      <p className="text-sm text-text-muted">{children}</p>
+    </div>
+  );
+}
 
 export default function ReportsPage() {
   const byCategory = useQuery({
@@ -52,7 +69,7 @@ export default function ReportsPage() {
     value: r.spentCents,
   }));
   const barData = (cashflow.data?.rows ?? []).map((r) => ({
-    month: r.month,
+    month: new Date(`${r.month}-01T00:00:00`).toLocaleDateString("en-US", { month: "short" }),
     Income: r.incomeCents / 100,
     Expenses: r.expenseCents / 100,
     Net: r.netCents / 100,
@@ -84,34 +101,42 @@ export default function ReportsPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardTitle>Spending by category — this month</CardTitle>
-          <div className="mt-4 h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  dataKey="value"
-                  nameKey="name"
-                  innerRadius={50}
-                  outerRadius={90}
-                  paddingAngle={2}
-                >
-                  {pieData.map((_, i) => (
-                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value) => `$${(Number(value) / 100).toFixed(2)}`}
-                  contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12 }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
+          {pieData.length === 0 ? (
+            <ChartEmpty>No spending this month.</ChartEmpty>
+          ) : (
+            <div className="mt-4 h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={50}
+                    outerRadius={90}
+                    paddingAngle={2}
+                    stroke="var(--surface)"
+                    strokeWidth={2}
+                  >
+                    {pieData.map((_, i) => (
+                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value) => `$${(Number(value) / 100).toFixed(2)}`}
+                    contentStyle={TOOLTIP_STYLE}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
           <div className="mt-2 space-y-1">
-            {pieData.length === 0 && <p className="text-sm text-text-muted">No spending this month.</p>}
-            {pieData.map((r) => (
-              <div key={r.name} className="flex justify-between text-sm">
-                <span className="text-text-muted">{r.name}</span>
-                <span className="text-text">
+            {pieData.map((r, i) => (
+              <div key={r.name} className="flex items-center justify-between gap-2 text-sm">
+                <span className="flex min-w-0 items-center gap-2 text-text-muted">
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} aria-hidden />
+                  <span className="truncate">{r.name}</span>
+                </span>
+                <span className="money shrink-0 text-text">
                   <Money cents={r.value} />
                 </span>
               </div>
@@ -121,22 +146,28 @@ export default function ReportsPage() {
 
         <Card>
           <CardTitle>Cash flow — last 6 months</CardTitle>
-          <div className="mt-4 h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={barData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis dataKey="month" tick={{ fill: "var(--text-muted)", fontSize: 12 }} />
-                <YAxis tick={{ fill: "var(--text-muted)", fontSize: 12 }} />
-                <Tooltip
-                  formatter={(value) => `$${Number(value).toFixed(2)}`}
-                  contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12 }}
-                />
-                <Bar dataKey="Income" fill="var(--success)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Expenses" fill="var(--accent)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Net" fill="var(--chart-2)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {barData.length === 0 ? (
+            <ChartEmpty>No cash flow data yet — add transactions to see trends.</ChartEmpty>
+          ) : (
+            <div className="mt-4 h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={barData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fill: "var(--text-muted)", fontSize: 12 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fill: "var(--text-muted)", fontSize: 12 }} tickLine={false} axisLine={false} width={50} />
+                  <Tooltip
+                    formatter={(value) => `$${Number(value).toFixed(2)}`}
+                    contentStyle={TOOLTIP_STYLE}
+                    cursor={{ fill: "var(--surface-muted)" }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 12, color: "var(--text-muted)" }} />
+                  <Bar dataKey="Income" fill="var(--success)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Expenses" fill="var(--accent)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Net" fill="var(--chart-2)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </Card>
       </div>
     </div>
