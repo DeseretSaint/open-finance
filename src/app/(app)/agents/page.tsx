@@ -149,6 +149,43 @@ export default function AgentsPage() {
       {msg && <p className="text-sm text-emerald-600">{msg}</p>}
       {err && <p className="text-sm text-red-600">{err}</p>}
 
+      {/* ── finance prompt guide ── */}
+      <Card>
+        <CardTitle>Finance prompts you can try</CardTitle>
+        <p className="mt-1 text-sm text-text-muted">
+          Grant your token the matching scopes (Budget help needs <code className="rounded bg-surface-muted px-1">budgets:write</code> +{" "}
+          <code className="rounded bg-surface-muted px-1">categories:write</code>), then paste a prompt to your agent.
+        </p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {[
+            { scope: "read:summary", help: "Needs none extra", prompt: "Summarize my finances this month and flag anything unusual." },
+            { scope: "budgets:write", help: "+ a read scope", prompt: "Create a $400/month Groceries budget on the Groceries category." },
+            { scope: "budgets:write", help: "+ a read scope", prompt: "Which of my budgets am I over this month, and by how much?" },
+            { scope: "budgets:write", help: "+ a read scope", prompt: "Propose three budgets that would help me save $200/month, and create them." },
+            { scope: "transactions:edit", help: "+ a read scope", prompt: "Categorize my uncategorized transactions from this month." },
+            { scope: "read:planning", help: "Read-only", prompt: "What does my 12-month projection look like? Any negative months?" },
+          ].map((e) => (
+            <div key={e.prompt} className="flex items-start justify-between gap-3 rounded-lg border border-border p-3">
+              <div className="min-w-0">
+                <p className="text-sm text-text">{e.prompt}</p>
+                <p className="mt-0.5 text-xs text-text-muted">
+                  requires {e.scope} · {e.help}
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label={`Copy prompt`}
+                title="Copy to clipboard"
+                onClick={() => navigator.clipboard?.writeText(e.prompt)}
+                className="shrink-0 rounded-md border border-border px-2 py-1 text-xs text-text-muted transition-colors hover:text-text"
+              >
+                Copy
+              </button>
+            </div>
+          ))}
+        </div>
+      </Card>
+
       {/* ── detection ── */}
       <Card>
         <CardTitle>Agent detection</CardTitle>

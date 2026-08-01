@@ -103,6 +103,7 @@ export const MCP_TOOLS: McpToolEntry[] = [
   { tool: "get_net_worth", scopes: ["read:reports"], endpoint: "/api/reports/net-worth" },
   { tool: "get_budgets", scopes: ["read:budgets"], endpoint: "/api/budgets" },
   { tool: "get_budget_progress", scopes: ["read:budgets"], endpoint: "/api/budgets/:id/progress" },
+  { tool: "list_categories", scopes: ["read:budgets"], endpoint: "/api/categories" },
   { tool: "get_planning_items", scopes: ["read:planning"], endpoint: "/api/planning/*" },
   { tool: "trigger_sync", scopes: ["sync:run"], endpoint: "/api/transactions/sync", write: true },
   { tool: "set_transaction_category", scopes: ["transactions:edit"], endpoint: "PATCH /api/transactions/:id", write: true },

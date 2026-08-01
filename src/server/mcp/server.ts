@@ -151,6 +151,17 @@ const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "get_transaction",
+    description: "Get a single transaction by id on allowed accounts (read:banking / read:investments). Params: transactionId.",
+    inputSchema: jsonSchema({ transactionId: z.string().min(1) }),
+    parse: () => z.object({ transactionId: z.string().min(1) }),
+    run: async (auth, args) => {
+      const { transactionId } = args as { transactionId: string };
+      const transaction = await createTransactionsService(getDb()).get(auth.userId, transactionId);
+      return { transaction };
+    },
+  },
+  {
     name: "get_budgets",
     description: "Budgets with progress for the current month (read:budgets).",
     inputSchema: jsonSchema({}),
@@ -158,6 +169,26 @@ const TOOLS: ToolDef[] = [
     run: async (auth) => {
       const budgets = await createBudgetsService(getDb()).list(auth.userId);
       return { budgets };
+    },
+  },
+  {
+    name: "get_budget_progress",
+    description: "Current-month progress per budget: spent, remaining, pct (read:budgets).",
+    inputSchema: jsonSchema({}),
+    parse: () => z.object({}),
+    run: async (auth) => {
+      const budgets = await createBudgetsService(getDb()).list(auth.userId);
+      const progress = budgets.map((b) => ({
+        id: b.id,
+        name: b.name,
+        amountCents: b.amount_cents,
+        spentCents: b.spentCents,
+        remainingCents: b.remainingCents,
+        pct: b.pct,
+        overBudget: b.pct > 1,
+        categoryNames: b.categoryNames,
+      }));
+      return { progress };
     },
   },
   {
@@ -234,6 +265,44 @@ const TOOLS: ToolDef[] = [
       const { name, amountCents, categoryIds } = args as { name: string; amountCents: number; categoryIds?: string[] };
       const budget = await createBudgetsService(getDb()).create(auth.userId, { name, amountCents, categoryIds });
       return { budget };
+    },
+  },
+  {
+    name: "update_budget",
+    description: "Update an existing budget: rename, change amount, or set categories (budgets:write). Params: budgetId + any of name, amountCents, categoryIds.",
+    inputSchema: jsonSchema({
+      budgetId: z.string().min(1),
+      name: z.string().min(1).optional(),
+      amountCents: money.optional(),
+      categoryIds: z.array(z.string()).optional(),
+    }),
+    parse: () =>
+      z.object({
+        budgetId: z.string().min(1),
+        name: z.string().min(1).optional(),
+        amountCents: money.optional(),
+        categoryIds: z.array(z.string()).optional(),
+      }),
+    run: async (auth, args) => {
+      const { budgetId, name, amountCents, categoryIds } = args as {
+        budgetId: string;
+        name?: string;
+        amountCents?: number;
+        categoryIds?: string[];
+      };
+      const budget = await createBudgetsService(getDb()).update(auth.userId, budgetId, { name, amountCents, categoryIds });
+      return { budget };
+    },
+  },
+  {
+    name: "delete_budget",
+    description: "Delete a budget (budgets:write). Params: budgetId.",
+    inputSchema: jsonSchema({ budgetId: z.string().min(1) }),
+    parse: () => z.object({ budgetId: z.string().min(1) }),
+    run: async (auth, args) => {
+      const { budgetId } = args as { budgetId: string };
+      await createBudgetsService(getDb()).remove(auth.userId, budgetId);
+      return { ok: true, deleted: budgetId };
     },
   },
   {
@@ -320,6 +389,54 @@ const TOOLS: ToolDef[] = [
       const { name, color, plaidPaths } = args as { name: string; color?: string; plaidPaths?: string };
       const category = await createCategoriesService(getDb()).create(auth.userId, { name, color, plaidPaths });
       return { category };
+    },
+  },
+  {
+    name: "list_categories",
+    description: "List all categories (read:budgets). Includes id/name/color — use ids when creating budgets.",
+    inputSchema: jsonSchema({}),
+    parse: () => z.object({}),
+    run: async (auth) => {
+      const categories = await createCategoriesService(getDb()).list(auth.userId);
+      return { categories };
+    },
+  },
+  {
+    name: "update_category",
+    description: "Rename or recolor a category (categories:write). System categories cannot be edited. Params: categoryId + any of name, color, plaidPaths.",
+    inputSchema: jsonSchema({
+      categoryId: z.string().min(1),
+      name: z.string().min(1).optional(),
+      color: z.string().optional(),
+      plaidPaths: z.string().optional(),
+    }),
+    parse: () =>
+      z.object({
+        categoryId: z.string().min(1),
+        name: z.string().min(1).optional(),
+        color: z.string().optional(),
+        plaidPaths: z.string().optional(),
+      }),
+    run: async (auth, args) => {
+      const { categoryId, name, color, plaidPaths } = args as {
+        categoryId: string;
+        name?: string;
+        color?: string;
+        plaidPaths?: string;
+      };
+      const category = await createCategoriesService(getDb()).update(auth.userId, categoryId, { name, color, plaidPaths });
+      return { category };
+    },
+  },
+  {
+    name: "delete_category",
+    description: "Delete a category (categories:write). System categories cannot be deleted. Params: categoryId.",
+    inputSchema: jsonSchema({ categoryId: z.string().min(1) }),
+    parse: () => z.object({ categoryId: z.string().min(1) }),
+    run: async (auth, args) => {
+      const { categoryId } = args as { categoryId: string };
+      await createCategoriesService(getDb()).remove(auth.userId, categoryId);
+      return { ok: true, deleted: categoryId };
     },
   },
   {

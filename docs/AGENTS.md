@@ -43,9 +43,9 @@ You cannot grant yourself permissions — tell the user which scope you need.
 `search_transactions` · `get_transaction` · `get_spending_by_category` · `get_cashflow` ·
 `get_net_worth` · `get_budgets` · `get_budget_progress` · `get_planning_items` · `trigger_sync`
 
-Opt-in: `set_transaction_category` · `create/update/delete_budget` ·
-`upsert_planning_item` · `create/update/delete_category` · `update_settings` ·
-`list/create/update/delete_custom_view`
+Opt-in: `set_transaction_category` · `create_budget`/`update_budget`/`delete_budget` ·
+`upsert_planning_item` · `list_categories`/`create_category`/`update_category`/`delete_category` ·
+`update_settings` · `list/create/update/delete_custom_view`
 
 ## Example prompts
 
@@ -53,6 +53,25 @@ Opt-in: `set_transaction_category` · `create/update/delete_budget` ·
 - "Warn me if a transaction over $500 posts."
 - "What does my 12-month projection look like? Any negative months?"
 - "Add a widget to my dashboard showing spending by category this month."
+
+## Managing budgets & categories (opt-in: budgets:write / categories:write)
+
+A connected agent can build and maintain your budgets end-to-end. Typical flow:
+
+1. `list_categories` → see `id`/`name` of categories available.
+2. `create_budget { name, amountCents, categoryIds }` (cents, e.g. $400 = `40000`).
+3. `get_budget_progress` → check spent / remaining / `overBudget` anytime.
+4. `update_budget { budgetId, amountCents, ... }` when limits change, or
+   `delete_budget { budgetId }` to remove one.
+
+Example asks that work with a budget-enabled token (grant `budgets:write` +
+`categories:write` + a read scope like `read:summary` in Settings → Agents):
+
+- "Create a $400/month Groceries budget on the Groceries category."
+- "I keep overspending on dining — raise my Food budget to $600."
+- "Which of my budgets am I over this month, and by how much?"
+- "Move my 'Coffee Shops' category under a new 'Coffee' budget."
+- "Show me my top spending categories and propose three budgets that would help me save $200/month."
 
 ## Security
 

@@ -250,63 +250,73 @@ export default function TransactionsPage() {
         ) : (
           <div className="divide-y divide-border">
             {data.rows.map((t) => (
-              <div key={t.id} className="flex items-center gap-3 px-4 py-3 md:px-5">
+              <div key={t.id} className="flex items-start gap-3 px-4 py-3.5 md:px-5">
                 <span
-                  className="h-2 w-2 shrink-0 rounded-full"
+                  className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
                   style={{ background: t.category_color ?? "var(--border)" }}
                   aria-hidden
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-text">
-                    {t.name}
-                    {t.exclude_from_budgets === 1 && (
-                      <span className="ml-2 rounded bg-surface-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-muted">
-                        excluded
-                      </span>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="min-w-0 truncate text-[15px] font-medium text-text">
+                      {t.name}
+                      {t.exclude_from_budgets === 1 && (
+                        <span className="ml-2 rounded bg-surface-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-muted">
+                          excluded
+                        </span>
+                      )}
+                    </p>
+                    <span
+                      className={`money shrink-0 text-[15px] font-semibold ${t.amount_cents > 0 ? "text-text" : "text-success"}`}
+                    >
+                      <Money cents={t.amount_cents} signed />
+                    </span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-text-muted">
+                    <span className="min-w-0 truncate">
+                      {t.date} · {t.account_name}
+                    </span>
+                    {t.source === "manual" && (
+                      <button
+                        aria-label={`Delete ${t.name}`}
+                        title="Delete transaction"
+                        onClick={() => {
+                          if (window.confirm(`Delete "${t.name}"? This cannot be undone.`)) remove.mutate(t.id);
+                        }}
+                        className="flex h-8 w-8 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-[var(--danger-soft)] hover:text-danger"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     )}
-                  </p>
-                  <p className="truncate text-xs text-text-muted">
-                    {t.date} · {t.account_name}
-                  </p>
+                  </div>
                 </div>
-                <button
-                  aria-label={t.exclude_from_budgets === 1 ? "Include in budgets" : "Exclude from budgets"}
-                  title={t.exclude_from_budgets === 1 ? "Include in budgets" : "Exclude from budgets"}
-                  onClick={() => toggleExclude.mutate({ id: t.id, exclude: t.exclude_from_budgets !== 1 })}
-                  className={`hidden h-9 shrink-0 items-center rounded-md border px-2 text-xs transition-colors sm:flex ${
-                    t.exclude_from_budgets === 1
-                      ? "border-accent text-accent"
-                      : "border-border text-text-muted hover:text-text"
-                  }`}
-                >
-                  {t.exclude_from_budgets === 1 ? "Included" : "Excluded"}
-                </button>
-                <Select
-                  aria-label={`Category for ${t.name}`}
-                  className="h-9 w-32 shrink-0 text-xs md:w-40"
-                  value={t.user_category_id ?? ""}
-                  onChange={(e) => setCategory.mutate({ id: t.id, categoryId: e.target.value || null })}
-                >
-                  <option value="">Uncategorized</option>
-                  {categories.data?.categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </Select>
-                <span className={`money w-24 shrink-0 text-right text-sm font-semibold ${t.amount_cents > 0 ? "text-text" : "text-success"}`}>
-                  <Money cents={t.amount_cents} signed />
-                </span>
-                {t.source === "manual" && (
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
                   <button
-                    aria-label={`Delete ${t.name}`}
-                    title="Delete"
-                    onClick={() => remove.mutate(t.id)}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-[var(--danger-soft)] hover:text-danger"
+                    aria-label={t.exclude_from_budgets === 1 ? "Include in budgets" : "Exclude from budgets"}
+                    title={t.exclude_from_budgets === 1 ? "Include in budgets" : "Exclude from budgets"}
+                    onClick={() => toggleExclude.mutate({ id: t.id, exclude: t.exclude_from_budgets !== 1 })}
+                    className={`hidden h-8 items-center rounded-md border px-2 text-xs transition-colors sm:flex ${
+                      t.exclude_from_budgets === 1
+                        ? "border-accent text-accent"
+                        : "border-border text-text-muted hover:text-text"
+                    }`}
                   >
-                    <Trash2 size={15} />
+                    {t.exclude_from_budgets === 1 ? "Included" : "Excluded"}
                   </button>
-                )}
+                  <Select
+                    aria-label={`Category for ${t.name}`}
+                    className="h-8 w-32 text-xs md:w-40"
+                    value={t.user_category_id ?? ""}
+                    onChange={(e) => setCategory.mutate({ id: t.id, categoryId: e.target.value || null })}
+                  >
+                    <option value="">Uncategorized</option>
+                    {categories.data?.categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
               </div>
             ))}
           </div>
