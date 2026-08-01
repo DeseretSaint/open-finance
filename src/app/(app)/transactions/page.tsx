@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search, X, Trash2 } from "lucide-react";
+import { Search, X, Trash2, ChevronDown } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -50,6 +50,7 @@ export default function TransactionsPage() {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [accountId, setAccountId] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const params = useMemo(() => {
@@ -249,76 +250,92 @@ export default function TransactionsPage() {
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {data.rows.map((t) => (
-              <div key={t.id} className="flex items-start gap-3 px-4 py-3.5 md:px-5">
-                <span
-                  className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{ background: t.category_color ?? "var(--border)" }}
-                  aria-hidden
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="min-w-0 truncate text-[15px] font-medium text-text">
-                      {t.name}
-                      {t.exclude_from_budgets === 1 && (
-                        <span className="ml-2 rounded bg-surface-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-muted">
-                          excluded
-                        </span>
-                      )}
-                    </p>
-                    <span
-                      className={`money shrink-0 text-[15px] font-semibold ${t.amount_cents > 0 ? "text-text" : "text-success"}`}
-                    >
-                      <Money cents={t.amount_cents} signed />
-                    </span>
-                  </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-text-muted">
-                    <span className="min-w-0 truncate">
-                      {t.date} · {t.account_name}
-                    </span>
-                    {t.source === "manual" && (
-                      <button
-                        aria-label={`Delete ${t.name}`}
-                        title="Delete transaction"
-                        onClick={() => {
-                          if (window.confirm(`Delete "${t.name}"? This cannot be undone.`)) remove.mutate(t.id);
-                        }}
-                        className="flex h-8 w-8 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-[var(--danger-soft)] hover:text-danger"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-1.5">
+            {data.rows.map((t) => {
+              const isExpense = t.amount_cents > 0;
+              const expanded = expandedId === t.id;
+              return (
+                <div key={t.id}>
+                  {/* summary row — tap to expand */}
                   <button
-                    aria-label={t.exclude_from_budgets === 1 ? "Include in budgets" : "Exclude from budgets"}
-                    title={t.exclude_from_budgets === 1 ? "Include in budgets" : "Exclude from budgets"}
-                    onClick={() => toggleExclude.mutate({ id: t.id, exclude: t.exclude_from_budgets !== 1 })}
-                    className={`hidden h-8 items-center rounded-md border px-2 text-xs transition-colors sm:flex ${
-                      t.exclude_from_budgets === 1
-                        ? "border-accent text-accent"
-                        : "border-border text-text-muted hover:text-text"
-                    }`}
+                    type="button"
+                    aria-expanded={expanded}
+                    onClick={() => setExpandedId(expanded ? null : t.id)}
+                    className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-surface-muted/40 md:px-5"
                   >
-                    {t.exclude_from_budgets === 1 ? "Included" : "Excluded"}
+                    <span
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ background: t.category_color ?? "var(--border)" }}
+                      aria-hidden
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center justify-between gap-3">
+                        <span className="min-w-0 truncate text-[15px] font-medium text-text">
+                          {t.name}
+                          {t.exclude_from_budgets === 1 && (
+                            <span className="ml-2 rounded bg-surface-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-muted">
+                              excluded
+                            </span>
+                          )}
+                        </span>
+                        <span className={`money shrink-0 text-[15px] font-semibold ${isExpense ? "text-danger" : "text-success"}`}>
+                          <Money cents={t.amount_cents} signed />
+                        </span>
+                      </span>
+                      <span className="mt-0.5 block truncate text-xs text-text-muted">
+                        {t.date} · {t.account_name}
+                      </span>
+                    </span>
+                    <ChevronDown
+                      size={16}
+                      aria-hidden
+                      className={`shrink-0 text-text-muted transition-transform ${expanded ? "rotate-180" : ""}`}
+                    />
                   </button>
-                  <Select
-                    aria-label={`Category for ${t.name}`}
-                    className="h-8 w-32 text-xs md:w-40"
-                    value={t.user_category_id ?? ""}
-                    onChange={(e) => setCategory.mutate({ id: t.id, categoryId: e.target.value || null })}
-                  >
-                    <option value="">Uncategorized</option>
-                    {categories.data?.categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </Select>
+
+                  {/* expanded details — categorize, exclude, delete */}
+                  {expanded && (
+                    <div className="flex flex-wrap items-center gap-3 border-t border-border bg-surface-muted/40 px-4 py-3 md:px-5">
+                      <label className="flex items-center gap-1.5 text-xs text-text-muted">
+                        <input
+                          type="checkbox"
+                          checked={t.exclude_from_budgets === 1}
+                          onChange={(e) => toggleExclude.mutate({ id: t.id, exclude: e.target.checked })}
+                          className="h-4 w-4 accent-[var(--accent)]"
+                        />
+                        Exclude from budgets
+                      </label>
+                      <Select
+                        aria-label={`Category for ${t.name}`}
+                        className="h-8 w-40 text-xs"
+                        value={t.user_category_id ?? ""}
+                        onChange={(e) => setCategory.mutate({ id: t.id, categoryId: e.target.value || null })}
+                      >
+                        <option value="">Uncategorized</option>
+                        {categories.data?.categories.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </Select>
+                      <div className="flex-1" />
+                      {t.source === "manual" && (
+                        <button
+                          aria-label={`Delete ${t.name}`}
+                          title="Delete transaction"
+                          onClick={() => {
+                            if (window.confirm(`Delete "${t.name}"? This cannot be undone.`)) remove.mutate(t.id);
+                          }}
+                          className="flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-text-muted transition-colors hover:bg-[var(--danger-soft)] hover:text-danger"
+                        >
+                          <Trash2 size={14} />
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Card>

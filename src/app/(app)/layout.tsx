@@ -51,11 +51,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <DeviceLockGate>
       <div
         className="flex min-h-dvh bg-background text-text md:h-dvh md:overflow-hidden"
-        style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur">
+          <header
+            className="sticky top-0 z-30 border-b border-border bg-background"
+            style={{ paddingTop: "env(safe-area-inset-top)" }}
+          >
             <div className="mx-auto flex h-14 w-full max-w-[1200px] items-center gap-3 px-4 md:h-16 md:px-8">
               <span className="md:hidden">
                 <LogoMark size={26} />

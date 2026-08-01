@@ -183,7 +183,7 @@ export default function DashboardPage() {
                     </p>
                   </div>
                 </div>
-                <span className="money shrink-0 text-sm font-medium">
+                <span className={`money shrink-0 text-sm font-semibold ${t.amountCents > 0 ? "text-danger" : "text-success"}`}>
                   <Money cents={t.amountCents} signed />
                 </span>
               </div>
