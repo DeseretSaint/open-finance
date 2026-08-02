@@ -151,22 +151,22 @@ export default function BudgetsPage() {
             </p>
           </div>
           {summary.data && (
-            <div className="flex items-center gap-6">
-              <div className="text-right">
+            <div className="flex w-full flex-wrap items-end gap-x-6 gap-y-2 sm:w-auto sm:flex-nowrap">
+              <div className="min-w-0">
                 <p className="text-xs text-text-muted">Income</p>
-                <p className="money text-lg font-bold text-success">
+                <p className="money truncate text-lg font-bold text-success">
                   <Money cents={summary.data.summary.monthIncomeCents} signed />
                 </p>
               </div>
-              <div className="text-right">
+              <div className="min-w-0">
                 <p className="text-xs text-text-muted">Spent</p>
-                <p className="money text-lg font-bold text-danger">
+                <p className="money truncate text-lg font-bold text-danger">
                   <Money cents={-summary.data.summary.monthExpenseCents} signed />
                 </p>
               </div>
-              <div className="text-right">
+              <div className="min-w-0">
                 <p className="text-xs text-text-muted">Remaining</p>
-                <p className={`money text-2xl font-bold ${summary.data.summary.monthNetCents >= 0 ? "text-text" : "text-danger"}`}>
+                <p className={`money truncate text-xl font-bold sm:text-2xl ${summary.data.summary.monthNetCents >= 0 ? "text-text" : "text-danger"}`}>
                   <Money cents={summary.data.summary.monthNetCents} signed />
                 </p>
               </div>
@@ -221,8 +221,8 @@ export default function BudgetsPage() {
                   </button>
                 </div>
                 <div className="mt-4">
-                  <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
-                    <span className={`money ${over ? "font-medium text-danger" : "text-text"}`}>
+                  <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 text-sm">
+                    <span className={`money min-w-0 ${over ? "font-medium text-danger" : "text-text"}`}>
                       <Money cents={b.spentCents} /> of <Money cents={b.amount_cents} />
                       <span className="text-xs text-text-muted">{periodLabel}</span>
                     </span>

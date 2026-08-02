@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search, X, Trash2, ChevronDown, Plus } from "lucide-react";
 import { api } from "@/lib/api-client";
@@ -53,6 +53,19 @@ export default function TransactionsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  // Track the visual viewport (keyboard) so the FAB rises above the keyboard.
+  const [kbdHeight, setKbdHeight] = useState(0);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return;
+    const onResize = () => {
+      const vv = window.visualViewport!;
+      const delta = Math.max(0, window.innerHeight - vv.height);
+      // Ignore tiny jitter; treat a shrink > 100px as keyboard open.
+      setKbdHeight(delta > 100 ? delta : 0);
+    };
+    window.visualViewport.addEventListener("resize", onResize);
+    return () => window.visualViewport!.removeEventListener("resize", onResize);
+  }, []);
 
   const params = useMemo(() => {
     const p = new URLSearchParams({ limit: "100" });
@@ -162,6 +175,7 @@ export default function TransactionsPage() {
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm md:items-center md:p-6"
           onClick={() => !add.isPending && setShowAdd(false)}
+          style={{ bottom: kbdHeight > 0 ? `${kbdHeight}px` : undefined }}
         >
           <div
             role="dialog"
@@ -253,15 +267,20 @@ export default function TransactionsPage() {
         </div>
       )}
 
-      {/* Floating action button — bottom right, above the mobile tab bar */}
-      <button
-        aria-label="Add transaction"
-        onClick={() => setShowAdd(true)}
-        className="fixed bottom-24 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-foreground)] shadow-lg transition-transform hover:scale-105 active:scale-95 md:bottom-8"
-        style={{ marginBottom: "env(safe-area-inset-bottom)" }}
-      >
-        <Plus size={26} strokeWidth={2.5} />
-      </button>
+      {/* Floating action button — bottom right, above the mobile tab bar.
+          Hidden while the add modal is open; rises above the keyboard. */}
+      {!showAdd && (
+        <button
+          aria-label="Add transaction"
+          onClick={() => setShowAdd(true)}
+          className="fixed right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-foreground)] shadow-lg transition-transform hover:scale-105 active:scale-95"
+          style={{
+            bottom: `calc(${kbdHeight > 0 ? kbdHeight : 0}px + ${kbdHeight > 0 ? "1rem" : "6rem"} + env(safe-area-inset-bottom))`,
+          }}
+        >
+          <Plus size={26} strokeWidth={2.5} />
+        </button>
+      )}
 
       {/* List */}
       <Card className="p-0">

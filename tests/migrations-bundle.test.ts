@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { SOLO_MIGRATIONS } from "@/server/db/migrations-bundle";
+import { splitStatements } from "@/server/db/cap-sqlite";
 
 describe("migration bundle parity (P8b solo)", () => {
   const dir = path.join(process.cwd(), "migrations");
@@ -38,5 +39,22 @@ describe("migration bundle parity (P8b solo)", () => {
     expect(SOLO_MIGRATIONS.map((m) => m.version)).toEqual(
       files.map((f) => parseInt(f, 10))
     );
+  });
+
+  it("semicolons inside -- comments do not leak into statements (005 regression)", () => {
+    // Migration 005's prose comment used to contain a ';' — the naive
+    // sql.split(";") turned the comment tail into a broken statement
+    // ("flip UPDATE transactions …"), the on-device "near flip: syntax error".
+    for (const m of SOLO_MIGRATIONS) {
+      const stmts = splitStatements(m.sql)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      expect(stmts.length, `migration ${m.version} yields statements`).toBeGreaterThan(0);
+      for (const s of stmts) {
+        expect(s, `migration ${m.version} statement starts with a keyword`).toMatch(
+          /^(CREATE|ALTER|UPDATE|INSERT|DELETE|DROP|SELECT|PRAGMA|BEGIN|COMMIT|ROLLBACK|VACUUM|REINDEX|ANALYZE)\b/i
+        );
+      }
+    }
   });
 });

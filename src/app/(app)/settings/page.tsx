@@ -134,6 +134,8 @@ export default function SettingsPage() {
 
       <NotificationsSecurityCard setMsg={setMsg} setErr={setErr} />
 
+      <HubPanel setMsg={setMsg} setErr={setErr} />
+
       <AgentWiringCard />
 
       <Card>
@@ -567,9 +569,9 @@ function AgentWiringCard() {
 
       {soloUnsupported ? (
         <div className="mt-4 rounded-lg bg-surface-muted px-4 py-3 text-sm text-text-muted">
-          Agent connections are served by a hub. Pair one from the{" "}
-          <strong className="text-text">Hub &amp; phone pairing</strong> card above, then connect your agent here —
-          or on the hub itself.
+          On this phone, agent connections are served by a hub. Use the{" "}
+          <strong className="text-text">Hub &amp; phone pairing</strong> card above to set one up on a computer,
+          then connect your agent here — or on the hub itself.
         </div>
       ) : (
         <>

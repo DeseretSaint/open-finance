@@ -19,6 +19,26 @@ import { CapacitorSQLite, SQLiteConnection } from "@capacitor-community/sqlite";
 
 const sqlite = new SQLiteConnection(CapacitorSQLite);
 
+/**
+ * Split a migration file's SQL into individual statements, respecting `--`
+ * line comments. The naive `sql.split(";")` breaks when a comment contains a
+ * semicolon (migration 005's prose had one) — the comment text then becomes
+ * part of the next statement and SQLite throws "near ...: syntax error".
+ * This strips `-- ...` comments line-by-line first, then splits on `;`.
+ * The migration schema is plain DDL (no triggers/views/strings — asserted in
+ * tests/migrations-bundle.test.ts), so a line-based strip is safe.
+ */
+export function splitStatements(sql: string): string[] {
+  const withoutComments = sql
+    .split("\n")
+    .map((line) => {
+      const idx = line.indexOf("--");
+      return idx >= 0 ? line.slice(0, idx) : line;
+    })
+    .join("\n");
+  return withoutComments.split(";");
+}
+
 export class CapSqliteDb implements Db {
   private dbName = "open-finance";
   private conn: Awaited<ReturnType<SQLiteConnection["createConnection"]>> | null = null;
@@ -99,7 +119,7 @@ export class CapSqliteDb implements Db {
         await conn.run("DELETE FROM _migrations WHERE version = ?", [m.version], false);
       }
 
-      for (const stmt of m.sql.split(";")) {
+      for (const stmt of splitStatements(m.sql)) {
         const trimmed = stmt.trim();
         if (!trimmed) continue;
         try {
