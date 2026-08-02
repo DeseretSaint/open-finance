@@ -22,9 +22,11 @@
     "og:image": "node scripts/og-crop.js"
   },
   "dependencies": {
+    "@aparajita/capacitor-biometric-auth": "9.1.2",
     "@capacitor-community/sqlite": "^8.1.0",
     "@capacitor/app": "7.1.2",
     "@capacitor/core": "7.6.8",
+    "@capacitor/local-notifications": "7.0.7",
     "@capacitor/preferences": "7.0.4",
     "@capacitor/status-bar": "7.0.6",
     "@modelcontextprotocol/sdk": "~1.10.2",
@@ -41,6 +43,7 @@
     "jsqr": "^1.4.0",
     "lucide-react": "^1.28.0",
     "next": "15.5.22",
+    "nodemailer": "^9.0.3",
     "plaid": "^45.0.0",
     "qrcode": "^1.5.4",
     "react": "19.1.0",
@@ -60,6 +63,7 @@
     "@tailwindcss/postcss": "^4",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^20",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

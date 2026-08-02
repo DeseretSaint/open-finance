@@ -141,6 +141,25 @@ export function createDeviceLockService(db: Db = getDb()) {
       );
     },
 
+    /**
+     * Unlock via biometrics. The native BiometricPrompt has ALREADY verified
+     * the user's fingerprint/face by the time this is called — this just
+     * checks the pref is on, clears any lockout, and resets counters.
+     */
+    async unlockWithBiometric(userId: string): Promise<{ ok: true; locked: false }> {
+      const row = await this.get(userId);
+      if (!row) throw apiErrors.badRequest("No device lock configured.");
+      if (row.biometric_enabled !== 1) {
+        throw apiErrors.badRequest("Biometric unlock is not enabled.");
+      }
+      await db.run(
+        "UPDATE device_lock SET failed_attempts = 0, locked_until = NULL, updated_at = ? WHERE user_id = ?",
+        new Date().toISOString(),
+        userId
+      );
+      return { ok: true, locked: false };
+    },
+
     /** Public lock state for the UI (never the hash). */
     async state(userId: string): Promise<{
       configured: boolean;

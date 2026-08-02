@@ -57,7 +57,6 @@ export function createSoloUpdatesService(db: Db) {
     async check(): Promise<{ found: boolean; status: SoloUpdateStatus }> {
       let latestVersion: string | null = null;
       let latestUrl: string | null = null;
-      let source = "none";
       try {
         const res = await fetch(GITHUB_LATEST, {
           headers: { accept: "application/vnd.github+json", "user-agent": "open-finance-updater" },
@@ -67,11 +66,6 @@ export function createSoloUpdatesService(db: Db) {
           const data = (await res.json()) as { tag_name?: string; html_url?: string };
           latestVersion = (data.tag_name ?? "").replace(/^v/i, "");
           latestUrl = data.html_url ?? null;
-          source = "github-api";
-        } else if (res.status === 404) {
-          source = "private-or-no-releases";
-        } else {
-          source = "github-api-error";
         }
       } catch {
         /* offline or unreachable — keep last known */

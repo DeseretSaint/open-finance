@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlaidLink } from "react-plaid-link";
 import { Moon, Sun } from "lucide-react";
@@ -131,6 +131,8 @@ export default function SettingsPage() {
           </Button>
         </form>
       </Card>
+
+      <NotificationsSecurityCard setMsg={setMsg} setErr={setErr} />
 
       <Card>
         <CardTitle>Sessions</CardTitle>
@@ -284,6 +286,207 @@ export default function SettingsPage() {
         </p>
       )}
     </div>
+  );
+}
+
+// ── Notifications & security (P11) ─────────────────────────────────────────
+
+function NotificationsSecurityCard({ setMsg, setErr }: { setMsg: (s: string | null) => void; setErr: (s: string | null) => void }) {
+  const qc = useQueryClient();
+  const [isMobile, setIsMobile] = useState(false);
+  const [bioType, setBioType] = useState<string | null>(null);
+
+  const prefs = useQuery({
+    queryKey: ["notif-prefs"],
+    queryFn: () =>
+      api.get<{
+        notifEnabled: boolean;
+        notifFrequency: "daily" | "weekly";
+        notifTime: string;
+        emailEnabled: boolean;
+        emailAddress: string | null;
+        emailFrequency: "daily" | "weekly";
+        biometricEnabled: boolean;
+      }>("/api/notifications/prefs"),
+  });
+  const lock = useQuery({
+    queryKey: ["device-lock"],
+    queryFn: () => api.get<{ configured: boolean; biometricEnabled: boolean }>("/api/device-lock"),
+  });
+
+  useEffect(() => {
+    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    setIsMobile(!!cap?.isNativePlatform?.());
+    if (cap?.isNativePlatform?.()) {
+      import("@/lib/biometric")
+        .then((m) => m.checkBiometricAvailability())
+        .then((a) => setBioType(a.available ? a.type : null))
+        .catch(() => {});
+    }
+  }, []);
+
+  async function save(patch: Record<string, unknown>) {
+    setErr(null);
+    try {
+      await api.put("/api/notifications/prefs", patch);
+      qc.invalidateQueries({ queryKey: ["notif-prefs"] });
+      setMsg("Preferences saved.");
+      // Reschedule the on-device notification with the new settings.
+      if (isMobile) {
+        const { syncNotificationSchedule } = await import("@/lib/solo-notifications");
+        const { getSoloDb } = await import("@/lib/solo-router");
+        const db = await getSoloDb();
+        const next = { ...prefs.data, ...patch } as {
+          notifEnabled: boolean;
+          notifFrequency: "daily" | "weekly";
+          notifTime: string;
+        };
+        await syncNotificationSchedule(db, {
+          enabled: next.notifEnabled,
+          frequency: next.notifFrequency,
+          time: next.notifTime,
+        });
+      }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not save preferences.");
+    }
+  }
+
+  async function toggleBiometric(enabled: boolean) {
+    setErr(null);
+    try {
+      if (enabled) {
+        const { checkBiometricAvailability, authenticateBiometric } = await import("@/lib/biometric");
+        const avail = await checkBiometricAvailability();
+        if (!avail.available) {
+          setErr("No fingerprint or face unlock is set up on this phone.");
+          return;
+        }
+        const ok = await authenticateBiometric("Verify your fingerprint or face");
+        if (!ok) return;
+        await api.post("/api/device-lock/biometric/enable");
+      } else {
+        await api.post("/api/device-lock/biometric/disable");
+      }
+      qc.invalidateQueries({ queryKey: ["device-lock"] });
+      qc.invalidateQueries({ queryKey: ["notif-prefs"] });
+      setMsg(enabled ? "Biometric unlock enabled." : "Biometric unlock disabled.");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not update biometrics.");
+    }
+  }
+
+  const p = prefs.data;
+  const showBiometric = isMobile && lock.data?.configured;
+
+  return (
+    <Card className="lg:col-span-2">
+      <CardTitle>Notifications &amp; security</CardTitle>
+
+      {/* Push (local) notifications */}
+      <h4 className="mt-5 text-sm font-semibold text-text">Push notifications</h4>
+      <p className="mt-1 text-xs text-text-muted">
+        {isMobile
+          ? "Scheduled on this phone. Notifications never include amounts — just status (on track / needs review). Tap one to open the app for details."
+          : "On-device notifications are for the phone app. On this desktop you can still set email digests below."}
+      </p>
+      <div className="mt-3 space-y-3">
+        <label className="flex items-center gap-2 text-sm text-text">
+          <input
+            type="checkbox"
+            checked={p?.notifEnabled ?? false}
+            onChange={(e) => save({ notifEnabled: e.target.checked })}
+            disabled={!p}
+          />
+          Enable push notifications
+        </label>
+        {p?.notifEnabled && (
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-sm text-text-muted">
+              Frequency
+              <Select
+                value={p.notifFrequency}
+                onChange={(e) => save({ notifFrequency: e.target.value as "daily" | "weekly" })}
+                className="w-32"
+              >
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+              </Select>
+            </label>
+            <label className="flex items-center gap-2 text-sm text-text-muted">
+              Time
+              <Input
+                type="time"
+                value={p.notifTime}
+                onChange={(e) => save({ notifTime: e.target.value })}
+                className="w-32"
+              />
+            </label>
+          </div>
+        )}
+      </div>
+
+      {/* Email digests */}
+      <h4 className="mt-6 text-sm font-semibold text-text">Email digests</h4>
+      <p className="mt-1 text-xs text-text-muted">
+        A daily or weekly summary of where your budget stands. Emails are sent by your own hub (SMTP) — set
+        SMTP_HOST/SMTP_USER/SMTP_PASS in the hub env to enable sending. No bank-level details, just your status.
+      </p>
+      <div className="mt-3 space-y-3">
+        <label className="flex items-center gap-2 text-sm text-text">
+          <input
+            type="checkbox"
+            checked={p?.emailEnabled ?? false}
+            onChange={(e) => save({ emailEnabled: e.target.checked })}
+            disabled={!p}
+          />
+          Enable email digests
+        </label>
+        {p?.emailEnabled && (
+          <div className="flex flex-wrap items-center gap-3">
+            <Input
+              type="email"
+              placeholder="you@example.com"
+              value={p.emailAddress ?? ""}
+              onChange={(e) => save({ emailAddress: e.target.value })}
+              className="max-w-56"
+            />
+            <label className="flex items-center gap-2 text-sm text-text-muted">
+              Frequency
+              <Select
+                value={p.emailFrequency}
+                onChange={(e) => save({ emailFrequency: e.target.value as "daily" | "weekly" })}
+                className="w-32"
+              >
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+              </Select>
+            </label>
+          </div>
+        )}
+      </div>
+
+      {/* Biometrics */}
+      {showBiometric && (
+        <>
+          <h4 className="mt-6 text-sm font-semibold text-text">Biometric unlock</h4>
+          <p className="mt-1 text-xs text-text-muted">
+            {bioType
+              ? `Unlock with your ${bioType} instead of the PIN. The system prompt handles the scan; the PIN stays as a fallback.`
+              : "Set up fingerprint or face unlock in your phone's system settings first."}
+          </p>
+          <label className="mt-3 flex items-center gap-2 text-sm text-text">
+            <input
+              type="checkbox"
+              checked={lock.data?.biometricEnabled ?? false}
+              onChange={(e) => toggleBiometric(e.target.checked)}
+              disabled={!bioType}
+            />
+            Unlock with fingerprint / face
+          </label>
+        </>
+      )}
+    </Card>
   );
 }
 

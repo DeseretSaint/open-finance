@@ -26,6 +26,38 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (!isLoading && !data) router.replace("/login");
   }, [isLoading, data, router]);
 
+  // P11: keep the on-device status notification schedule fresh on every launch
+  // (native only — the plugin is a no-op elsewhere).
+  useEffect(() => {
+    if (!data || onboarding.data?.completed === false) return;
+    if (typeof window === "undefined") return;
+    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    if (!cap?.isNativePlatform?.()) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const prefs = await api.get<{ notifEnabled: boolean; notifFrequency: "daily" | "weekly"; notifTime: string }>(
+          "/api/notifications/prefs"
+        );
+        if (cancelled || !prefs.notifEnabled) return;
+        const { syncNotificationSchedule } = await import("@/lib/solo-notifications");
+        const { getSoloDb } = await import("@/lib/solo-router");
+        const db = await getSoloDb();
+        await syncNotificationSchedule(db, {
+          enabled: prefs.notifEnabled,
+          frequency: prefs.notifFrequency,
+          time: prefs.notifTime,
+        });
+      } catch {
+        /* best-effort */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.user.display_name, onboarding.data?.completed]);
+
   if (isLoading || !data) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-background text-text-muted">

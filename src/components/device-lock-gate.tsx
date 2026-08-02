@@ -19,6 +19,10 @@ interface LockState {
  * "set up device lock" card for first-time mobile users. Web/desktop ignores
  * the gate entirely (lock is a mobile concept — the desktop session is the
  * cookie).
+ *
+ * P11: biometric unlock — when the user enabled biometrics, the locked
+ * screen offers fingerprint/face via the native prompt, falling back to the
+ * PIN (and the PIN remains the recovery path).
  */
 export function DeviceLockGate({ children }: { children: React.ReactNode }) {
   const qc = useQueryClient();
@@ -26,6 +30,7 @@ export function DeviceLockGate({ children }: { children: React.ReactNode }) {
   const [pin, setPin] = useState("");
   const [setupPin, setSetupPin] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const [bioBusy, setBioBusy] = useState(false);
 
   useEffect(() => {
     const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
@@ -51,6 +56,22 @@ export function DeviceLockGate({ children }: { children: React.ReactNode }) {
     }
   }
 
+  async function unlockWithBiometric() {
+    setErr(null);
+    setBioBusy(true);
+    try {
+      const { authenticateBiometric } = await import("@/lib/biometric");
+      const ok = await authenticateBiometric("Unlock Open Finance");
+      if (!ok) return; // cancelled → stay on the PIN pad
+      await api.post("/api/device-lock/biometric");
+      qc.invalidateQueries({ queryKey: ["device-lock"] });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Biometric unlock failed.");
+    } finally {
+      setBioBusy(false);
+    }
+  }
+
   async function savePin() {
     setErr(null);
     try {
@@ -64,7 +85,7 @@ export function DeviceLockGate({ children }: { children: React.ReactNode }) {
 
   if (!isMobile || lock.isLoading || !lock.data) return <>{children}</>;
 
-  // locked → PIN pad
+  // locked → PIN pad + biometric option
   if (lock.data.locked) {
     return (
       <div
@@ -73,6 +94,11 @@ export function DeviceLockGate({ children }: { children: React.ReactNode }) {
       >
         <h1 className="text-xl font-semibold">Device locked</h1>
         <p className="text-sm text-muted-foreground">Enter your PIN to unlock.</p>
+        {lock.data.biometricEnabled && (
+          <Button variant="secondary" onClick={unlockWithBiometric} disabled={bioBusy} className="w-48">
+            {bioBusy ? "Checking…" : "🔓 Unlock with biometrics"}
+          </Button>
+        )}
         <Input
           type="password"
           inputMode="numeric"
@@ -89,7 +115,7 @@ export function DeviceLockGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // not configured → show setup card above the app
+  // not configured → show setup card above the app (dismissible)
   if (!lock.data.configured) {
     return (
       <>
@@ -97,8 +123,8 @@ export function DeviceLockGate({ children }: { children: React.ReactNode }) {
           className="fixed inset-x-0 top-0 z-40 border-b border-border bg-background/95 backdrop-blur"
           style={{ paddingTop: "env(safe-area-inset-top)" }}
         >
-          <div className="mx-auto flex max-w-3xl flex-col gap-2 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-            <span className="font-medium text-text">Set a device PIN to lock this app on your phone.</span>
+          <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3 px-4 py-2 text-sm">
+            <span>Set a device PIN to lock the app on this phone.</span>
             <div className="flex items-center gap-2">
               <Input
                 type="password"
@@ -106,18 +132,19 @@ export function DeviceLockGate({ children }: { children: React.ReactNode }) {
                 placeholder="4–12 digits"
                 value={setupPin}
                 onChange={(e) => setSetupPin(e.target.value.replace(/\D/g, "").slice(0, 12))}
-                className="h-10 w-32"
+                className="w-28"
               />
-              <Button size="sm" className="h-10" onClick={savePin}>
+              <Button size="sm" onClick={savePin}>
                 Set PIN
               </Button>
             </div>
           </div>
         </div>
-        <div className="pt-28 md:pt-16">{children}</div>
+        <div className="pt-10 md:pt-12">{children}</div>
       </>
     );
   }
 
+  // configured + unlocked → nothing to show (biometric toggle lives in Settings)
   return <>{children}</>;
 }

@@ -228,6 +228,23 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       await h.deviceLock.unlock(userId, pin);
       return ok({ ok: true });
     }
+    if (method === "POST" && path === "/api/device-lock/biometric") {
+      // Native BiometricPrompt already verified the fingerprint/face — this
+      // confirms the pref and clears the lockout.
+      const userId = await h.deviceUserId();
+      await h.deviceLock.unlockWithBiometric(userId);
+      return ok({ ok: true });
+    }
+    if (method === "POST" && path === "/api/device-lock/biometric/enable") {
+      const userId = await h.deviceUserId();
+      await h.deviceLock.setBiometric(userId, true);
+      return ok({ ok: true });
+    }
+    if (method === "POST" && path === "/api/device-lock/biometric/disable") {
+      const userId = await h.deviceUserId();
+      await h.deviceLock.setBiometric(userId, false);
+      return ok({ ok: true });
+    }
 
     // ── Accounts (manual) ───────────────────────────────────────────────
     if (method === "GET" && path === "/api/accounts") {
@@ -462,6 +479,31 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
           return svc.rejectInPlace();
         default:
           throw apiErrors.badRequest("Unknown action.");
+      }
+    }
+
+    // ── Notification + biometric preferences ────────────────────────────
+    if (path === "/api/notifications/prefs") {
+      const { createNotificationsService } = await import("@/server/domain/notifications");
+      const userId = await h.deviceUserId();
+      const svc = createNotificationsService(db);
+      if (method === "GET") {
+        return ok(await svc.get(userId));
+      }
+      if (method === "PUT") {
+        const patch: Record<string, unknown> = {};
+        for (const key of [
+          "notifEnabled",
+          "notifFrequency",
+          "notifTime",
+          "emailEnabled",
+          "emailAddress",
+          "emailFrequency",
+          "biometricEnabled",
+        ] as const) {
+          if (B?.[key] !== undefined) patch[key] = B[key];
+        }
+        return ok(await svc.update(userId, patch));
       }
     }
 
