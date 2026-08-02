@@ -3,7 +3,7 @@ import { z } from "zod";
 import { ok, parseBody, route } from "@/lib/api";
 import { requireCsrf, requireSession } from "@/server/auth/service";
 import { requireSessionOrAgent, agentRoute } from "@/server/authz/agent-auth";
-import { createBudgetsService } from "@/server/domain/budgets";
+import { createBudgetsService, type BudgetFrame } from "@/server/domain/budgets";
 import { getDb } from "@/server/db/adapter";
 
 export const runtime = "nodejs";
@@ -20,8 +20,15 @@ export async function GET(req: NextRequest) {
   return agentRoute(async (req) => {
     const auth = await requireSessionOrAgent(req, ["read:budgets"], "get_budgets");
     const reference = req.nextUrl.searchParams.get("referenceDate") ?? undefined;
+    const frameKind = req.nextUrl.searchParams.get("frame") ?? "period";
+    const start = req.nextUrl.searchParams.get("start") ?? undefined;
+    const end = req.nextUrl.searchParams.get("end") ?? undefined;
+    const frame: BudgetFrame =
+      frameKind === "custom" && start && end
+        ? { kind: "custom", start, end }
+        : { kind: (["week", "month", "quarter", "year", "period"].includes(frameKind) ? frameKind : "period") as "week" | "month" | "quarter" | "year" | "period" };
     const userId = auth.kind === "agent" ? auth.ctx.userId : auth.userId;
-    const budgets = await createBudgetsService(getDb()).list(userId, reference);
+    const budgets = await createBudgetsService(getDb()).list(userId, reference, frame);
     return ok({ budgets });
   })(req, { params: Promise.resolve({}) });
 }

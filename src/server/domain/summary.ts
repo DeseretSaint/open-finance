@@ -1,6 +1,5 @@
 import { getDb, type Db } from "@/server/db/registry";
-import { monthBounds } from "@/server/domain/budgets";
-import { createBudgetsService } from "@/server/domain/budgets";
+import { createBudgetsService, frameBounds, monthBounds, type BudgetFrame } from "@/server/domain/budgets";
 import { withAllowlist, type AllowlistCtx } from "@/server/db/allowlist";
 
 /** Dashboard one-call briefing. */
@@ -31,9 +30,10 @@ export function createSummaryService(db: Db = getDb()) {
     async get(
       userId: string,
       referenceDate: string = new Date().toISOString().slice(0, 10),
-      allowlist?: AllowlistCtx | null
+      allowlist?: AllowlistCtx | null,
+      frame: BudgetFrame = { kind: "month" }
     ): Promise<Summary> {
-      const { start, end } = monthBounds(referenceDate);
+      const { start, end } = frame.kind === "period" ? monthBounds(referenceDate) : frameBounds(frame, referenceDate);
       const allowAccounts = withAllowlist(allowlist ?? null, "id");
       const allowTxns = withAllowlist(allowlist ?? null, "a.id");
 
@@ -66,7 +66,7 @@ export function createSummaryService(db: Db = getDb()) {
       const monthIncomeCents = month?.income ?? 0;
       const monthExpenseCents = month?.expense ?? 0;
 
-      const budgets = await createBudgetsService(db).list(userId, referenceDate);
+      const budgets = await createBudgetsService(db).list(userId, referenceDate, frame);
       const budgetOverview = budgets.map((b) => ({
         id: b.id,
         name: b.name,

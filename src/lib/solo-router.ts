@@ -25,7 +25,7 @@ import { createDeviceLockService } from "@/server/domain/device-lock";
 import { createAccountsService } from "@/server/domain/accounts";
 import { createCategoriesService } from "@/server/domain/categories";
 import { createTransactionsService } from "@/server/domain/transactions";
-import { createBudgetsService } from "@/server/domain/budgets";
+import { createBudgetsService, type BudgetFrame } from "@/server/domain/budgets";
 import { createSummaryService } from "@/server/domain/summary";
 import { createReportsService } from "@/server/domain/reports";
 import { createPlanningService } from "@/server/domain/planning";
@@ -307,7 +307,15 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
     // ── Budgets ─────────────────────────────────────────────────────────
     if (method === "GET" && path === "/api/budgets") {
       const userId = await h.deviceUserId();
-      return ok({ budgets: await h.budgets.list(userId, query.get("reference") ?? undefined) });
+      const reference = query.get("referenceDate") ?? query.get("reference") ?? undefined;
+      const frameKind = query.get("frame") ?? "period";
+      const start = query.get("start") ?? undefined;
+      const end = query.get("end") ?? undefined;
+      const frame: BudgetFrame =
+        frameKind === "custom" && start && end
+          ? { kind: "custom", start, end }
+          : { kind: (["week", "month", "quarter", "year", "period"].includes(frameKind) ? frameKind : "period") as "week" | "month" | "quarter" | "year" | "period" };
+      return ok({ budgets: await h.budgets.list(userId, reference, frame) });
     }
     if (method === "POST" && path === "/api/budgets") {
       const userId = await h.deviceUserId();
@@ -323,7 +331,16 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
     // ── Summary / reports ───────────────────────────────────────────────
     if (method === "GET" && path === "/api/summary") {
       const userId = await h.deviceUserId();
-      return ok({ summary: await h.summary.get(userId) });
+      const ref = req.query.get("ref");
+      const referenceDate = ref && /^\d{4}-\d{2}-\d{2}$/.test(ref) ? ref : undefined;
+      const frameKind = req.query.get("frame") ?? "month";
+      const start = req.query.get("start") ?? undefined;
+      const end = req.query.get("end") ?? undefined;
+      const frame: BudgetFrame =
+        frameKind === "custom" && start && end
+          ? { kind: "custom", start, end }
+          : { kind: (["week", "month", "quarter", "year", "period"].includes(frameKind) ? frameKind : "month") as "week" | "month" | "quarter" | "year" | "period" };
+      return ok({ summary: await h.summary.get(userId, referenceDate, null, frame) });
     }
     if (method === "GET" && path === "/api/reports/spending-by-category") {
       const userId = await h.deviceUserId();
