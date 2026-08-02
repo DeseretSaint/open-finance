@@ -432,6 +432,39 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       return ok({ items });
     }
 
+    // ── Updates (solo: GitHub check + dismiss; no self-update on APK) ───
+    if (path === "/api/updates") {
+      const { createSoloUpdatesService } = await import("@/server/domain/updates-solo");
+      const svc = createSoloUpdatesService(db);
+      if (method === "POST") {
+        const result = await svc.check();
+        return ok({ found: result.found, status: result.status });
+      }
+      return ok(await svc.status());
+    }
+
+    if (method === "POST" && path === "/api/updates/decide") {
+      const { createSoloUpdatesService } = await import("@/server/domain/updates-solo");
+      const svc = createSoloUpdatesService(db);
+      const action = typeof B?.action === "string" ? B.action : "";
+      switch (action) {
+        case "dismiss":
+          await svc.dismiss();
+          return ok({ dismissed: true });
+        case "remind":
+          await svc.remind();
+          return ok({ reminded: true });
+        case "cancel":
+          await svc.cancelSchedule();
+          return ok({ cancelled: true });
+        case "now":
+        case "scheduled":
+          return svc.rejectInPlace();
+        default:
+          throw apiErrors.badRequest("Unknown action.");
+      }
+    }
+
     // ── Planning ────────────────────────────────────────────────────────
     if (method === "GET" && path === "/api/planning/bills") {
       const userId = await h.deviceUserId();

@@ -52,6 +52,11 @@ const nextConfig: NextConfig = {
     ? { distDir: "dist/mobile", images: { unoptimized: true } }
     : { outputFileTracingRoot: path.join(__dirname) }),
   serverExternalPackages: ["better-sqlite3"],
+  // Inlined at build time (browser bundle has no process.env at runtime).
+  // Used by the solo updates service for the "current version" comparison.
+  env: {
+    NEXT_PUBLIC_APP_VERSION: process.env.npm_package_version ?? "0.0.0",
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
