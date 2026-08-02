@@ -16,5 +16,9 @@ export const SOLO_MIGRATIONS: { version: number; sql: string }[] = [
   {
     version: 2,
     sql: "-- 002_updates.sql — update notifications & scheduling state (per-install, hub-wide)\nCREATE TABLE IF NOT EXISTS app_state (\n  key TEXT PRIMARY KEY,\n  value TEXT NOT NULL,\n  updated_at TEXT NOT NULL\n);\n\n-- update decisions live here as JSON:\n--   update.latest_version   \"1.0.1\"\n--   update.latest_url       \"https://github.com/DeseretSaint/open-finance/releases/tag/v1.0.1\"\n--   update.dismissed        \"1.0.1\"           (stop notifying about this version)\n--   update.scheduled_at     ISO timestamp     (update scheduled for a specific time)\n--   update.running          \"1\"               (an update is applying right now)\n",
+  },
+  {
+    version: 3,
+    sql: "-- 003: first-run onboarding flag (per-user, on user_settings)\nALTER TABLE user_settings ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0;\n",
   }
 ];

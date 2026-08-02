@@ -15,7 +15,7 @@
  * (local device). Plaid calls route to the native PlaidProxy plugin.
  */
 
-import { ApiError } from "@/lib/api-error";
+import { ApiError, apiErrors } from "@/lib/api-error";
 import type { Db } from "@/server/db/types";
 import { CapSqliteDb } from "@/server/db/cap-sqlite";
 import { registerDbProvider } from "@/server/db/registry";
@@ -31,6 +31,7 @@ import { createReportsService } from "@/server/domain/reports";
 import { createPlanningService } from "@/server/domain/planning";
 import { createProjectionService } from "@/server/domain/projection";
 import { seedSoloDemo } from "@/lib/solo-demo-seed";
+import { createOnboardingService } from "@/server/domain/onboarding";
 
 export interface SoloRequest {
   method: string;
@@ -94,6 +95,7 @@ async function handlers(db: Db) {
   const reports = createReportsService(db);
   const planning = createPlanningService(db);
   const projection = createProjectionService(db);
+  const onboarding = createOnboardingService(db);
 
   async function deviceUserId(): Promise<string> {
     const user = await solo.getDeviceUser();
@@ -112,6 +114,7 @@ async function handlers(db: Db) {
     reports,
     planning,
     projection,
+    onboarding,
     deviceUserId,
   };
 }
@@ -155,13 +158,14 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
     if (method === "GET" && path === "/api/auth/me") {
       const userId = await h.deviceUserId();
       const user = await h.solo.getDeviceUser();
+      const row = await db.get<{ is_demo: number }>("SELECT is_demo FROM users WHERE id = ?", userId);
       return ok({
         user: {
           id: userId,
           username: user?.username ?? null,
           display_name: user?.display_name ?? "This phone",
           email: null,
-          is_demo: false,
+          is_demo: row?.is_demo === 1,
         },
       });
     }
@@ -172,12 +176,14 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
 
     if (method === "POST" && path === "/api/auth/demo") {
       // Solo demo: bootstrap a throwaway device (no PIN) + seed sample data,
-      // mirroring the server demo experience entirely on-device.
+      // mirroring the server demo experience entirely on-device. Demo users
+      // skip the onboarding wizard.
       if (!(await h.solo.isBootstrapped())) {
-        await h.solo.bootstrap({ displayName: "Demo phone", pin: undefined });
+        await h.solo.bootstrap({ displayName: "Demo phone", pin: undefined, isDemo: true });
       }
       const userId = await h.deviceUserId();
       await seedSoloDemo(db, userId);
+      await h.onboarding.complete(userId);
       return ok({ ok: true });
     }
 
@@ -190,6 +196,19 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       }
       const valid = await h.solo.verifyRecoveryCode(code);
       return ok({ ok: valid });
+    }
+
+    // ── Onboarding (first-run walkthrough) ──────────────────────────────
+    if (method === "GET" && path === "/api/onboarding") {
+      const userId = await h.deviceUserId();
+      return ok(await h.onboarding.get(userId));
+    }
+    if (method === "POST" && path === "/api/onboarding") {
+      const userId = await h.deviceUserId();
+      if (B?.action === "reset") {
+        return ok(await h.onboarding.reset(userId));
+      }
+      return ok(await h.onboarding.complete(userId));
     }
 
     // ── Device lock (PIN) ───────────────────────────────────────────────
@@ -311,6 +330,106 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
     if (method === "GET" && path === "/api/reports/spending-trend") {
       const userId = await h.deviceUserId();
       return ok(await h.reports.spendingTrend(userId, Number(query.get("months") ?? 6)));
+    }
+
+    // ── Plaid (solo: native proxy + localStorage creds) ────────────────
+    if (method === "GET" && path === "/api/plaid/credentials") {
+      const { getSoloPlaidCreds } = await import("@/lib/solo-plaid-store");
+      const creds = getSoloPlaidCreds();
+      const environments = [
+        {
+          environment: "sandbox",
+          hasKeys: creds?.environment === "sandbox",
+          updatedAt: creds?.environment === "sandbox" ? creds.updatedAt : null,
+        },
+        {
+          environment: "production",
+          hasKeys: creds?.environment === "production",
+          updatedAt: creds?.environment === "production" ? creds.updatedAt : null,
+        },
+      ];
+      return ok({ environments });
+    }
+
+    if (method === "PUT" && path === "/api/plaid/credentials") {
+      const { setSoloPlaidCreds } = await import("@/lib/solo-plaid-store");
+      const { createNativePlaidClient } = await import("@/server/plaid/native");
+      const clientId = typeof B?.clientId === "string" ? B.clientId.trim() : "";
+      const secret = typeof B?.secret === "string" ? B.secret.trim() : "";
+      const environment = B?.environment === "production" ? "production" : "sandbox";
+      if (!clientId || !secret) {
+        throw apiErrors.badRequest("Client ID and secret are required.");
+      }
+      const creds = { clientId, secret, environment } as const;
+      // Validate against Plaid before persisting (matches the hub behavior).
+      const client = createNativePlaidClient();
+      const check = await client.testCredentials(creds);
+      if (!check.ok) {
+        throw apiErrors.badRequest(check.message || "Plaid rejected these credentials.");
+      }
+      setSoloPlaidCreds({ ...creds, updatedAt: new Date().toISOString() });
+      return ok({ ok: true });
+    }
+
+    if (method === "GET" && path === "/api/plaid/link-token") {
+      const { getSoloPlaidCreds } = await import("@/lib/solo-plaid-store");
+      const { createNativePlaidClient } = await import("@/server/plaid/native");
+      const userId = await h.deviceUserId();
+      const creds = getSoloPlaidCreds();
+      if (!creds) throw apiErrors.badRequest("Save your Plaid keys first.");
+      const env = query.get("environment") === "production" ? "production" : creds.environment;
+      const client = createNativePlaidClient();
+      const linkToken = await client.createLinkToken({ ...creds, environment: env }, userId);
+      return ok({ linkToken });
+    }
+
+    if (method === "POST" && path === "/api/plaid/exchange") {
+      const { getSoloPlaidCreds, addSoloPlaidItem } = await import("@/lib/solo-plaid-store");
+      const { createNativePlaidClient } = await import("@/server/plaid/native");
+      const publicToken = typeof B?.publicToken === "string" ? B.publicToken : "";
+      if (!publicToken) throw apiErrors.badRequest("Missing public token.");
+      const creds = getSoloPlaidCreds();
+      if (!creds) throw apiErrors.badRequest("Save your Plaid keys first.");
+      const env = B?.environment === "production" ? "production" : creds.environment;
+      const client = createNativePlaidClient();
+      const { accessToken, itemId } = await client.exchangePublicToken(
+        { ...creds, environment: env },
+        publicToken
+      );
+      // Fetch accounts so the item has display data.
+      let accounts: Array<{ id: string; name: string; type: string | null; mask: string | null }> = [];
+      try {
+        const res = await client.getAccounts({ ...creds, environment: env }, accessToken);
+        accounts = res.map((a) => ({
+          id: a.id,
+          name: a.name,
+          type: a.type ?? null,
+          mask: a.mask ?? null,
+        }));
+      } catch {
+        // accounts fetch is best-effort; the item is still linked
+      }
+      addSoloPlaidItem({
+        id: itemId,
+        institutionName: typeof B?.institutionName === "string" ? B.institutionName : null,
+        environment: env,
+        accessToken,
+        linkedAt: new Date().toISOString(),
+        accounts,
+      });
+      return ok({ ok: true, itemId });
+    }
+
+    if (method === "GET" && path === "/api/plaid/items") {
+      const { getSoloPlaidItems } = await import("@/lib/solo-plaid-store");
+      const items = getSoloPlaidItems().map((i) => ({
+        id: i.id,
+        institution_name: i.institutionName,
+        environment: i.environment,
+        status: "linked",
+        accounts: i.accounts,
+      }));
+      return ok({ items });
     }
 
     // ── Planning ────────────────────────────────────────────────────────

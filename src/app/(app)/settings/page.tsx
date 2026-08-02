@@ -464,6 +464,7 @@ function BackupPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; s
   }
 
   return (
+    <>
     <Card className="lg:col-span-2">
       <CardTitle>Backup &amp; restore</CardTitle>
       <p className="mt-1 text-sm text-text-muted">
@@ -498,5 +499,29 @@ function BackupPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; s
         </Button>
       </div>
     </Card>
+
+    <Card>
+      <CardTitle>Setup tour</CardTitle>
+      <p className="mt-1 text-sm text-text-muted">
+        Replay the first-run walkthrough — Plaid keys, bank linking, and the agent intro. Nothing is
+        reset; it just guides you through setup again.
+      </p>
+      <div className="mt-4">
+        <Button
+          variant="secondary"
+          onClick={async () => {
+            try {
+              await api.post("/api/onboarding", { action: "reset" });
+              window.location.href = "/dashboard";
+            } catch (e) {
+              setErr(e instanceof Error ? e.message : "Could not restart the tour.");
+            }
+          }}
+        >
+          ↻ Restart setup tour
+        </Button>
+      </div>
+    </Card>
+    </>
   );
 }

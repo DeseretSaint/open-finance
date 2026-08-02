@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { route, apiErrors } from "@/lib/api";
 import { requireCsrf } from "@/server/auth/service";
 import { createSession } from "@/server/auth/sessions";
+import { createOnboardingService } from "@/server/domain/onboarding";
 import { getDb } from "@/server/db/adapter";
 import { env } from "@/lib/env";
 import { SESSION_COOKIE, sessionCookieMaxAge } from "@/server/auth/sessions";
@@ -24,6 +25,8 @@ export async function POST(req: NextRequest) {
       throw apiErrors.badRequest("Demo user not found — run `pnpm seed` first.");
     }
     const session = await createSession(demo.id, "30d", "Demo browser", db);
+    // Demo users skip the first-run onboarding wizard.
+    await createOnboardingService(db).complete(demo.id);
     const res = NextResponse.json({ ok: true, expiresAt: session.expiresAt });
     res.cookies.set(SESSION_COOKIE, session.token, {
       httpOnly: true,

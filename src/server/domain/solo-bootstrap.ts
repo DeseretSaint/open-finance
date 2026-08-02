@@ -72,7 +72,7 @@ export function createSoloBootstrapService(db: Db = getDb()) {
      * Bootstrap the device identity. Returns the recovery code ONCE — the
      * caller must show it to the user; it is stored only as a hash.
      */
-    async bootstrap(input: { displayName?: string; pin?: string }): Promise<{
+    async bootstrap(input: { displayName?: string; pin?: string; isDemo?: boolean }): Promise<{
       user: SoloDeviceRow;
       recoveryCode: string;
       hasPin: boolean;
@@ -89,11 +89,12 @@ export function createSoloBootstrapService(db: Db = getDb()) {
       await db.transaction(async () => {
         await db.run(
           `INSERT INTO users (id, username, display_name, recovery_code_hash, is_demo, created_at, updated_at)
-           VALUES (?, ?, ?, ?, 0, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
           id,
           username,
           displayName,
           await hashSecret(recoveryCode),
+          input.isDemo ? 1 : 0,
           now(),
           now()
         );
