@@ -26,4 +26,41 @@ describe("solo demo seed (P8b)", () => {
     const s = await summary.createSummaryService(db).get(user.id);
     expect(s.totalBalanceCents).toBeGreaterThan(0);
   });
+
+  it("uses the correct sign convention: expenses positive, income negative", async () => {
+    const db = createTestDb();
+    const solo = createSoloBootstrapService(db);
+    const { user } = await solo.bootstrap({ displayName: "Demo phone", pin: undefined });
+    await seedSoloDemo(db, user.id);
+
+    const txns = await import("@/server/domain/transactions");
+    const txnSvc = txns.createTransactionsService(db);
+    const list = await txnSvc.list(user.id, { limit: 200, offset: 0 });
+
+    const paycheck = list.rows.find((t) => t.name === "Paycheck");
+    const rent = list.rows.find((t) => t.name === "Rent");
+    const groceries = list.rows.find((t) => t.name === "Groceries — WinCo");
+
+    expect(paycheck).toBeDefined();
+    expect(rent).toBeDefined();
+    expect(groceries).toBeDefined();
+    // income = money in = NEGATIVE; expenses = money out = POSITIVE
+    expect(paycheck!.amount_cents).toBeLessThan(0);
+    expect(rent!.amount_cents).toBeGreaterThan(0);
+    expect(groceries!.amount_cents).toBeGreaterThan(0);
+  });
+
+  it("seeds granular per-category budgets (AI-adjustable)", async () => {
+    const db = createTestDb();
+    const solo = createSoloBootstrapService(db);
+    const { user } = await solo.bootstrap({ displayName: "Demo phone", pin: undefined });
+    await seedSoloDemo(db, user.id);
+
+    const budgets = await import("@/server/domain/budgets");
+    const list = budgets.createBudgetsService(db).list(user.id);
+    const names = (await list).map((b) => b.name);
+    expect(names).toEqual(
+      expect.arrayContaining(["Rent", "Groceries", "Dining Out", "Transport", "Utilities", "Fun Money", "Investing", "Savings"])
+    );
+  });
 });

@@ -15,20 +15,22 @@ interface LockState {
 
 /**
  * Device lock gate (P8a §10): when a PIN is configured and the device is
- * locked, the app shows this PIN pad instead of the UI. Also surfaces the
- * "set up device lock" card for first-time mobile users. Web/desktop ignores
+ * locked, the app shows this PIN pad instead of the UI. Web/desktop ignores
  * the gate entirely (lock is a mobile concept — the desktop session is the
  * cookie).
  *
  * P11: biometric unlock — when the user enabled biometrics, the locked
  * screen offers fingerprint/face via the native prompt, falling back to the
  * PIN (and the PIN remains the recovery path).
+ *
+ * P12: PIN setup lives in the onboarding wizard (first-run) and Settings
+ * (reset via the recovery code). No nag banner here — if no PIN is
+ * configured, the app simply isn't locked.
  */
 export function DeviceLockGate({ children }: { children: React.ReactNode }) {
   const qc = useQueryClient();
   const [isMobile, setIsMobile] = useState(false);
   const [pin, setPin] = useState("");
-  const [setupPin, setSetupPin] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [bioBusy, setBioBusy] = useState(false);
 
@@ -72,18 +74,11 @@ export function DeviceLockGate({ children }: { children: React.ReactNode }) {
     }
   }
 
-  async function savePin() {
-    setErr(null);
-    try {
-      await api.post("/api/device-lock/pin", { pin: setupPin });
-      setSetupPin("");
-      qc.invalidateQueries({ queryKey: ["device-lock"] });
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Failed.");
-    }
-  }
-
   if (!isMobile || lock.isLoading || !lock.data) return <>{children}</>;
+
+  // No PIN configured → not locked, nothing to show (setup lives in the
+  // onboarding wizard / Settings).
+  if (!lock.data.configured) return <>{children}</>;
 
   // locked → PIN pad + biometric option
   if (lock.data.locked) {
@@ -115,36 +110,6 @@ export function DeviceLockGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // not configured → show setup card above the app (dismissible)
-  if (!lock.data.configured) {
-    return (
-      <>
-        <div
-          className="fixed inset-x-0 top-0 z-40 border-b border-border bg-background/95 backdrop-blur"
-          style={{ paddingTop: "env(safe-area-inset-top)" }}
-        >
-          <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3 px-4 py-2 text-sm">
-            <span>Set a device PIN to lock the app on this phone.</span>
-            <div className="flex items-center gap-2">
-              <Input
-                type="password"
-                inputMode="numeric"
-                placeholder="4–12 digits"
-                value={setupPin}
-                onChange={(e) => setSetupPin(e.target.value.replace(/\D/g, "").slice(0, 12))}
-                className="w-28"
-              />
-              <Button size="sm" onClick={savePin}>
-                Set PIN
-              </Button>
-            </div>
-          </div>
-        </div>
-        <div className="pt-10 md:pt-12">{children}</div>
-      </>
-    );
-  }
-
-  // configured + unlocked → nothing to show (biometric toggle lives in Settings)
   return <>{children}</>;
 }
+

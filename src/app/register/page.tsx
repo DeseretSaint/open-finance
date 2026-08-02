@@ -14,7 +14,6 @@ export default function RegisterPage() {
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
-  const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
@@ -31,10 +30,11 @@ export default function RegisterPage() {
     setError(null);
     try {
       if (solo) {
-        // Device bootstrap: display name + PIN → returns a one-time recovery code.
+        // Device bootstrap: display name → one-time recovery code. The PIN is
+        // set in the onboarding wizard's Security step (P12).
         const res = await api.post<{ recoveryCode: string; user: { display_name: string } }>(
           "/api/auth/register",
-          { display_name: displayName || "This phone", pin }
+          { display_name: displayName || "This phone" }
         );
         setRecoveryCode(res.recoveryCode);
       } else {
@@ -71,7 +71,7 @@ export default function RegisterPage() {
               </p>
               <p className="mt-2 text-xs text-text-muted">
                 If you forget your PIN, this code is the only way to reset it. It is shown
-                once and never again.
+                once and never again. You&apos;ll set your PIN in the next step.
               </p>
             </div>
             <Button className="w-full" size="lg" onClick={() => router.push("/dashboard")}>
@@ -113,24 +113,7 @@ export default function RegisterPage() {
               autoFocus
             />
           </div>
-          {solo ? (
-            <div>
-              <label htmlFor="reg-pin" className="mb-1 block text-xs font-medium text-text-muted">
-                PIN
-              </label>
-              <Input
-                id="reg-pin"
-                type="password"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={12}
-                placeholder="4–12 digits"
-                value={pin}
-                onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ""))}
-              />
-              <p className="mt-1.5 text-xs text-text-muted">Your PIN unlocks this app. Choose 4–12 digits.</p>
-            </div>
-          ) : (
+          {!solo && (
             <>
               <div>
                 <label htmlFor="reg-username" className="mb-1 block text-xs font-medium text-text-muted">
@@ -170,7 +153,7 @@ export default function RegisterPage() {
           )}
           <Button
             type="submit"
-            disabled={busy || (solo ? pin.length < 4 : !username || password.length < 10)}
+            disabled={busy || (!solo && (!username || password.length < 10))}
             className="w-full"
             size="lg"
           >
@@ -187,3 +170,4 @@ export default function RegisterPage() {
     </main>
   );
 }
+

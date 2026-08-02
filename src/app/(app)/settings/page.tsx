@@ -134,6 +134,8 @@ export default function SettingsPage() {
 
       <NotificationsSecurityCard setMsg={setMsg} setErr={setErr} />
 
+      <AgentWiringCard />
+
       <Card>
         <CardTitle>Sessions</CardTitle>
         <div className="mt-4 space-y-2">
@@ -295,6 +297,9 @@ function NotificationsSecurityCard({ setMsg, setErr }: { setMsg: (s: string | nu
   const qc = useQueryClient();
   const [isMobile, setIsMobile] = useState(false);
   const [bioType, setBioType] = useState<string | null>(null);
+  const [resetCode, setResetCode] = useState("");
+  const [resetPin, setResetPin] = useState("");
+  const [resetBusy, setResetBusy] = useState(false);
 
   const prefs = useQuery({
     queryKey: ["notif-prefs"],
@@ -373,6 +378,22 @@ function NotificationsSecurityCard({ setMsg, setErr }: { setMsg: (s: string | nu
       setMsg(enabled ? "Biometric unlock enabled." : "Biometric unlock disabled.");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not update biometrics.");
+    }
+  }
+
+  async function doResetPin() {
+    setErr(null);
+    setResetBusy(true);
+    try {
+      await api.post("/api/auth/recovery", { recovery_code: resetCode.trim(), new_pin: resetPin });
+      setResetCode("");
+      setResetPin("");
+      qc.invalidateQueries({ queryKey: ["device-lock"] });
+      setMsg("PIN reset — use your new PIN next time.");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not reset PIN — check your recovery code.");
+    } finally {
+      setResetBusy(false);
     }
   }
 
@@ -484,6 +505,101 @@ function NotificationsSecurityCard({ setMsg, setErr }: { setMsg: (s: string | nu
             />
             Unlock with fingerprint / face
           </label>
+        </>
+      )}
+
+      {/* PIN reset (recovery code from setup) */}
+      {isMobile && (
+        <>
+          <h4 className="mt-6 text-sm font-semibold text-text">Reset PIN</h4>
+          <p className="mt-1 text-xs text-text-muted">
+            Forgot your PIN? Enter the <strong className="text-text">recovery code</strong> you saved during
+            setup, plus a new PIN. This is the only way to reset it without wiping the app.
+          </p>
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <Input
+              placeholder="Recovery code"
+              value={resetCode}
+              onChange={(e) => setResetCode(e.target.value)}
+              className="min-w-40 flex-1 font-mono"
+            />
+            <Input
+              type="password"
+              inputMode="numeric"
+              placeholder="New PIN (4–12 digits)"
+              value={resetPin}
+              onChange={(e) => setResetPin(e.target.value.replace(/[^0-9]/g, "").slice(0, 12))}
+              className="min-w-36 flex-1"
+            />
+            <Button variant="secondary" onClick={doResetPin} disabled={resetBusy || resetCode.length < 8 || resetPin.length < 4}>
+              {resetBusy ? "Resetting…" : "Reset PIN"}
+            </Button>
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
+
+// ── Agent wiring (P12) ─────────────────────────────────────────────────────
+
+function AgentWiringCard() {
+  const [endpoint, setEndpoint] = useState("");
+  useEffect(() => {
+    if (typeof window !== "undefined") setEndpoint(window.location.origin);
+  }, []);
+
+  const agents = useQuery({
+    queryKey: ["agent-tokens"],
+    queryFn: () => api.get<{ agents: Array<{ id: string; name: string }> }>("/api/agent/tokens"),
+    retry: false,
+  });
+  const soloUnsupported = agents.isError;
+
+  return (
+    <Card className="lg:col-span-2">
+      <CardTitle>AI agent connection</CardTitle>
+      <p className="mt-1 text-sm text-text-muted">
+        Point your finance agent (Hermes, Claude, Cursor…) at Open Finance to answer money questions and — with
+        your approval — adjust budgets. Agents get a token with read-only access by default and ask permission
+        before any write.
+      </p>
+
+      {soloUnsupported ? (
+        <div className="mt-4 rounded-lg bg-surface-muted px-4 py-3 text-sm text-text-muted">
+          Agent connections are served by a hub. Pair one from the{" "}
+          <strong className="text-text">Hub &amp; phone pairing</strong> card above, then connect your agent here —
+          or on the hub itself.
+        </div>
+      ) : (
+        <>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs text-text-muted">MCP endpoint (Streamable HTTP)</label>
+              <code className="block rounded-md bg-surface-muted px-3 py-2 text-sm text-accent">
+                {endpoint}/api/mcp
+              </code>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-text-muted">Agents &amp; tokens</label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-text">
+                  {agents.data?.agents.length ?? 0} token{agents.data?.agents.length === 1 ? "" : "s"}
+                </span>
+                <Button size="sm" variant="secondary" onClick={() => (window.location.href = "/agents")}>
+                  Manage in Agents
+                </Button>
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 rounded-lg bg-surface-muted px-4 py-3 text-xs text-text-muted">
+            <p className="font-medium text-text">Example (Hermes / Claude / Cursor):</p>
+            <p className="mt-1">
+              Create a token on the Agents page (read-only preset), then add an MCP server to your agent with the
+              endpoint above and the token. The agent can read budgets/summary immediately; budget edits prompt you
+              for approval.
+            </p>
+          </div>
         </>
       )}
     </Card>
