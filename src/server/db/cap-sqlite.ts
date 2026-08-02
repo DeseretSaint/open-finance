@@ -66,6 +66,10 @@ export class CapSqliteDb implements Db {
 
     // Sentinel tables per migration — used to re-apply versions whose DDL was
     // rolled back by a broken build. Map version → first table it creates.
+    // IMPORTANT: only CREATE TABLE migrations get a sentinel. ALTER/UPDATE-only
+    // migrations (003 onboarding, 004 notifications, 005 sign flip) have no
+    // table to check, so a recorded version is ALWAYS trusted — re-applying
+    // them would throw "duplicate column" / double-flip signs.
     const sentinels: Record<number, string> = {};
     for (const m of migrations) {
       const create = m.sql.match(/CREATE TABLE(?: IF NOT EXISTS)?\s+([A-Za-z_]+)/i);
@@ -75,16 +79,22 @@ export class CapSqliteDb implements Db {
     let count = 0;
     for (const m of [...migrations].sort((a, b) => a.version - b.version)) {
       const sentinel = sentinels[m.version];
-      let reallyApplied = false;
-      if (sentinel) {
-        const check = await conn.query(
-          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-          [sentinel]
-        );
-        reallyApplied = (check.values ?? []).length > 0;
-      }
-      if (applied.has(m.version) && reallyApplied) continue;
-      if (applied.has(m.version) && !reallyApplied) {
+
+      // Recorded versions are trusted — UNLESS the migration creates tables
+      // and its sentinel table is actually missing (previous build rolled the
+      // DDL back). Migrations without a sentinel (ALTER/UPDATE) are trusted
+      // unconditionally once recorded: there is no existence check, and
+      // re-running them corrupts the schema (duplicate columns, flipped signs).
+      if (applied.has(m.version)) {
+        let reallyApplied = true;
+        if (sentinel) {
+          const check = await conn.query(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+            [sentinel]
+          );
+          reallyApplied = (check.values ?? []).length > 0;
+        }
+        if (reallyApplied) continue;
         // Version recorded but DDL missing (broken previous build) — re-apply.
         await conn.run("DELETE FROM _migrations WHERE version = ?", [m.version], false);
       }
@@ -96,8 +106,10 @@ export class CapSqliteDb implements Db {
           await conn.execute(trimmed, false);
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
-          if (/already exists/i.test(msg)) {
-            // Table from this migration already present (upgraded/partial DB).
+          if (/already exists|duplicate column/i.test(msg)) {
+            // Schema from this migration already present (upgraded/partial DB
+            // or a previous buggy build deleted the version record). The
+            // migration's intent is satisfied — tolerate and continue.
             continue;
           }
           throw e;

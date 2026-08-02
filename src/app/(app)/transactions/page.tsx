@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search, X, Trash2, ChevronDown } from "lucide-react";
+import { Search, X, Trash2, ChevronDown, Plus } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -52,6 +52,7 @@ export default function TransactionsPage() {
   const [accountId, setAccountId] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
 
   const params = useMemo(() => {
     const p = new URLSearchParams({ limit: "100" });
@@ -111,8 +112,9 @@ export default function TransactionsPage() {
       setAddName("");
       setAddAmount("");
       setAddCategory("");
-      invalidate();
       setError(null);
+      setShowAdd(false);
+      invalidate();
     },
     onError: (e) => setError(e instanceof Error ? e.message : "Add failed."),
   });
@@ -155,77 +157,111 @@ export default function TransactionsPage() {
         </div>
       </Card>
 
-      {/* Manual add */}
-      <Card>
-        <CardTitle>Add a transaction</CardTitle>
-        <form
-          className="mt-4 flex flex-wrap items-end gap-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            add.mutate();
-          }}
+      {/* Add-transaction modal */}
+      {showAdd && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm md:items-center md:p-6"
+          onClick={() => !add.isPending && setShowAdd(false)}
         >
-          <div className="min-w-40 flex-1">
-            <label htmlFor="add-name" className="mb-1 block text-xs font-medium text-text-muted">
-              Name
-            </label>
-            <Input id="add-name" placeholder="e.g. Coffee" value={addName} onChange={(e) => setAddName(e.target.value)} />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Add a transaction"
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl border border-border bg-surface p-5 shadow-2xl md:max-w-lg md:rounded-3xl"
+            style={{ paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom))" }}
+          >
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border md:hidden" />
+            <div className="mb-4 flex items-center justify-between">
+              <CardTitle>Add a transaction</CardTitle>
+              <button
+                aria-label="Close"
+                onClick={() => !add.isPending && setShowAdd(false)}
+                className="flex h-9 w-9 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-muted hover:text-text"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form
+              className="flex flex-col gap-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                add.mutate();
+              }}
+            >
+              <div>
+                <label htmlFor="add-name" className="mb-1 block text-xs font-medium text-text-muted">
+                  Name
+                </label>
+                <Input id="add-name" placeholder="e.g. Coffee" value={addName} onChange={(e) => setAddName(e.target.value)} autoFocus />
+              </div>
+              <div>
+                <label htmlFor="add-amount" className="mb-1 block text-xs font-medium text-text-muted">
+                  Amount ($)
+                </label>
+                <Input
+                  id="add-amount"
+                  placeholder="0.00"
+                  inputMode="decimal"
+                  value={addAmount}
+                  onChange={(e) => setAddAmount(e.target.value)}
+                />
+              </div>
+              <div>
+                <label htmlFor="add-date" className="mb-1 block text-xs font-medium text-text-muted">
+                  Date
+                </label>
+                <Input id="add-date" type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)} />
+              </div>
+              <div>
+                <label htmlFor="add-account" className="mb-1 block text-xs font-medium text-text-muted">
+                  Account
+                </label>
+                <Select id="add-account" value={addAccount} onChange={(e) => setAddAccount(e.target.value)}>
+                  <option value="">Select…</option>
+                  {accounts.data?.accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <label htmlFor="add-category" className="mb-1 block text-xs font-medium text-text-muted">
+                  Category
+                </label>
+                <Select id="add-category" value={addCategory} onChange={(e) => setAddCategory(e.target.value)}>
+                  <option value="">Uncategorized</option>
+                  {categories.data?.categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <p className="text-xs text-text-muted">Expenses are negative, income is positive — e.g. -45.00 for a purchase, 2500.00 for a paycheck.</p>
+              {error && (
+                <p role="alert" className="rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-sm text-danger">
+                  {error}
+                </p>
+              )}
+              <Button type="submit" disabled={add.isPending || !addName || !addAmount || !addAccount}>
+                {add.isPending ? "Adding…" : "Add transaction"}
+              </Button>
+            </form>
           </div>
-          <div className="min-w-28">
-            <label htmlFor="add-amount" className="mb-1 block text-xs font-medium text-text-muted">
-              Amount ($)
-            </label>
-            <Input
-              id="add-amount"
-              placeholder="0.00"
-              inputMode="decimal"
-              value={addAmount}
-              onChange={(e) => setAddAmount(e.target.value)}
-            />
-          </div>
-          <div className="min-w-36">
-            <label htmlFor="add-date" className="mb-1 block text-xs font-medium text-text-muted">
-              Date
-            </label>
-            <Input id="add-date" type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)} />
-          </div>
-          <div className="min-w-36">
-            <label htmlFor="add-account" className="mb-1 block text-xs font-medium text-text-muted">
-              Account
-            </label>
-            <Select id="add-account" value={addAccount} onChange={(e) => setAddAccount(e.target.value)}>
-              <option value="">Select…</option>
-              {accounts.data?.accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div className="min-w-36">
-            <label htmlFor="add-category" className="mb-1 block text-xs font-medium text-text-muted">
-              Category
-            </label>
-            <Select id="add-category" value={addCategory} onChange={(e) => setAddCategory(e.target.value)}>
-              <option value="">Uncategorized</option>
-              {categories.data?.categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <p className="w-full text-xs text-text-muted">Expenses are negative, income is positive — e.g. -45.00 for a purchase, 2500.00 for a paycheck.</p>
-          {error && (
-            <p role="alert" className="w-full rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-sm text-danger">
-              {error}
-            </p>
-          )}
-          <Button type="submit" disabled={add.isPending || !addName || !addAmount || !addAccount}>
-            {add.isPending ? "Adding…" : "Add transaction"}
-          </Button>
-        </form>
-      </Card>
+        </div>
+      )}
+
+      {/* Floating action button — bottom right, above the mobile tab bar */}
+      <button
+        aria-label="Add transaction"
+        onClick={() => setShowAdd(true)}
+        className="fixed bottom-24 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-foreground)] shadow-lg transition-transform hover:scale-105 active:scale-95 md:bottom-8"
+        style={{ marginBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <Plus size={26} strokeWidth={2.5} />
+      </button>
 
       {/* List */}
       <Card className="p-0">
