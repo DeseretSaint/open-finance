@@ -49,17 +49,17 @@ describe("solo flow (P8b) — bootstrap → account → category → transaction
     const cat = await catSvc.create(user.id, { name: "Groceries", color: "#10B981" });
     expect(cat.name).toBe("Groceries");
 
-    // transaction (expense = positive cents)
+    // transaction (expense = negative cents)
     const txns = await import("@/server/domain/transactions");
     const txnSvc = txns.createTransactionsService(db);
     const txn = await txnSvc.createManual(user.id, {
       accountId: account.id,
-      amountCents: 5230,
+      amountCents: -5230,
       date: new Date().toISOString().slice(0, 10),
       name: "Whole Foods",
       userCategoryId: cat.id,
     });
-    expect(txn.amount_cents).toBe(5230);
+    expect(txn.amount_cents).toBe(-5230);
 
     const list = await txnSvc.list(user.id, { limit: 50, offset: 0 });
     expect(list.rows).toHaveLength(1);

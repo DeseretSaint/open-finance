@@ -43,6 +43,13 @@ export default function BudgetsPage() {
     queryFn: () => api.get<{ budgets: Budget[] }>("/api/budgets"),
   });
   const categories = useQuery({ queryKey: ["categories"], queryFn: () => api.get<{ categories: Category[] }>("/api/categories") });
+  const summary = useQuery({
+    queryKey: ["summary"],
+    queryFn: () =>
+      api.get<{ summary: { monthIncomeCents: number; monthExpenseCents: number; monthNetCents: number } }>(
+        "/api/summary"
+      ),
+  });
 
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
@@ -82,6 +89,58 @@ export default function BudgetsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Monthly pool — this month's income, dwindling as you spend */}
+      <Card className="overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <CardTitle>This month&apos;s pool</CardTitle>
+            <p className="mt-1 text-xs text-text-muted">
+              Income you started with this month, minus what you&apos;ve spent — it dwindles as expenses come in.
+            </p>
+          </div>
+          {summary.data && (
+            <div className="flex items-center gap-6">
+              <div className="text-right">
+                <p className="text-xs text-text-muted">Income</p>
+                <p className="money text-lg font-bold text-success">
+                  <Money cents={summary.data.summary.monthIncomeCents} signed />
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-text-muted">Spent</p>
+                <p className="money text-lg font-bold text-danger">
+                  <Money cents={-summary.data.summary.monthExpenseCents} signed />
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-text-muted">Remaining</p>
+                <p className={`money text-2xl font-bold ${summary.data.summary.monthNetCents >= 0 ? "text-text" : "text-danger"}`}>
+                  <Money cents={summary.data.summary.monthNetCents} signed />
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+        {summary.data && (
+          <div className="mt-4">
+            <div className="flex items-center justify-between text-xs text-text-muted">
+              <span>{Math.round((summary.data.summary.monthExpenseCents / Math.max(1, summary.data.summary.monthIncomeCents)) * 100)}% of income used</span>
+              <span>{(summary.data.summary.monthNetCents / Math.max(1, summary.data.summary.monthIncomeCents)) >= 0 ? "left to spend" : "over income"}</span>
+            </div>
+            <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-surface-muted">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{
+                  width: `${Math.min(100, (summary.data.summary.monthExpenseCents / Math.max(1, summary.data.summary.monthIncomeCents)) * 100)}%`,
+                  background:
+                    summary.data.summary.monthNetCents >= 0 ? "var(--accent)" : "var(--danger)",
+                }}
+              />
+            </div>
+          </div>
+        )}
+      </Card>
+
       {isLoading || !data ? (
         <BudgetsSkeleton />
       ) : (

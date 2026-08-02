@@ -215,7 +215,7 @@ export default function TransactionsPage() {
               ))}
             </Select>
           </div>
-          <p className="w-full text-xs text-text-muted">Positive amount = expense, negative = income.</p>
+          <p className="w-full text-xs text-text-muted">Expenses are negative, income is positive — e.g. -45.00 for a purchase, 2500.00 for a paycheck.</p>
           {error && (
             <p role="alert" className="w-full rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-sm text-danger">
               {error}
@@ -251,7 +251,7 @@ export default function TransactionsPage() {
         ) : (
           <div className="divide-y divide-border">
             {data.rows.map((t) => {
-              const isExpense = t.amount_cents > 0;
+              const isExpense = t.amount_cents < 0;
               const expanded = expandedId === t.id;
               return (
                 <div key={t.id}>

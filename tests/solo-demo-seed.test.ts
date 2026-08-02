@@ -27,7 +27,7 @@ describe("solo demo seed (P8b)", () => {
     expect(s.totalBalanceCents).toBeGreaterThan(0);
   });
 
-  it("uses the correct sign convention: expenses positive, income negative", async () => {
+  it("uses the correct sign convention: income positive, expenses negative", async () => {
     const db = createTestDb();
     const solo = createSoloBootstrapService(db);
     const { user } = await solo.bootstrap({ displayName: "Demo phone", pin: undefined });
@@ -44,10 +44,10 @@ describe("solo demo seed (P8b)", () => {
     expect(paycheck).toBeDefined();
     expect(rent).toBeDefined();
     expect(groceries).toBeDefined();
-    // income = money in = NEGATIVE; expenses = money out = POSITIVE
-    expect(paycheck!.amount_cents).toBeLessThan(0);
-    expect(rent!.amount_cents).toBeGreaterThan(0);
-    expect(groceries!.amount_cents).toBeGreaterThan(0);
+    // income = money in = POSITIVE; expenses = money out = NEGATIVE
+    expect(paycheck!.amount_cents).toBeGreaterThan(0);
+    expect(rent!.amount_cents).toBeLessThan(0);
+    expect(groceries!.amount_cents).toBeLessThan(0);
   });
 
   it("seeds granular per-category budgets (AI-adjustable)", async () => {

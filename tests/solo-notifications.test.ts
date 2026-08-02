@@ -26,10 +26,10 @@ describe("solo notification content (P11)", () => {
       categoryIds: [cat.id],
     });
 
-    // healthy: spent $200 of $1000
+    // healthy: spent $200 of $1000 (expense = negative)
     await txs.createManual(user.id, {
       accountId: acc.id,
-      amountCents: 20_000,
+      amountCents: -20_000,
       date: new Date().toISOString().slice(0, 10),
       name: "Whole Foods",
       userCategoryId: cat.id,
@@ -42,7 +42,7 @@ describe("solo notification content (P11)", () => {
     // over budget: add $900 more (total $1100 > $1000)
     await txs.createManual(user.id, {
       accountId: acc.id,
-      amountCents: 90_000,
+      amountCents: -90_000,
       date: new Date().toISOString().slice(0, 10),
       name: "Costco",
       userCategoryId: cat.id,

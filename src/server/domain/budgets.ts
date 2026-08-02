@@ -85,12 +85,12 @@ export function createBudgetsService(db: Db = getDb()) {
       }
 
       const row = await db.get<{ s: number }>(
-        `SELECT COALESCE(SUM(t.amount_cents), 0) AS s
-           FROM transactions t
-           JOIN accounts a ON a.id = t.account_id
-          WHERE a.user_id = ? AND t.date >= ? AND t.date < ?
-            AND t.pending = 0 AND t.exclude_from_budgets = 0 AND t.amount_cents > 0
-            AND ${categoryClause}`,
+        `SELECT COALESCE(SUM(-t.amount_cents), 0) AS s
+          FROM transactions t
+          JOIN accounts a ON a.id = t.account_id
+         WHERE a.user_id = ? AND t.date >= ? AND t.date < ?
+           AND t.pending = 0 AND t.exclude_from_budgets = 0 AND t.amount_cents < 0
+           AND ${categoryClause}`,
         ...params
       );
       return row?.s ?? 0;

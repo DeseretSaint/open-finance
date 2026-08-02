@@ -52,8 +52,8 @@ export function createSummaryService(db: Db = getDb()) {
 
       const month = await db.get<{ income: number; expense: number }>(
         `SELECT
-           COALESCE(SUM(CASE WHEN t.amount_cents < 0 THEN -t.amount_cents ELSE 0 END), 0) AS income,
-           COALESCE(SUM(CASE WHEN t.amount_cents > 0 THEN t.amount_cents ELSE 0 END), 0) AS expense
+           COALESCE(SUM(CASE WHEN t.amount_cents > 0 THEN t.amount_cents ELSE 0 END), 0) AS income,
+           COALESCE(SUM(CASE WHEN t.amount_cents < 0 THEN -t.amount_cents ELSE 0 END), 0) AS expense
            FROM transactions t
            JOIN accounts a ON a.id = t.account_id
           WHERE a.user_id = ? AND t.date >= ? AND t.date < ? AND t.pending = 0 AND t.exclude_from_budgets = 0

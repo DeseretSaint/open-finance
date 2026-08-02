@@ -24,5 +24,9 @@ export const SOLO_MIGRATIONS: { version: number; sql: string }[] = [
   {
     version: 4,
     sql: "-- 004: notification + biometric preferences (per-user)\nALTER TABLE user_settings ADD COLUMN notif_enabled INTEGER NOT NULL DEFAULT 0;\nALTER TABLE user_settings ADD COLUMN notif_frequency TEXT NOT NULL DEFAULT 'weekly';\nALTER TABLE user_settings ADD COLUMN notif_time TEXT NOT NULL DEFAULT '09:00';\nALTER TABLE user_settings ADD COLUMN email_enabled INTEGER NOT NULL DEFAULT 0;\nALTER TABLE user_settings ADD COLUMN email_address TEXT;\nALTER TABLE user_settings ADD COLUMN email_frequency TEXT NOT NULL DEFAULT 'weekly';\nALTER TABLE user_settings ADD COLUMN biometric_enabled INTEGER NOT NULL DEFAULT 0;\n",
+  },
+  {
+    version: 5,
+    sql: "-- 005: flip transaction sign convention to match bank apps — income POSITIVE,\n-- expenses NEGATIVE. Old data stored positive=expense / negative=income; flip\n-- every row so existing installs read naturally (expenses red, income green).\nUPDATE transactions SET amount_cents = -amount_cents;\n",
   }
 ];

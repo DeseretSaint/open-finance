@@ -8,12 +8,12 @@ import { createPlanningService } from "@/server/domain/planning";
 /**
  * Solo demo seed (P8b) — mirrors the server demo entirely on-device.
  *
- * AMOUNT SIGN CONVENTION (matches the domain everywhere): positive = money
- * OUT (expense), negative = money IN (income). The UI colors from this:
- * expenses red, income green.
+ * AMOUNT SIGN CONVENTION (matches the domain everywhere, bank-app style):
+ * positive = money IN (income), negative = money OUT (expense). The UI
+ * colors from this: expenses red (negative), income green (positive).
  *
- * v2 (2026-08): fixed inverted signs from v1 (expenses were negative /
- * paycheck positive → wrong colors on device), and seeded GRANULAR budgets
+ * v3 (2026-08): convention flip — income POSITIVE, expenses NEGATIVE (the
+ * bank-app convention; matches migration 005). Granular budgets:
  * (one per category: rent, groceries, dining, transport, utilities, fun
  * money, investing, savings) instead of a single lump sum — the AI agent's
  * budget tools (MCP create/update/delete_budget) then have meaningful
@@ -24,7 +24,7 @@ import { createPlanningService } from "@/server/domain/planning";
  * is missing/older — see seedSoloDemo().
  */
 
-const SEED_VERSION = 2;
+const SEED_VERSION = 3;
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -127,14 +127,14 @@ export async function seedSoloDemo(db: Db, userId: string): Promise<void> {
   // out), income (paycheck) = negative (money in). Rent on checking; card
   // purchases on credit.
   const weeklyChecking: Array<[string, string, number]> = [
-    ["Groceries — WinCo", catIds.get("Groceries")!, 148_23],
-    ["Electric bill", catIds.get("Utilities")!, 84_12],
+    ["Groceries — WinCo", catIds.get("Groceries")!, -148_23],
+    ["Electric bill", catIds.get("Utilities")!, -84_12],
   ];
   const weeklyCredit: Array<[string, string, number]> = [
-    ["Netflix", catIds.get("Fun Money")!, 15_49],
-    ["Taco Tuesday", catIds.get("Dining Out")!, 32_50],
-    ["Gas", catIds.get("Transport")!, 48_00],
-    ["Streaming + music", catIds.get("Fun Money")!, 19_99],
+    ["Netflix", catIds.get("Fun Money")!, -15_49],
+    ["Taco Tuesday", catIds.get("Dining Out")!, -32_50],
+    ["Gas", catIds.get("Transport")!, -48_00],
+    ["Streaming + music", catIds.get("Fun Money")!, -19_99],
   ];
 
   for (let dayOffset = -90; dayOffset <= 0; dayOffset += 7) {
@@ -143,7 +143,7 @@ export async function seedSoloDemo(db: Db, userId: string): Promise<void> {
       // Paycheck = income = NEGATIVE (money in).
       await transactions.createManual(userId, {
         accountId: checking.id,
-        amountCents: -2_800_00,
+        amountCents: 2_800_00,
         date,
         name: "Paycheck",
         userCategoryId: null,
@@ -151,7 +151,7 @@ export async function seedSoloDemo(db: Db, userId: string): Promise<void> {
       // Rent = expense = POSITIVE (money out).
       await transactions.createManual(userId, {
         accountId: checking.id,
-        amountCents: 1_650_00,
+        amountCents: -1_650_00,
         date,
         name: "Rent",
         userCategoryId: catIds.get("Rent")!,

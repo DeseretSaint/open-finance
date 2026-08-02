@@ -91,7 +91,8 @@ export function createSyncService(db: Db = getDb(), clientFactory: (creds: Plaid
           {
             plaidId: t.id,
             accountRowId: rowId,
-            amountCents: t.amountCents,
+            // Plaid sign: positive = money out (debit) → store negative (expense).
+            amountCents: -t.amountCents,
             date: t.date,
             authorizedDate: t.authorizedDate,
             name: t.name,
@@ -112,7 +113,8 @@ export function createSyncService(db: Db = getDb(), clientFactory: (creds: Plaid
           {
             plaidId: t.id,
             accountRowId: rowId,
-            amountCents: t.amountCents,
+            // Plaid sign: positive = money out (debit) → store negative (expense).
+            amountCents: -t.amountCents,
             date: t.date,
             authorizedDate: t.authorizedDate,
             name: t.name,

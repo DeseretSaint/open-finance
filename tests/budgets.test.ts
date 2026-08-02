@@ -37,20 +37,26 @@ async function seedTxn(
   );
 }
 
+/** ISO date `day` days into the month that is `offset` months from now. */
+function dateIn(offset: number, day: number): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1 + offset).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 describe("budgets", () => {
   it("computes spend for category-tagged budgets within the month", async () => {
     const db = createTestDb();
     const user = await seedUser(db);
     const acc = await seedManualAccount(db, user.id);
     const food = await seedCategory(db, user.id, "Food");
-    await seedTxn(db, user.id, acc, { date: "2026-07-03", amountCents: 4000, categoryId: food });
-    await seedTxn(db, user.id, acc, { date: "2026-07-20", amountCents: 2500, categoryId: food });
-    await seedTxn(db, user.id, acc, { date: "2026-08-01", amountCents: 9999, categoryId: food }); // next month
-    await seedTxn(db, user.id, acc, { date: "2026-07-05", amountCents: 5000, categoryId: null }); // uncategorized
+    await seedTxn(db, user.id, acc, { date: dateIn(0, 3), amountCents: -4000, categoryId: food });
+    await seedTxn(db, user.id, acc, { date: dateIn(0, 20), amountCents: -2500, categoryId: food });
+    await seedTxn(db, user.id, acc, { date: dateIn(1, 1), amountCents: -9999, categoryId: food }); // next month
+    await seedTxn(db, user.id, acc, { date: dateIn(0, 5), amountCents: -5000, categoryId: null }); // uncategorized
 
     const svc = createBudgetsService(db);
     const budget = await svc.create(user.id, { name: "Food", amountCents: 10000, categoryIds: [food] });
-    const list = await svc.list(user.id, "2026-07-15");
+    const list = await svc.list(user.id, dateIn(0, 15));
     const row = list.find((b) => b.id === budget.id)!;
     expect(row.spentCents).toBe(6500);
     expect(row.remainingCents).toBe(3500);
@@ -62,12 +68,12 @@ describe("budgets", () => {
     const user = await seedUser(db);
     const acc = await seedManualAccount(db, user.id);
     const food = await seedCategory(db, user.id, "Food");
-    await seedTxn(db, user.id, acc, { date: "2026-07-10", amountCents: 3000, categoryId: null });
-    await seedTxn(db, user.id, acc, { date: "2026-07-11", amountCents: 7000, categoryId: food }); // not counted
+    await seedTxn(db, user.id, acc, { date: dateIn(0, 10), amountCents: -3000, categoryId: null });
+    await seedTxn(db, user.id, acc, { date: dateIn(0, 11), amountCents: -7000, categoryId: food }); // not counted
 
     const svc = createBudgetsService(db);
     await svc.create(user.id, { name: "Everything Else", amountCents: 5000 });
-    const list = await svc.list(user.id, "2026-07-15");
+    const list = await svc.list(user.id, dateIn(0, 15));
     expect(list[0].spentCents).toBe(3000);
   });
 
@@ -76,26 +82,26 @@ describe("budgets", () => {
     const user = await seedUser(db);
     const acc = await seedManualAccount(db, user.id);
     const food = await seedCategory(db, user.id, "Food");
-    await seedTxn(db, user.id, acc, { date: "2026-07-01", amountCents: 1000, categoryId: food, exclude: true });
-    await seedTxn(db, user.id, acc, { date: "2026-07-02", amountCents: 2000, categoryId: food, pending: true });
-    await seedTxn(db, user.id, acc, { date: "2026-07-03", amountCents: 3000, categoryId: food });
+    await seedTxn(db, user.id, acc, { date: dateIn(0, 1), amountCents: -1000, categoryId: food, exclude: true });
+    await seedTxn(db, user.id, acc, { date: dateIn(0, 2), amountCents: -2000, categoryId: food, pending: true });
+    await seedTxn(db, user.id, acc, { date: dateIn(0, 3), amountCents: -3000, categoryId: food });
 
     const svc = createBudgetsService(db);
     await svc.create(user.id, { name: "Food", amountCents: 10000, categoryIds: [food] });
-    const list = await svc.list(user.id, "2026-07-15");
+    const list = await svc.list(user.id, dateIn(0, 15));
     expect(list[0].spentCents).toBe(3000);
   });
 
-  it("ignores income (negative amounts) in spend", async () => {
+  it("ignores income (positive amounts) in spend", async () => {
     const db = createTestDb();
     const user = await seedUser(db);
     const acc = await seedManualAccount(db, user.id);
     const food = await seedCategory(db, user.id, "Food");
-    await seedTxn(db, user.id, acc, { date: "2026-07-01", amountCents: -5000, categoryId: food });
+    await seedTxn(db, user.id, acc, { date: dateIn(0, 1), amountCents: 5000, categoryId: food });
 
     const svc = createBudgetsService(db);
     await svc.create(user.id, { name: "Food", amountCents: 10000, categoryIds: [food] });
-    const list = await svc.list(user.id, "2026-07-15");
+    const list = await svc.list(user.id, dateIn(0, 15));
     expect(list[0].spentCents).toBe(0);
   });
 

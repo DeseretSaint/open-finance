@@ -123,24 +123,24 @@ const insTxn = db.prepare(
      category_path, personal_finance_category, pending, user_category_id, user_note, exclude_from_budgets, source, created_at)
    VALUES (?, ?, NULL, ?, ?, NULL, ?, NULL, NULL, NULL, 0, ?, NULL, 0, 'manual', ?)`
 );
-// income: 2 paychecks/mo × 3 months
+// income: 2 paychecks/mo × 3 months (POSITIVE = money in)
 for (let m = 3; m >= 0; m--) {
   const monthStart = addMonths(seedDate, -m);
   const y = monthStart.slice(0, 4);
   const mo = monthStart.slice(5, 7);
-  insTxn.run(uid(), checking, -235000, `${y}-${mo}-05`, "Acme Corp Payroll", catId["Income"], now());
-  insTxn.run(uid(), checking, -235000, `${y}-${mo}-20`, "Acme Corp Payroll", catId["Income"], now());
-  // expenses
-  insTxn.run(uid(), checking, 145000, `${y}-${mo}-01`, "Maple Ridge Apartments", catId["Housing"], now());
-  insTxn.run(uid(), checking, 9400, `${y}-${mo}-07`, "City Power & Light", catId["Utilities"], now());
-  insTxn.run(uid(), checking, 5200, `${y}-${mo}-09`, "Verizon Wireless", catId["Utilities"], now());
-  insTxn.run(uid(), checking, 6800, `${y}-${mo}-11`, "Whole Foods Market", catId["Groceries"], now());
-  insTxn.run(uid(), checking, 4200, `${y}-${mo}-13`, "Trader Joe's", catId["Groceries"], now());
-  insTxn.run(uid(), checking, 1549, `${y}-${mo}-14`, "Netflix", catId["Entertainment"], now());
-  insTxn.run(uid(), checking, 8900, `${y}-${mo}-16`, "Shell Gas", catId["Transportation"], now());
-  insTxn.run(uid(), checking, 3400, `${y}-${mo}-19`, "Chipotle", catId["Food & Dining"], now());
-  insTxn.run(uid(), checking, 5600, `${y}-${mo}-22`, "Amazon", catId["Shopping"], now());
-  insTxn.run(uid(), credit, 2100, `${y}-${mo}-24`, "Spotify", catId["Entertainment"], now());
+  insTxn.run(uid(), checking, 235000, `${y}-${mo}-05`, "Acme Corp Payroll", catId["Income"], now());
+  insTxn.run(uid(), checking, 235000, `${y}-${mo}-20`, "Acme Corp Payroll", catId["Income"], now());
+  // expenses (NEGATIVE = money out)
+  insTxn.run(uid(), checking, -145000, `${y}-${mo}-01`, "Maple Ridge Apartments", catId["Housing"], now());
+  insTxn.run(uid(), checking, -9400, `${y}-${mo}-07`, "City Power & Light", catId["Utilities"], now());
+  insTxn.run(uid(), checking, -5200, `${y}-${mo}-09`, "Verizon Wireless", catId["Utilities"], now());
+  insTxn.run(uid(), checking, -6800, `${y}-${mo}-11`, "Whole Foods Market", catId["Groceries"], now());
+  insTxn.run(uid(), checking, -4200, `${y}-${mo}-13`, "Trader Joe's", catId["Groceries"], now());
+  insTxn.run(uid(), checking, -1549, `${y}-${mo}-14`, "Netflix", catId["Entertainment"], now());
+  insTxn.run(uid(), checking, -8900, `${y}-${mo}-16`, "Shell Gas", catId["Transportation"], now());
+  insTxn.run(uid(), checking, -3400, `${y}-${mo}-19`, "Chipotle", catId["Food & Dining"], now());
+  insTxn.run(uid(), checking, -5600, `${y}-${mo}-22`, "Amazon", catId["Shopping"], now());
+  insTxn.run(uid(), credit, -2100, `${y}-${mo}-24`, "Spotify", catId["Entertainment"], now());
 }
 
 // ── bills / debts / goals (pinned to seed date) ────────────────────────────

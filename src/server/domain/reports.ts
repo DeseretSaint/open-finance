@@ -18,12 +18,12 @@ export function createReportsService(db: Db = getDb()) {
       const allow = withAllowlist(allowlist ?? null, "a.id");
       return db.all(
         `SELECT t.user_category_id AS categoryId, COALESCE(c.name, 'Uncategorized') AS categoryName,
-                c.color AS color, COALESCE(SUM(t.amount_cents), 0) AS spentCents
-           FROM transactions t
-           JOIN accounts a ON a.id = t.account_id
-           LEFT JOIN categories c ON c.id = t.user_category_id
-          WHERE a.user_id = ? AND t.date >= ? AND t.date < ?
-            AND t.pending = 0 AND t.exclude_from_budgets = 0 AND t.amount_cents > 0
+                c.color AS color, COALESCE(SUM(-t.amount_cents), 0) AS spentCents
+          FROM transactions t
+          JOIN accounts a ON a.id = t.account_id
+          LEFT JOIN categories c ON c.id = t.user_category_id
+         WHERE a.user_id = ? AND t.date >= ? AND t.date < ?
+           AND t.pending = 0 AND t.exclude_from_budgets = 0 AND t.amount_cents < 0
             ${allow.clause}
           GROUP BY t.user_category_id, c.name, c.color
           ORDER BY spentCents DESC`,
@@ -40,14 +40,14 @@ export function createReportsService(db: Db = getDb()) {
       const end = addMonthsISO(todayISO().slice(0, 8) + "01", 1);
       const rows = await db.all<{ month: string; incomeCents: number; expenseCents: number }>(
         `SELECT substr(t.date, 1, 7) AS month,
-                SUM(CASE WHEN t.amount_cents < 0 THEN -t.amount_cents ELSE 0 END) AS incomeCents,
-                SUM(CASE WHEN t.amount_cents > 0 THEN t.amount_cents ELSE 0 END) AS expenseCents
-           FROM transactions t
-           JOIN accounts a ON a.id = t.account_id
-          WHERE a.user_id = ? AND t.date < ? AND t.pending = 0 AND t.exclude_from_budgets = 0
-            ${allow.clause}
-          GROUP BY substr(t.date, 1, 7)
-          ORDER BY month ASC`,
+                SUM(CASE WHEN t.amount_cents > 0 THEN t.amount_cents ELSE 0 END) AS incomeCents,
+                SUM(CASE WHEN t.amount_cents < 0 THEN -t.amount_cents ELSE 0 END) AS expenseCents
+          FROM transactions t
+          JOIN accounts a ON a.id = t.account_id
+         WHERE a.user_id = ? AND t.date < ? AND t.pending = 0 AND t.exclude_from_budgets = 0
+           ${allow.clause}
+         GROUP BY substr(t.date, 1, 7)
+         ORDER BY month ASC`,
         userId,
         end,
         ...allow.params

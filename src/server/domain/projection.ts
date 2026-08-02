@@ -64,11 +64,11 @@ export function createProjectionService(db: Db = getDb()) {
       let incomeSum = 0;
       for (const r of incomeRanges) {
         const row = await db.get<{ s: number }>(
-          `SELECT COALESCE(SUM(-t.amount_cents), 0) AS s
+          `SELECT COALESCE(SUM(t.amount_cents), 0) AS s
              FROM transactions t
              JOIN accounts a ON a.id = t.account_id
              LEFT JOIN categories c ON c.id = t.user_category_id
-            WHERE a.user_id = ? AND t.amount_cents < 0 AND t.date >= ? AND t.date < ?
+            WHERE a.user_id = ? AND t.amount_cents > 0 AND t.date >= ? AND t.date < ?
               AND t.pending = 0 AND c.name = 'Income'`,
           userId,
           r.start,

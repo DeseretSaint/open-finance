@@ -3,6 +3,12 @@ import { randomUUID } from "node:crypto";
 import { createSummaryService } from "@/server/domain/summary";
 import { createTestDb, seedManualAccount, seedUser } from "./helpers";
 
+/** ISO date `day` days into the month that is `offset` months from now. */
+function dateIn(offset: number, day: number): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1 + offset).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 describe("summary", () => {
   it("aggregates balances, month totals, budgets, and recent transactions", async () => {
     const db = createTestDb();
@@ -21,30 +27,34 @@ describe("summary", () => {
       now
     );
     const acc = await seedManualAccount(db, user.id);
+    // income = POSITIVE, expense = NEGATIVE
     await db.run(
       `INSERT INTO transactions (id, account_id, amount_cents, date, name, source, created_at)
-       VALUES (?, ?, -320000, '2026-07-01', 'Paycheck', 'manual', ?)`,
+       VALUES (?, ?, 320000, ?, 'Paycheck', 'manual', ?)`,
       randomUUID(),
       acc,
+      dateIn(0, 1),
       now
     );
     await db.run(
       `INSERT INTO transactions (id, account_id, amount_cents, date, name, source, created_at)
-       VALUES (?, ?, 8500, '2026-07-03', 'Starbucks', 'manual', ?)`,
+       VALUES (?, ?, -8500, ?, 'Starbucks', 'manual', ?)`,
       randomUUID(),
       acc,
+      dateIn(0, 3),
       now
     );
     // Next month — excluded from month totals
     await db.run(
       `INSERT INTO transactions (id, account_id, amount_cents, date, name, source, created_at)
-       VALUES (?, ?, 9999, '2026-08-01', 'August', 'manual', ?)`,
+       VALUES (?, ?, -9999, ?, 'August', 'manual', ?)`,
       randomUUID(),
       acc,
+      dateIn(1, 1),
       now
     );
 
-    const summary = await createSummaryService(db).get(user.id, "2026-07-15");
+    const summary = await createSummaryService(db).get(user.id, dateIn(0, 15));
     expect(summary.totalBalanceCents).toBe(400000);
     expect(summary.byType.depository).toBe(500000);
     expect(summary.byType.credit).toBe(-100000);

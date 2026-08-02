@@ -251,12 +251,20 @@ describe("digest", () => {
 });
 
 describe("projection", () => {
+  /** Month-start ISO for `offset` months relative to the current month. */
+  function monthStart(offset: number): string {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth() + offset, 1).toISOString().slice(0, 10);
+  }
+
   async function seedScenario(db: ReturnType<typeof createTestDb>, userId: string, accountId: string) {
     const income = await seedCategory(db, userId, "Income");
-    // 3 full months of income + expenses (reference month = July 2026)
-    for (const m of ["2026-04", "2026-05", "2026-06"]) {
-      await seedTxn(db, userId, accountId, { date: `${m}-05`, amountCents: -500000, categoryId: income, name: "Paycheck" });
-      await seedTxn(db, userId, accountId, { date: `${m}-15`, amountCents: -500000, categoryId: income, name: "Paycheck" });
+    // 3 full months of income (previous 3 months, so the projection's
+    // "last 3 FULL months" window sees exactly them) — income = POSITIVE.
+    for (let i = 3; i >= 1; i--) {
+      const m = monthStart(-i).slice(0, 7);
+      await seedTxn(db, userId, accountId, { date: `${m}-05`, amountCents: 500000, categoryId: income, name: "Paycheck" });
+      await seedTxn(db, userId, accountId, { date: `${m}-15`, amountCents: 500000, categoryId: income, name: "Paycheck" });
     }
     await seedBalance(db, userId, accountId, 1_000_000); // $10k baseline
   }
@@ -269,8 +277,8 @@ describe("projection", () => {
     const svc = createPlanningService(db);
     const proj = createProjectionService(db);
 
-    await svc.createBill(user.id, { name: "Rent", amountCents: 200000, frequency: "monthly", nextDueDate: "2026-08-01" });
-    await svc.createBill(user.id, { name: "Insurance", amountCents: 120000, frequency: "yearly", nextDueDate: "2026-08-15" }); // ≈ $10k/mo
+    await svc.createBill(user.id, { name: "Rent", amountCents: 200000, frequency: "monthly", nextDueDate: monthStart(0) });
+    await svc.createBill(user.id, { name: "Insurance", amountCents: 120000, frequency: "yearly", nextDueDate: `${monthStart(0).slice(0, 7)}-15` }); // ≈ $10k/mo
     await svc.createDebt(user.id, { name: "Loan", principalCents: 100000, minPaymentCents: 20000 });
 
     const p = await proj.project(user.id, 12);
@@ -296,7 +304,7 @@ describe("projection", () => {
     const svc = createPlanningService(db);
     const proj = createProjectionService(db);
 
-    await svc.createBill(user.id, { name: "Huge", amountCents: 2_500_000, frequency: "monthly", nextDueDate: "2026-08-01" });
+    await svc.createBill(user.id, { name: "Huge", amountCents: 2_500_000, frequency: "monthly", nextDueDate: monthStart(0) });
     const p = await proj.project(user.id, 12);
     // 1,000,000 + 1,000,000 − 2,500,000 = −500,000 → danger immediately
     expect(p.points[0].flag).toBe("danger");
@@ -311,7 +319,7 @@ describe("projection", () => {
     const svc = createPlanningService(db);
     const proj = createProjectionService(db);
 
-    const bill = await svc.createBill(user.id, { name: "Electric", amountCents: 5000, frequency: "monthly", nextDueDate: "2026-08-01" });
+    const bill = await svc.createBill(user.id, { name: "Electric", amountCents: 5000, frequency: "monthly", nextDueDate: monthStart(0) });
     await svc.payBill(user.id, bill.id, 9344); // actual last paid amount
     const p = await proj.project(user.id, 12);
     expect(p.monthlyBillsCents).toBe(9344);
@@ -325,17 +333,20 @@ describe("projection", () => {
     const svc = createPlanningService(db);
     const proj = createProjectionService(db);
 
-    await svc.createBill(user.id, { name: "Tax", amountCents: 300000, frequency: "one-time", nextDueDate: "2026-09-15" });
-    const inactive = await svc.createBill(user.id, { name: "Old", amountCents: 100000, frequency: "monthly", nextDueDate: "2026-08-01" });
+    // One-time bill lands 2 months out (points[0] is next month); inactive
+    // monthly bill in the current month.
+    const oneTime = `${monthStart(2).slice(0, 7)}-15`;
+    await svc.createBill(user.id, { name: "Tax", amountCents: 300000, frequency: "one-time", nextDueDate: oneTime });
+    const inactive = await svc.createBill(user.id, { name: "Old", amountCents: 100000, frequency: "monthly", nextDueDate: monthStart(0) });
     await svc.updateBill(user.id, inactive.id, { active: false });
 
     const p = await proj.project(user.id, 12);
-    // Aug (index 0): baseline 1,000,000 + income 1,000,000 − no monthly bills (Old inactive) = 2,000,000
+    // Month 0 (next month): baseline 1,000,000 + income 1,000,000 − no monthly bills (Old inactive) = 2,000,000
     expect(p.points[0].balanceCents).toBe(2_000_000);
-    // Sep (index 1): 2,000,000 + 1,000,000 − one-time Tax 300,000 = 2,700,000
-    const sept = p.points.find((pt) => pt.month === "2026-09")!;
-    expect(sept.balanceCents).toBe(2_700_000);
-    // Oct (index 2): no one-time → 3,700,000
+    // One-time bill month: 2,000,000 + 1,000,000 − one-time Tax 300,000 = 2,700,000
+    const billed = p.points.find((pt) => pt.month === monthStart(2).slice(0, 7))!;
+    expect(billed.balanceCents).toBe(2_700_000);
+    // Following month: no one-time → 3,700,000
     expect(p.points[2].balanceCents).toBe(3_700_000);
   });
 
@@ -351,7 +362,7 @@ describe("projection", () => {
       name: "Huge goal",
       targetCents: 100_000_000,
       currentCents: 0,
-      targetDate: "2026-12-31",
+      targetDate: `${monthStart(6).slice(0, 7)}-31`,
     }); // needs ~$20M/mo — way over surplus
     const withGoals = await proj.project(user.id, 12, true);
     const without = await proj.project(user.id, 12, false);
@@ -370,8 +381,8 @@ describe("projection", () => {
 
     // expenses ≈ $1.05M/mo vs income $1M/mo → balance erodes by $50k/mo,
     // crossing below 1 month of expenses (avg $1.05M) without hitting zero
-    await svc.createBill(user.id, { name: "Rent", amountCents: 600000, frequency: "monthly", nextDueDate: "2026-08-01" });
-    await svc.createBill(user.id, { name: "Car", amountCents: 450000, frequency: "monthly", nextDueDate: "2026-08-01" });
+    await svc.createBill(user.id, { name: "Rent", amountCents: 600000, frequency: "monthly", nextDueDate: monthStart(0) });
+    await svc.createBill(user.id, { name: "Car", amountCents: 450000, frequency: "monthly", nextDueDate: monthStart(0) });
     const p = await proj.project(user.id, 12);
     // month 1: 1,000,000 + 1,000,000 − 1,050,000 = 950,000 < 1,050,000 → warning
     expect(p.points[0].flag).toBe("warning");
