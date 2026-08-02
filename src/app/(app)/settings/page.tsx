@@ -275,7 +275,6 @@ export default function SettingsPage() {
         </div>
       </Card>
 
-      <HubPanel setMsg={setMsg} setErr={setErr} />
       <BackupPanel setMsg={setMsg} setErr={setErr} />
       <UpdatesCard />
 
@@ -547,6 +546,7 @@ function NotificationsSecurityCard({ setMsg, setErr }: { setMsg: (s: string | nu
 
 function AgentWiringCard() {
   const [endpoint, setEndpoint] = useState("");
+  const qc = useQueryClient();
   useEffect(() => {
     if (typeof window !== "undefined") setEndpoint(window.location.origin);
   }, []);
@@ -558,6 +558,16 @@ function AgentWiringCard() {
   });
   const soloUnsupported = agents.isError;
 
+  const prefs = useQuery({
+    queryKey: ["agent-prefs"],
+    queryFn: () => api.get<{ prefs: { autoCategorize: boolean } }>("/api/agent/prefs"),
+    retry: false,
+  });
+  const setAutoCategorize = useMutation({
+    mutationFn: (autoCategorize: boolean) => api.put("/api/agent/prefs", { autoCategorize }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["agent-prefs"] }),
+  });
+
   return (
     <Card className="lg:col-span-2">
       <CardTitle>AI agent connection</CardTitle>
@@ -566,6 +576,33 @@ function AgentWiringCard() {
         your approval — adjust budgets. Agents get a token with read-only access by default and ask permission
         before any write.
       </p>
+
+      {/* Smart categorization toggle — available in solo and hub modes */}
+      <div className="mt-4 flex items-start justify-between gap-4 rounded-xl border border-border p-4">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-text">Smart categorization</p>
+          <p className="mt-0.5 text-xs text-text-muted">
+            Let your agent categorize unclear expenses — a purchase labeled &ldquo;POS DEBIT&rdquo; or an unnamed
+            charge. It categorizes the ones it&apos;s confident about and leaves the gray-area ones for you. You can
+            always change any category manually in the Activity tab.
+          </p>
+        </div>
+        <button
+          role="switch"
+          aria-checked={prefs.data?.prefs.autoCategorize ?? false}
+          onClick={() => setAutoCategorize.mutate(!(prefs.data?.prefs.autoCategorize ?? false))}
+          disabled={setAutoCategorize.isPending}
+          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+            prefs.data?.prefs.autoCategorize ? "bg-[var(--accent)]" : "bg-surface-muted"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
+              prefs.data?.prefs.autoCategorize ? "left-[22px]" : "left-0.5"
+            }`}
+          />
+        </button>
+      </div>
 
       {soloUnsupported ? (
         <div className="mt-4 rounded-lg bg-surface-muted px-4 py-3 text-sm text-text-muted">

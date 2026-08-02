@@ -32,6 +32,7 @@ import { createPlanningService } from "@/server/domain/planning";
 import { createProjectionService } from "@/server/domain/projection";
 import { seedSoloDemo } from "@/lib/solo-demo-seed";
 import { createOnboardingService } from "@/server/domain/onboarding";
+import { createAgentPrefsService } from "@/server/domain/agent-prefs";
 
 export interface SoloRequest {
   method: string;
@@ -521,6 +522,20 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
           if (B?.[key] !== undefined) patch[key] = B[key];
         }
         return ok(await svc.update(userId, patch));
+      }
+    }
+
+    // ── Agent preferences (smart categorization) ────────────────────────
+    if (path === "/api/agent/prefs") {
+      const userId = await h.deviceUserId();
+      const svc = createAgentPrefsService(db);
+      if (method === "GET") {
+        return ok({ prefs: await svc.get(userId) });
+      }
+      if (method === "PUT") {
+        const autoCategorize = B?.autoCategorize;
+        if (typeof autoCategorize !== "boolean") throw apiErrors.badRequest("autoCategorize must be a boolean");
+        return ok({ prefs: await svc.update(userId, { autoCategorize }) });
       }
     }
 

@@ -28,5 +28,9 @@ export const SOLO_MIGRATIONS: { version: number; sql: string }[] = [
   {
     version: 5,
     sql: "-- 005: flip transaction sign convention to match bank apps — income POSITIVE,\n-- expenses NEGATIVE. Old data stored positive=expense and negative=income.\n-- Flip every row so existing installs read naturally (expenses red, income green).\nUPDATE transactions SET amount_cents = -amount_cents;\n",
+  },
+  {
+    version: 6,
+    sql: "-- 006: agent smart-categorization preference. When ON, the connected agent\n-- may auto-categorize uncategorized or generically-named expenses it is\n-- confident about, and may leave ambiguous (\"gray area\") ones alone. When OFF\n-- (default), the agent only suggests and the user categorizes manually.\nALTER TABLE user_settings ADD COLUMN agent_auto_categorize INTEGER NOT NULL DEFAULT 0;\n",
   }
 ];

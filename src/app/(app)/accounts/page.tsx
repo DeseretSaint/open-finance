@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { CreditCard, Landmark, PiggyBank, TrendingUp, Wallet, CircleHelp } from "lucide-react";
+import { CreditCard, Landmark, PiggyBank, TrendingUp, Wallet, CircleHelp, Plus, X } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +57,19 @@ export default function AccountsPage() {
   const [type, setType] = useState("depository");
   const [balance, setBalance] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [kbdHeight, setKbdHeight] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return;
+    const onResize = () => {
+      const vv = window.visualViewport!;
+      const delta = Math.max(0, window.innerHeight - vv.height);
+      setKbdHeight(delta > 100 ? delta : 0);
+    };
+    window.visualViewport.addEventListener("resize", onResize);
+    return () => window.visualViewport!.removeEventListener("resize", onResize);
+  }, []);
 
   const create = useMutation({
     mutationFn: () =>
@@ -69,6 +82,7 @@ export default function AccountsPage() {
       setName("");
       setBalance("");
       setError(null);
+      setShowAdd(false);
       qc.invalidateQueries({ queryKey: ["accounts"] });
       qc.invalidateQueries({ queryKey: ["summary"] });
     },
@@ -146,56 +160,96 @@ export default function AccountsPage() {
         </div>
       )}
 
-      <Card>
-        <CardTitle>Add a manual account</CardTitle>
-        <p className="mt-1 text-sm text-text-muted">For cash, wallets, or anything not connected through Plaid.</p>
-        <form
-          className="mt-4 flex flex-wrap items-end gap-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            create.mutate();
+      {/* Add-account modal */}
+      {showAdd && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm md:items-center md:p-6"
+          onClick={() => !create.isPending && setShowAdd(false)}
+          style={{ bottom: kbdHeight > 0 ? `${kbdHeight}px` : undefined }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Add a manual account"
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl border border-border bg-surface p-5 shadow-2xl md:max-w-lg md:rounded-3xl"
+            style={{ paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom))" }}
+          >
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border md:hidden" />
+            <div className="mb-4 flex items-center justify-between">
+              <CardTitle>Add a manual account</CardTitle>
+              <button
+                aria-label="Close"
+                onClick={() => !create.isPending && setShowAdd(false)}
+                className="flex h-9 w-9 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-muted hover:text-text"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="mb-4 text-sm text-text-muted">For cash, wallets, or anything not connected through Plaid.</p>
+            <form
+              className="flex flex-col gap-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                create.mutate();
+              }}
+            >
+              <div>
+                <label htmlFor="acc-name" className="mb-1 block text-xs font-medium text-text-muted">
+                  Name
+                </label>
+                <Input id="acc-name" placeholder="e.g. Cash wallet" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
+              </div>
+              <div>
+                <label htmlFor="acc-type" className="mb-1 block text-xs font-medium text-text-muted">
+                  Type
+                </label>
+                <Select id="acc-type" value={type} onChange={(e) => setType(e.target.value)}>
+                  {TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <label htmlFor="acc-balance" className="mb-1 block text-xs font-medium text-text-muted">
+                  Balance ($)
+                </label>
+                <Input
+                  id="acc-balance"
+                  placeholder="0.00"
+                  inputMode="decimal"
+                  value={balance}
+                  onChange={(e) => setBalance(e.target.value)}
+                />
+              </div>
+              {error && (
+                <p role="alert" className="rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-sm text-danger">
+                  {error}
+                </p>
+              )}
+              <Button type="submit" disabled={create.isPending || !name}>
+                {create.isPending ? "Adding…" : "Add account"}
+              </Button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Floating action button — bottom right, above the mobile tab bar */}
+      {!showAdd && (
+        <button
+          aria-label="Add account"
+          onClick={() => setShowAdd(true)}
+          className="fixed right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-foreground)] shadow-lg transition-transform hover:scale-105 active:scale-95"
+          style={{
+            bottom: `calc(${kbdHeight > 0 ? kbdHeight : 0}px + ${kbdHeight > 0 ? "1rem" : "6rem"} + env(safe-area-inset-bottom))`,
           }}
         >
-          <div className="min-w-40 flex-1">
-            <label htmlFor="acc-name" className="mb-1 block text-xs font-medium text-text-muted">
-              Name
-            </label>
-            <Input id="acc-name" placeholder="e.g. Cash wallet" value={name} onChange={(e) => setName(e.target.value)} required />
-          </div>
-          <div className="min-w-32">
-            <label htmlFor="acc-type" className="mb-1 block text-xs font-medium text-text-muted">
-              Type
-            </label>
-            <Select id="acc-type" value={type} onChange={(e) => setType(e.target.value)}>
-              {TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div className="min-w-32">
-            <label htmlFor="acc-balance" className="mb-1 block text-xs font-medium text-text-muted">
-              Balance ($)
-            </label>
-            <Input
-              id="acc-balance"
-              placeholder="0.00"
-              inputMode="decimal"
-              value={balance}
-              onChange={(e) => setBalance(e.target.value)}
-            />
-          </div>
-          {error && (
-            <p role="alert" className="w-full rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-sm text-danger">
-              {error}
-            </p>
-          )}
-          <Button type="submit" disabled={create.isPending || !name}>
-            {create.isPending ? "Adding…" : "Add account"}
-          </Button>
-        </form>
-      </Card>
+          <Plus size={26} strokeWidth={2.5} />
+        </button>
+      )}
     </div>
   );
 }

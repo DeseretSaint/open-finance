@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Trash2 } from "lucide-react";
+import { Trash2, Plus, X } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/badge";
@@ -78,6 +78,19 @@ export default function BudgetsPage() {
   const [period, setPeriod] = useState<"weekly" | "monthly" | "yearly">("monthly");
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [kbdHeight, setKbdHeight] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return;
+    const onResize = () => {
+      const vv = window.visualViewport!;
+      const delta = Math.max(0, window.innerHeight - vv.height);
+      setKbdHeight(delta > 100 ? delta : 0);
+    };
+    window.visualViewport.addEventListener("resize", onResize);
+    return () => window.visualViewport!.removeEventListener("resize", onResize);
+  }, []);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["budgets"] });
@@ -97,6 +110,7 @@ export default function BudgetsPage() {
       setAmount("");
       setCategoryIds([]);
       setError(null);
+      setShowAdd(false);
       invalidate();
     },
     onError: (e) => setError(e instanceof Error ? e.message : "Failed to create budget."),
@@ -253,79 +267,119 @@ export default function BudgetsPage() {
         </div>
       )}
 
-      <Card>
-        <CardTitle>Create a budget</CardTitle>
-        <p className="mt-1 text-sm text-text-muted">Track spending in one or more categories per period.</p>
-        <form
-          className="mt-4 flex flex-wrap items-end gap-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            create.mutate();
-          }}
+      {/* Create-budget modal */}
+      {showAdd && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm md:items-center md:p-6"
+          onClick={() => !create.isPending && setShowAdd(false)}
+          style={{ bottom: kbdHeight > 0 ? `${kbdHeight}px` : undefined }}
         >
-          <div className="min-w-40 flex-1">
-            <label htmlFor="budget-name" className="mb-1 block text-xs font-medium text-text-muted">
-              Name
-            </label>
-            <Input id="budget-name" placeholder="e.g. Groceries" value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div className="min-w-28">
-            <label htmlFor="budget-amount" className="mb-1 block text-xs font-medium text-text-muted">
-              Amount ($)
-            </label>
-            <Input
-              id="budget-amount"
-              placeholder="0.00"
-              inputMode="decimal"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </div>
-          <div className="min-w-32">
-            <label htmlFor="budget-period" className="mb-1 block text-xs font-medium text-text-muted">
-              Period
-            </label>
-            <select
-              id="budget-period"
-              value={period}
-              onChange={(e) => setPeriod(e.target.value as "weekly" | "monthly" | "yearly")}
-              className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus:border-[var(--accent)]"
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Create a budget"
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl border border-border bg-surface p-5 shadow-2xl md:max-w-lg md:rounded-3xl"
+            style={{ paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom))" }}
+          >
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border md:hidden" />
+            <div className="mb-4 flex items-center justify-between">
+              <CardTitle>Create a budget</CardTitle>
+              <button
+                aria-label="Close"
+                onClick={() => !create.isPending && setShowAdd(false)}
+                className="flex h-9 w-9 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-muted hover:text-text"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="mb-4 text-sm text-text-muted">Track spending in one or more categories per period.</p>
+            <form
+              className="flex flex-col gap-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                create.mutate();
+              }}
             >
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="yearly">Yearly</option>
-            </select>
-          </div>
-          {error && (
-            <p role="alert" className="w-full rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-sm text-danger">
-              {error}
-            </p>
-          )}
-          <Button type="submit" disabled={create.isPending || !name || !amount}>
-            {create.isPending ? "Creating…" : "Create budget"}
-          </Button>
-        </form>
-        <div className="mt-4">
-          <p className="mb-2 text-xs font-medium text-text-muted">Categories (optional — leave empty to track uncategorized)</p>
-          <div className="flex flex-wrap gap-2">
-            {categories.data?.categories.map((c) => {
-              const active = categoryIds.includes(c.id);
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => toggleCategory(c.id)}
-                  className={`rounded-full px-3 py-1 text-sm transition-colors ${
-                    active ? "bg-[var(--accent)] text-white" : "bg-surface-muted text-text-muted hover:text-text"
-                  }`}
+              <div>
+                <label htmlFor="budget-name" className="mb-1 block text-xs font-medium text-text-muted">
+                  Name
+                </label>
+                <Input id="budget-name" placeholder="e.g. Groceries" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+              </div>
+              <div>
+                <label htmlFor="budget-amount" className="mb-1 block text-xs font-medium text-text-muted">
+                  Amount ($)
+                </label>
+                <Input
+                  id="budget-amount"
+                  placeholder="0.00"
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                />
+              </div>
+              <div>
+                <label htmlFor="budget-period" className="mb-1 block text-xs font-medium text-text-muted">
+                  Period
+                </label>
+                <select
+                  id="budget-period"
+                  value={period}
+                  onChange={(e) => setPeriod(e.target.value as "weekly" | "monthly" | "yearly")}
+                  className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus:border-[var(--accent)]"
                 >
-                  {c.name}
-                </button>
-              );
-            })}
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                </select>
+              </div>
+              <div>
+                <p className="mb-2 text-xs font-medium text-text-muted">Categories (optional — leave empty to track uncategorized)</p>
+                <div className="flex flex-wrap gap-2">
+                  {categories.data?.categories.map((c) => {
+                    const active = categoryIds.includes(c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => toggleCategory(c.id)}
+                        className={`rounded-full px-3 py-1 text-sm transition-colors ${
+                          active ? "bg-[var(--accent)] text-white" : "bg-surface-muted text-text-muted hover:text-text"
+                        }`}
+                      >
+                        {c.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              {error && (
+                <p role="alert" className="rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-sm text-danger">
+                  {error}
+                </p>
+              )}
+              <Button type="submit" disabled={create.isPending || !name || !amount}>
+                {create.isPending ? "Creating…" : "Create budget"}
+              </Button>
+            </form>
           </div>
         </div>
-      </Card>
+      )}
+
+      {/* Floating action button — bottom right, above the mobile tab bar */}
+      {!showAdd && (
+        <button
+          aria-label="Create budget"
+          onClick={() => setShowAdd(true)}
+          className="fixed right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-foreground)] shadow-lg transition-transform hover:scale-105 active:scale-95"
+          style={{
+            bottom: `calc(${kbdHeight > 0 ? kbdHeight : 0}px + ${kbdHeight > 0 ? "1rem" : "6rem"} + env(safe-area-inset-bottom))`,
+          }}
+        >
+          <Plus size={26} strokeWidth={2.5} />
+        </button>
+      )}
     </div>
   );
 }

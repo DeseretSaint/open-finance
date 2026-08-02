@@ -29,7 +29,7 @@ export interface TransactionFilters {
   accountIds?: string[] | null; // agent allowlist
   from?: string;
   to?: string;
-  categoryId?: string;
+  categoryId?: string | null; // null = uncategorized only (agent smart categorization)
   q?: string;
   limit: number;
   offset: number;
@@ -68,7 +68,10 @@ export function createTransactionsService(db: Db = getDb()) {
         where.push("t.date <= ?");
         params.push(f.to);
       }
-      if (f.categoryId) {
+      if (f.categoryId === null) {
+        // Uncategorized: explicit null filter (used by the agent smart-categorization flow).
+        where.push("t.user_category_id IS NULL");
+      } else if (f.categoryId) {
         where.push("t.user_category_id = ?");
         params.push(f.categoryId);
       }

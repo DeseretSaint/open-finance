@@ -17,6 +17,7 @@ import { createPlanningService } from "@/server/domain/planning";
 import { createProjectionService } from "@/server/domain/projection";
 import { createReportsService } from "@/server/domain/reports";
 import { createCategoriesService } from "@/server/domain/categories";
+import { createAgentPrefsService } from "@/server/domain/agent-prefs";
 import { getDb } from "@/server/db/adapter";
 
 /**
@@ -106,7 +107,8 @@ const TOOLS: ToolDef[] = [
       const tools = MCP_TOOLS.filter((t) => t.scopes.length === 0 || t.scopes.some((s) => auth.scopes.includes(s))).map(
         (t) => t.tool
       );
-      return { preset: auth.token.preset, scopes: auth.scopes, tools };
+      const prefs = await createAgentPrefsService(getDb()).get(auth.userId);
+      return { preset: auth.token.preset, scopes: auth.scopes, tools, autoCategorize: prefs.autoCategorize };
     },
   },
   {
@@ -159,6 +161,30 @@ const TOOLS: ToolDef[] = [
       const { transactionId } = args as { transactionId: string };
       const transaction = await createTransactionsService(getDb()).get(auth.userId, transactionId);
       return { transaction };
+    },
+  },
+  {
+    name: "list_uncategorized_transactions",
+    description:
+      "Transactions with no category yet, or with a generic/unclear name (for smart categorization). " +
+      "When the user has enabled 'smart categorization', use set_transaction_category for the ones you are confident " +
+      "about and LEAVE the ambiguous ('gray area') ones alone. Params: limit (default 50), includeGeneric (default true).",
+    inputSchema: jsonSchema({
+      limit: z.number().int().min(1).max(200).optional(),
+      includeGeneric: z.boolean().optional(),
+    }),
+    parse: () => z.object({ limit: z.number().int().min(1).max(200).optional(), includeGeneric: z.boolean().optional() }),
+    run: async (auth, args) => {
+      const { limit, includeGeneric } = args as { limit?: number; includeGeneric?: boolean };
+      const txns = createTransactionsService(getDb());
+      const { rows } = await txns.list(auth.userId, {
+        categoryId: null,
+        limit: limit ?? 50,
+        offset: 0,
+        accountIds: auth.accountIds,
+      });
+      const generic = includeGeneric === false ? [] : rows.filter((r) => /^(purchase|payment|pos|debit|card|withdrawal|transfer|misc|other|internet|online)\b/i.test(r.name));
+      return { uncategorized: rows, generic: generic.map((r) => r.id) };
     },
   },
   {
