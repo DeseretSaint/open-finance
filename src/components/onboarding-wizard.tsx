@@ -7,6 +7,7 @@ import { isSoloCandidate } from "@/lib/mobile-mode";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 
 /**
  * First-run onboarding wizard (P8c).
@@ -31,6 +32,7 @@ const PLAID_SIGNUP_URL = "https://dashboard.plaid.com/signup";
 const PLAID_KEYS_URL = "https://dashboard.plaid.com/keys";
 
 export function OnboardingWizard() {
+  const kbdHeight = useKeyboardHeight();
   const router = useRouter();
   const [solo, setSolo] = useState(false);
   const [step, setStep] = useState<Step>("welcome");
@@ -59,19 +61,7 @@ export function OnboardingWizard() {
   const [agentBacklog, setAgentBacklog] = useState(1);
   const [agentGlobal, setAgentGlobal] = useState(false);
   const [agentPrefsSaved, setAgentPrefsSaved] = useState(false);
-  const [kbdHeight, setKbdHeight] = useState(0);
 
-  // Rise above the on-screen keyboard so the wizard stays readable (P25).
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.visualViewport) return;
-    const onResize = () => {
-      const vv = window.visualViewport!;
-      const delta = Math.max(0, window.innerHeight - vv.height);
-      setKbdHeight(delta > 100 ? delta : 0);
-    };
-    window.visualViewport.addEventListener("resize", onResize);
-    return () => window.visualViewport!.removeEventListener("resize", onResize);
-  }, []);
 
   async function saveAgentPrefs() {
     if (agentPrefsSaved) return;

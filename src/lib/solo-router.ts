@@ -502,6 +502,24 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       return ok({ items });
     }
 
+    // ── Phone backup & restore (solo: encrypted JSON dump, PIN-confirmed) ──
+    if (method === "POST" && path === "/api/backup") {
+      const { createSoloBackupService } = await import("@/server/domain/solo-backup");
+      const userId = await h.deviceUserId();
+      const pin = typeof B?.pin === "string" ? B.pin : "";
+      const result = await createSoloBackupService(db).exportBackup(userId, pin);
+      return ok(result);
+    }
+    if (method === "POST" && path === "/api/backup/restore") {
+      const { createSoloBackupService } = await import("@/server/domain/solo-backup");
+      const userId = await h.deviceUserId();
+      const pin = typeof B?.pin === "string" ? B.pin : "";
+      const contents = typeof B?.contents === "string" ? B.contents : "";
+      if (!contents) throw apiErrors.badRequest("Choose a backup file first.");
+      const result = await createSoloBackupService(db).restoreBackup(userId, pin, contents);
+      return ok(result);
+    }
+
     // ── Updates (solo: GitHub check + dismiss; no self-update on APK) ───
     if (path === "/api/updates") {
       const { createSoloUpdatesService } = await import("@/server/domain/updates-solo");

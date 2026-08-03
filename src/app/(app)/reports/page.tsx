@@ -170,35 +170,35 @@ export default function ReportsPage() {
         )}
       </Card>
 
-      {/* Month summary */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
+      {/* Month summary — one row on desktop, stacked stat cards on phone */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+        <Card className="p-4 sm:p-6">
           <CardLabel>Income</CardLabel>
-          <p className="mt-1 text-2xl font-bold text-success">
+          <p className="mt-1 text-xl font-bold text-success sm:text-2xl">
             <Money cents={s?.monthIncomeCents ?? 0} signed />
           </p>
         </Card>
-        <Card>
+        <Card className="p-4 sm:p-6">
           <CardLabel>Spent</CardLabel>
-          <p className="mt-1 text-2xl font-bold text-danger">
+          <p className="mt-1 text-xl font-bold text-danger sm:text-2xl">
             <Money cents={-(s?.monthExpenseCents ?? 0)} signed />
           </p>
         </Card>
-        <Card>
+        <Card className="p-4 sm:p-6">
           <CardLabel>Net</CardLabel>
-          <p className={`mt-1 text-2xl font-bold ${(s?.monthNetCents ?? 0) >= 0 ? "text-text" : "text-danger"}`}>
+          <p className={`mt-1 text-xl font-bold sm:text-2xl ${(s?.monthNetCents ?? 0) >= 0 ? "text-text" : "text-danger"}`}>
             <Money cents={s?.monthNetCents ?? 0} signed />
           </p>
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
         <Card>
           <CardTitle>Spending by category — {monthLabel}</CardTitle>
           {pieData.length === 0 ? (
             <ChartEmpty>{isCurrentMonth ? "No spending this month yet." : "No spending in this month."}</ChartEmpty>
           ) : (
-            <div className="mt-4 h-64">
+            <div className="mt-4 h-56 sm:h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -243,7 +243,7 @@ export default function ReportsPage() {
           {!hasCashflow ? (
             <ChartEmpty>No cash flow data yet — add transactions to see trends.</ChartEmpty>
           ) : (
-            <div className="mt-4 h-64">
+            <div className="mt-4 h-56 sm:h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={barData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -297,7 +297,7 @@ export default function ReportsPage() {
                 </span>
               </span>
             </div>
-            <div className="mt-4 h-64">
+            <div className="mt-4 h-56 sm:h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={projData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -326,23 +326,23 @@ export default function ReportsPage() {
         )}
       </Card>
 
-      {/* Net worth */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
+      {/* Net worth — stacked on phone */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+        <Card className="p-4 sm:p-6">
           <CardLabel>Assets</CardLabel>
-          <p className="mt-1 text-2xl font-bold">
+          <p className="mt-1 text-xl font-bold sm:text-2xl">
             <Money cents={netWorth.data?.netWorth.assetsCents ?? 0} />
           </p>
         </Card>
-        <Card>
+        <Card className="p-4 sm:p-6">
           <CardLabel>Liabilities</CardLabel>
-          <p className="mt-1 text-2xl font-bold text-danger">
+          <p className="mt-1 text-xl font-bold text-danger sm:text-2xl">
             <Money cents={netWorth.data?.netWorth.liabilitiesCents ?? 0} />
           </p>
         </Card>
-        <Card>
+        <Card className="p-4 sm:p-6">
           <CardLabel>Net worth</CardLabel>
-          <p className="mt-1 text-2xl font-bold">
+          <p className="mt-1 text-xl font-bold sm:text-2xl">
             <Money cents={netWorth.data?.netWorth.netCents ?? 0} />
           </p>
         </Card>

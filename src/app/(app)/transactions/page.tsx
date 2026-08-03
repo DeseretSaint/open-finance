@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search, X, Trash2, ChevronDown, Plus } from "lucide-react";
 import { api } from "@/lib/api-client";
@@ -10,6 +10,7 @@ import { Input, Select } from "@/components/ui/input";
 import { CustomDatePicker } from "@/components/ui/custom-date-picker";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Money } from "@/components/money";
+import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 
 interface Txn {
   id: string;
@@ -49,25 +50,13 @@ function RowSkeleton() {
 }
 
 export default function TransactionsPage() {
+  const kbdHeight = useKeyboardHeight();
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [accountId, setAccountId] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
-  // Track the visual viewport (keyboard) so the FAB rises above the keyboard.
-  const [kbdHeight, setKbdHeight] = useState(0);
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.visualViewport) return;
-    const onResize = () => {
-      const vv = window.visualViewport!;
-      const delta = Math.max(0, window.innerHeight - vv.height);
-      // Ignore tiny jitter; treat a shrink > 100px as keyboard open.
-      setKbdHeight(delta > 100 ? delta : 0);
-    };
-    window.visualViewport.addEventListener("resize", onResize);
-    return () => window.visualViewport!.removeEventListener("resize", onResize);
-  }, []);
 
   const params = useMemo(() => {
     const p = new URLSearchParams({ limit: "100" });

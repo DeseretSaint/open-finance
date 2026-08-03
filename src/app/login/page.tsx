@@ -9,6 +9,7 @@ import { isSoloCandidate } from "@/lib/mobile-mode";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { LogoMark } from "@/components/sidebar";
+import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 
 const DURATIONS = [
   { value: "1h", label: "1 hour" },
@@ -19,6 +20,7 @@ const DURATIONS = [
 ] as const;
 
 export default function LoginPage() {
+  const kbdHeight = useKeyboardHeight();
   const router = useRouter();
   const [solo, setSolo] = useState(false);
   const [username, setUsername] = useState("");
@@ -28,7 +30,6 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [bioBusy, setBioBusy] = useState(false);
-  const [kbdHeight, setKbdHeight] = useState(0);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -36,17 +37,6 @@ export default function LoginPage() {
     }
   }, []);
 
-  // Rise above the on-screen keyboard so the form stays readable (P25).
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.visualViewport) return;
-    const onResize = () => {
-      const vv = window.visualViewport!;
-      const delta = Math.max(0, window.innerHeight - vv.height);
-      setKbdHeight(delta > 100 ? delta : 0);
-    };
-    window.visualViewport.addEventListener("resize", onResize);
-    return () => window.visualViewport!.removeEventListener("resize", onResize);
-  }, []);
 
   const lock = useQuery({
     queryKey: ["device-lock"],

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { CreditCard, Landmark, PiggyBank, TrendingUp, Wallet, CircleHelp, Plus, X } from "lucide-react";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Money } from "@/components/money";
+import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 
 interface Account {
   id: string;
@@ -49,6 +50,7 @@ function AccountsSkeleton() {
 }
 
 export default function AccountsPage() {
+  const kbdHeight = useKeyboardHeight();
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["accounts"],
@@ -60,18 +62,7 @@ export default function AccountsPage() {
   const [balance, setBalance] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
-  const [kbdHeight, setKbdHeight] = useState(0);
 
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.visualViewport) return;
-    const onResize = () => {
-      const vv = window.visualViewport!;
-      const delta = Math.max(0, window.innerHeight - vv.height);
-      setKbdHeight(delta > 100 ? delta : 0);
-    };
-    window.visualViewport.addEventListener("resize", onResize);
-    return () => window.visualViewport!.removeEventListener("resize", onResize);
-  }, []);
 
   const create = useMutation({
     mutationFn: () =>

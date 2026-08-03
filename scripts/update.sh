@@ -20,6 +20,47 @@ fi
 
 log() { echo "[update $(date +%H:%M:%S)] $*"; }
 
+# ── Pre-update data snapshot (D1) ───────────────────────────────────────────
+# No update may be able to destroy un-backed-up data. Before touching the
+# tree, copy the live DB (+ wal/shm) aside; keep the last 3 snapshots. The
+# previous build is also preserved so a failed build rolls back to it.
+DATA_DIR="$REPO/data"
+SNAP_DIR="$DATA_DIR/update-snapshots"
+mkdir -p "$SNAP_DIR"
+if [[ -f "$DATA_DIR/open-finance.db" ]]; then
+  STAMP="$(date +%Y%m%d-%H%M%S)"
+  SNAP="$SNAP_DIR/$STAMP"
+  mkdir -p "$SNAP"
+  cp -a "$DATA_DIR/open-finance.db" "$SNAP/" 2>/dev/null || true
+  cp -a "$DATA_DIR/open-finance.db-wal" "$SNAP/" 2>/dev/null || true
+  cp -a "$DATA_DIR/open-finance.db-shm" "$SNAP/" 2>/dev/null || true
+  log "data snapshot saved → $SNAP"
+  # keep last 3
+  ls -1dt "$SNAP_DIR"/*/ 2>/dev/null | tail -n +4 | xargs -r rm -rf
+fi
+
+# Preserve the previous build so a failed build can't strand the install.
+if [[ -d "$REPO/.next" ]]; then
+  rm -rf "$REPO/.next.previous"
+  cp -a "$REPO/.next" "$REPO/.next.previous" 2>/dev/null || true
+fi
+
+rollback() {
+  log "UPDATE FAILED — rolling back."
+  if [[ -d "$REPO/.next.previous" ]]; then
+    rm -rf "$REPO/.next"
+    mv "$REPO/.next.previous" "$REPO/.next"
+    log "previous build restored."
+  fi
+  git reset --hard HEAD@{1} 2>/dev/null || true
+  PORT="${PORT:-3000}" HOSTNAME="${HOSTNAME:-127.0.0.1}" NODE_ENV=production \
+    nohup node .next/standalone/server.js >> data/server.log 2>&1 &
+  disown || true
+  log "rolled back to the previous version; your data was never touched (snapshot in $SNAP_DIR)."
+  exit 1
+}
+trap rollback ERR
+
 log "pulling latest…"
 git fetch origin main
 git reset --hard origin/main
@@ -30,6 +71,10 @@ pnpm install --frozen-lockfile
 
 log "building…"
 pnpm build
+
+# Build succeeded — the rollback path is no longer needed.
+trap - ERR
+rm -rf "$REPO/.next.previous"
 
 # Migrations run on next boot (entrypoint / start script runs migrations/up.js).
 

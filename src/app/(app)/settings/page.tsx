@@ -905,6 +905,13 @@ function BackupPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; s
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [solo, setSolo] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      import("@/lib/mobile-mode").then((m) => setSolo(m.isSoloCandidate(window.location.origin)));
+    }
+  }, []);
 
   function download() {
     fetch("/api/backup", { credentials: "same-origin" })
@@ -952,6 +959,8 @@ function BackupPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; s
     }
   }
 
+  if (solo) return <SoloBackupPanel setMsg={setMsg} setErr={setErr} />;
+
   return (
     <>
     <Card className="lg:col-span-2">
@@ -994,6 +1003,132 @@ function BackupPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; s
       <p className="mt-1 text-sm text-text-muted">
         Replay the first-run walkthrough — Plaid keys, bank linking, and the agent intro. Nothing is
         reset; it just guides you through setup again.
+      </p>
+      <div className="mt-4">
+        <Button
+          variant="secondary"
+          onClick={async () => {
+            try {
+              await api.post("/api/onboarding", { action: "reset" });
+              window.location.href = "/dashboard";
+            } catch (e) {
+              setErr(e instanceof Error ? e.message : "Could not restart the tour.");
+            }
+          }}
+        >
+          ↻ Restart setup tour
+        </Button>
+      </div>
+    </Card>
+    </>
+  );
+}
+
+// ── Phone backup & restore (solo — encrypted JSON dump, PIN-confirmed) ──────
+
+function SoloBackupPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; setErr: (s: string | null) => void }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [pin, setPin] = useState("");
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function download() {
+    if (!pin) {
+      setErr("Enter your device PIN to encrypt the backup.");
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await api.post<{ filename: string; contents: string }>("/api/backup", { pin });
+      const blob = new Blob([res.contents], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = res.filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      setMsg("Backup downloaded. It's encrypted with your device PIN — you'll need that PIN to restore it.");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Backup failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function restore() {
+    const file = fileRef.current?.files?.[0];
+    if (!file || !pin) {
+      setErr("Choose a backup file and enter the PIN it was made with.");
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      const contents = await file.text();
+      const res = await api.post<{ restored: true; tables: number; rows: number }>("/api/backup/restore", {
+        pin,
+        contents,
+      });
+      setMsg(`Restored ${res.rows.toLocaleString()} rows across ${res.tables} tables. Reloading…`);
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Restore failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+    <Card className="lg:col-span-2">
+      <CardTitle>Backup &amp; restore</CardTitle>
+      <p className="mt-1 text-sm text-text-muted">
+        Download an encrypted copy of everything on this phone. It&apos;s protected with your device PIN — keep the
+        file somewhere safe (Files, Drive, a computer). Restoring replaces what&apos;s on the phone with the backup —
+        nothing is merged.
+      </p>
+      <div className="mt-4 flex flex-wrap items-end gap-3">
+        <div className="min-w-48 flex-1">
+          <label className="mb-1 block text-xs text-text-muted">Device PIN</label>
+          <Input
+            type="password"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={12}
+            placeholder="Your unlock PIN"
+            value={pin}
+            onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ""))}
+          />
+        </div>
+        <Button variant="secondary" onClick={download} disabled={busy || !pin}>
+          {busy ? "Working…" : "Download backup"}
+        </Button>
+      </div>
+      <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-border pt-4">
+        <div className="min-w-48 flex-1">
+          <label className="mb-1 block text-xs text-text-muted">Backup file</label>
+          <input ref={fileRef} type="file" accept=".json,.ofbak.json,application/json" className="text-sm text-text-muted" />
+        </div>
+        <label className="flex items-center gap-2 pb-2 text-sm text-text-muted">
+          <input type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} />
+          I understand this replaces the data on this phone
+        </label>
+        <Button
+          variant="secondary"
+          className="text-danger"
+          disabled={busy || !confirm || !pin}
+          onClick={restore}
+        >
+          {busy ? "Restoring…" : "Restore from backup"}
+        </Button>
+      </div>
+    </Card>
+
+    <Card>
+      <CardTitle>Setup tour</CardTitle>
+      <p className="mt-1 text-sm text-text-muted">
+        Replay the first-run walkthrough — bank linking and the agent intro. Nothing is reset; it just guides you
+        through setup again.
       </p>
       <div className="mt-4">
         <Button

@@ -7,8 +7,10 @@ import { api } from "@/lib/api-client";
 import { isSoloCandidate } from "@/lib/mobile-mode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 
 export default function RegisterPage() {
+  const kbdHeight = useKeyboardHeight();
   const router = useRouter();
   const [solo, setSolo] = useState(false);
   const [username, setUsername] = useState("");
@@ -17,7 +19,6 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
-  const [kbdHeight, setKbdHeight] = useState(0);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -25,17 +26,6 @@ export default function RegisterPage() {
     }
   }, []);
 
-  // Rise above the on-screen keyboard so the form stays readable (P25).
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.visualViewport) return;
-    const onResize = () => {
-      const vv = window.visualViewport!;
-      const delta = Math.max(0, window.innerHeight - vv.height);
-      setKbdHeight(delta > 100 ? delta : 0);
-    };
-    window.visualViewport.addEventListener("resize", onResize);
-    return () => window.visualViewport!.removeEventListener("resize", onResize);
-  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
