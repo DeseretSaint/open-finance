@@ -16,6 +16,7 @@ export interface AccountRow {
   available_balance_cents: number | null;
   currency: string;
   institution_name: string | null;
+  include_in_net_worth: number;
   created_at: string;
 }
 
@@ -146,6 +147,13 @@ export function createAccountsService(db: Db = getDb()) {
         await db.run("DELETE FROM balance_history WHERE account_id = ?", id);
         await db.run("DELETE FROM accounts WHERE id = ?", id);
       });
+    },
+
+    /** Include/exclude an account from the day-to-day net worth (P24). */
+    async setNetWorthInclusion(userId: string, id: string, include: boolean): Promise<AccountRow> {
+      await this.get(userId, id);
+      await db.run("UPDATE accounts SET include_in_net_worth = ? WHERE id = ?", include ? 1 : 0, id);
+      return this.get(userId, id);
     },
   };
 }

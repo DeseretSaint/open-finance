@@ -50,7 +50,7 @@ export function createProjectionService(db: Db = getDb()) {
 
       // Baseline: current total balance across all accounts (allowlist-aware from P7).
       const total = await db.get<{ s: number }>(
-        "SELECT COALESCE(SUM(current_balance_cents), 0) AS s FROM accounts WHERE user_id = ?",
+        "SELECT COALESCE(SUM(current_balance_cents), 0) AS s FROM accounts WHERE user_id = ? AND include_in_net_worth = 1",
         userId
       );
       const baselineCents = total?.s ?? 0;

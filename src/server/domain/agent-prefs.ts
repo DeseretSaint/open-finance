@@ -37,7 +37,8 @@ export const DEFAULT_CATEGORIZE_BACKLOG = 1;
 /** Read scopes granted per tab. */
 const TAB_SCOPES: Record<AgentTab, string[]> = {
   dashboard: ["read:summary"],
-  accounts: ["read:banking"],
+  // Investments live under the Accounts tab in the UI, so both are granted.
+  accounts: ["read:banking", "read:investments"],
   activity: ["read:banking"],
   budgets: ["read:budgets"],
   reports: ["read:reports"],
@@ -47,13 +48,13 @@ const TAB_SCOPES: Record<AgentTab, string[]> = {
 
 /** Write scopes granted per tab (empty = read-only tab). */
 const TAB_WRITE_SCOPES: Record<AgentTab, string[]> = {
+  dashboard: ["settings:write"],
+  accounts: ["sync:run"],
   activity: ["transactions:edit"],
   budgets: ["budgets:write"],
+  reports: ["categories:write"],
   planning: ["planning:write"],
-  dashboard: [],
-  accounts: [],
-  reports: [],
-  investments: [],
+  investments: ["sync:run"],
 };
 
 const ALL_READ_SCOPES = Array.from(new Set(Object.values(TAB_SCOPES).flat()));

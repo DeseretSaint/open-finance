@@ -601,6 +601,19 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
     }
 
     // ── Idempotent DELETE for transactions/[id] etc. ────────────────────
+    if (method === "PATCH" && path.startsWith("/api/accounts/")) {
+      const userId = await h.deviceUserId();
+      const id = parseId(path, "/api/accounts/");
+      const account =
+        typeof B?.includeInNetWorth === "boolean"
+          ? await h.accounts.setNetWorthInclusion(userId, id, B.includeInNetWorth)
+          : typeof B?.name === "string"
+            ? await h.accounts.rename(userId, id, B.name)
+            : (() => {
+                throw apiErrors.badRequest("Nothing to update.");
+              })();
+      return ok({ account });
+    }
     if (method === "DELETE" && path.startsWith("/api/transactions/")) {
       const userId = await h.deviceUserId();
       await h.transactions.removeManual(userId, parseId(path, "/api/transactions/"));

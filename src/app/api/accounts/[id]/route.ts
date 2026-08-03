@@ -7,8 +7,9 @@ import { getDb } from "@/server/db/adapter";
 
 export const runtime = "nodejs";
 
-const renameSchema = z.object({
-  name: z.string().min(1, "Account name is required."),
+const patchSchema = z.object({
+  name: z.string().min(1, "Account name is required.").optional(),
+  includeInNetWorth: z.boolean().optional(),
 });
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -16,8 +17,12 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const session = await requireSession(req);
     requireCsrf(req);
     const id = await parseParam(ctx, "id");
-    const body = await parseBody(renameSchema, req);
-    const account = await createAccountsService(getDb()).rename(session.userId, id, body.name);
+    const body = await parseBody(patchSchema, req);
+    const svc = createAccountsService(getDb());
+    const account =
+      body.includeInNetWorth !== undefined
+        ? await svc.setNetWorthInclusion(session.userId, id, body.includeInNetWorth)
+        : await svc.rename(session.userId, id, body.name as string);
     return ok({ account });
   })(req, ctx);
 }

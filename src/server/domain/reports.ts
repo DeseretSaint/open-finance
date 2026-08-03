@@ -74,7 +74,7 @@ export function createReportsService(db: Db = getDb()) {
       const allow = withAllowlist(allowlist ?? null, "id");
       const rows = await db.all<{ type: string | null; balance: number }>(
         `SELECT type, COALESCE(SUM(current_balance_cents), 0) AS balance
-           FROM accounts WHERE user_id = ?${allow.clause} GROUP BY type`,
+          FROM accounts WHERE user_id = ? AND include_in_net_worth = 1${allow.clause} GROUP BY type`,
         userId,
         ...allow.params
       );

@@ -39,7 +39,7 @@ export function createSummaryService(db: Db = getDb()) {
 
       const totals = await db.all<{ type: string | null; balance: number }>(
         `SELECT type, COALESCE(SUM(current_balance_cents), 0) AS balance
-           FROM accounts WHERE user_id = ?${allowAccounts.clause} GROUP BY type`,
+          FROM accounts WHERE user_id = ? AND include_in_net_worth = 1${allowAccounts.clause} GROUP BY type`,
         userId,
         ...allowAccounts.params
       );

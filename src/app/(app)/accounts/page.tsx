@@ -20,6 +20,7 @@ interface Account {
   current_balance_cents: number | null;
   currency: string;
   institution_name: string | null;
+  include_in_net_worth: number;
 }
 
 const TYPES = ["depository", "credit", "investment", "loan", "other"];
@@ -97,6 +98,15 @@ export default function AccountsPage() {
     },
   });
 
+  const toggleNetWorth = useMutation({
+    mutationFn: ({ id, include }: { id: string; include: boolean }) =>
+      api.patch(`/api/accounts/${id}`, { includeInNetWorth: include }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      qc.invalidateQueries({ queryKey: ["summary"] });
+    },
+  });
+
   return (
     <div className="space-y-6">
       {isLoading || !data ? (
@@ -141,6 +151,31 @@ export default function AccountsPage() {
                     </Button>
                   )}
                 </div>
+                <label
+                  className={`mt-3 flex cursor-pointer items-center gap-2 border-t border-border pt-3 text-xs transition-colors ${
+                    a.include_in_net_worth === 1 ? "text-text" : "text-text-muted"
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${
+                      a.include_in_net_worth === 1 ? "border-accent bg-accent text-[var(--accent-foreground)]" : "border-border bg-surface"
+                    }`}
+                  >
+                    {a.include_in_net_worth === 1 && (
+                      <svg viewBox="0 0 12 12" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M2 6.5L4.5 9L10 3" />
+                      </svg>
+                    )}
+                  </span>
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={a.include_in_net_worth === 1}
+                    onChange={(e) => toggleNetWorth.mutate({ id: a.id, include: e.target.checked })}
+                  />
+                  Include in net worth on Home
+                </label>
               </Card>
             );
           })}

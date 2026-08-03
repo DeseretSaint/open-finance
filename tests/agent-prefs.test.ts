@@ -30,6 +30,34 @@ describe("agent prefs (per-tab access tiers)", () => {
     expect(caps).not.toContain("read:planning");
   });
 
+  it("accounts tab read includes investments (they live under Accounts)", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const svc = createAgentPrefsService(db);
+    await svc.update(user.id, { tabs: ["accounts"] });
+    const caps = capScopes(await svc.get(user.id));
+    expect(caps).toContain("read:banking");
+    expect(caps).toContain("read:investments");
+    expect(caps).not.toContain("read:summary");
+  });
+
+  it("every tab has a write scope", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const svc = createAgentPrefsService(db);
+    await svc.update(user.id, {
+      tabs: ["dashboard", "accounts", "activity", "budgets", "reports", "planning", "investments"],
+      tabsWrite: ["dashboard", "accounts", "activity", "budgets", "reports", "planning", "investments"],
+    });
+    const caps = capScopes(await svc.get(user.id));
+    expect(caps).toContain("settings:write"); // dashboard
+    expect(caps).toContain("sync:run"); // accounts + investments
+    expect(caps).toContain("transactions:edit"); // activity
+    expect(caps).toContain("budgets:write"); // budgets
+    expect(caps).toContain("categories:write"); // reports
+    expect(caps).toContain("planning:write"); // planning
+  });
+
   it("per-tab write: budgets write grants budgets:write, activity write grants transactions:edit", async () => {
     const db = createTestDb();
     const user = await seedUser(db);
