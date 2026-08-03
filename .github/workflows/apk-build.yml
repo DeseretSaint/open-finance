@@ -84,7 +84,7 @@ jobs:
         run: |
           echo "$ANDROID_KEYSTORE_B64" | base64 -d > android/keystore.jks
           ./android/gradlew -p android assembleRelease \
-            -Pandroid.injected.signing.store.file=keystore.jks \
+            -Pandroid.injected.signing.store.file="$GITHUB_WORKSPACE/android/keystore.jks" \
             -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
             -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
             -Pandroid.injected.signing.key.password="$ANDROID_KEYSTORE_PASSWORD" \
