@@ -39,7 +39,7 @@ export default function Home() {
 
   return (
     <main
-      className="flex min-h-screen flex-col items-center justify-center bg-background px-5 text-text"
+      className="forced-dark flex min-h-screen flex-col items-center justify-center bg-background px-5 text-text"
       style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <div className="w-full max-w-md text-center">

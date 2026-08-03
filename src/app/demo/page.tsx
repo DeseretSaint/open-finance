@@ -27,11 +27,11 @@ export default function DemoPage() {
 
   return (
     <main
-      className="flex min-h-screen items-center justify-center bg-background p-6"
+      className="forced-dark flex min-h-screen items-center justify-center bg-background p-6"
       style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <div className="w-full max-w-sm text-center">
-        <div className="mx-auto mb-3">
+        <div className="mx-auto mb-3 flex justify-center">
           <LogoMark size={48} />
         </div>
         <h1 className="text-2xl font-bold text-text">Live demo</h1>

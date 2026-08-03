@@ -27,8 +27,21 @@ export function useTheme() {
   });
   const [dark, setDark] = useState<boolean>(() => {
     if (typeof window === "undefined") return true;
+    // One-time migration (2026-08-03): pre-dark-default builds (v1.2.0 era)
+    // stored of-dark="0" on this device; the "dark by default" releases since
+    // respected that stale flag. If we've never migrated this install, a
+    // stored "0" is treated as legacy → reset to dark. Future light-mode
+    // choices (after the marker is set) are respected normally.
+    let v = localStorage.getItem("of-dark");
+    if (localStorage.getItem("of-dark-v2") === null) {
+      if (v === "0") {
+        v = "1";
+        localStorage.setItem("of-dark", "1");
+      }
+      localStorage.setItem("of-dark-v2", "1");
+    }
     // Dark is the default; only a stored "0" opts out.
-    return localStorage.getItem("of-dark") !== "0";
+    return v !== "0";
   });
   // Issue #20: density is a 3-step scale (Cozy / Compact / Dense) applied as
   // uniform CSS zoom — the whole UI scales together so nothing overlaps.

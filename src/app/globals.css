@@ -27,7 +27,8 @@
   --chart-6: #06b6d4;
 }
 
-.dark {
+.dark,
+.forced-dark {
   --background: #0c0a09;
   --foreground: #fafaf9;
   --surface: #1c1917;

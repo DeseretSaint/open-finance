@@ -33,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var d=document.documentElement;if(localStorage.getItem("of-dark")!=="0")d.classList.add("dark");}catch(e){}})();`,
+            __html: `(function(){try{var d=document.documentElement;var v=localStorage.getItem("of-dark");var m=localStorage.getItem("of-dark-v2");if(m===null){if(v==="0"){localStorage.setItem("of-dark","1");}localStorage.setItem("of-dark-v2","1");}if(localStorage.getItem("of-dark")!=="0")d.classList.add("dark");}catch(e){}})();`,
           }}
         />
       </head>
