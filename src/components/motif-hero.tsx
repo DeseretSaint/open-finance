@@ -86,21 +86,6 @@ export function MotifHero({ compact = false }: { compact?: boolean }) {
         </span>
         <span className="text-xs font-medium uppercase tracking-[0.14em] text-text-muted">{label}</span>
       </div>
-      {/* Quiet progress dots */}
-      {!reduced && (
-        <div className="absolute bottom-2.5 left-1/2 flex -translate-x-1/2 gap-1">
-          {MOTIFS.map((_, i) => (
-            <span
-              key={i}
-              className="h-1 rounded-full transition-all duration-300"
-              style={{
-                width: i === index ? 14 : 4,
-                background: i === index ? "var(--accent)" : "var(--border)",
-              }}
-            />
-          ))}
-        </div>
-      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
+import { LogoMark } from "@/components/sidebar";
 
 /** One-tap demo login (DEMO_MODE must be on; run `pnpm seed` first). */
 export default function DemoPage() {
@@ -30,11 +31,8 @@ export default function DemoPage() {
       style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <div className="w-full max-w-sm text-center">
-        <div
-          className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl text-xl font-bold"
-          style={{ background: "var(--accent)", color: "var(--accent-foreground)" }}
-        >
-          ₿
+        <div className="mx-auto mb-3">
+          <LogoMark size={48} />
         </div>
         <h1 className="text-2xl font-bold text-text">Live demo</h1>
         <p className="mt-2 text-sm text-text-muted">
