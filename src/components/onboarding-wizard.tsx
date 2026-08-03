@@ -52,6 +52,26 @@ export function OnboardingWizard() {
 
   // agent wiring (P12): provider selection in the wizard (web only).
   const [agentProvider, setAgentProvider] = useState<string | null>(null);
+  // agent access tiers (P20): activity read is always on; these add write/global.
+  const [agentAutoCategorize, setAgentAutoCategorize] = useState(false);
+  const [agentGlobal, setAgentGlobal] = useState(false);
+  const [agentGlobalWrite, setAgentGlobalWrite] = useState(false);
+  const [agentPrefsSaved, setAgentPrefsSaved] = useState(false);
+
+  async function saveAgentPrefs() {
+    if (agentPrefsSaved) return;
+    try {
+      await api.put("/api/agent/prefs", {
+        autoCategorize: agentAutoCategorize,
+        global: agentGlobal,
+        globalWrite: agentGlobalWrite,
+      });
+      setAgentPrefsSaved(true);
+    } catch {
+      // Preference is best-effort — never block the wizard on it.
+      setAgentPrefsSaved(true);
+    }
+  }
 
   useEffect(() => {
     if (typeof window !== "undefined") setSolo(isSoloCandidate(window.location.origin));
@@ -436,16 +456,75 @@ export function OnboardingWizard() {
                 </div>
               )}
 
+              {/* Agent access tiers — set on first entry (P20) */}
+              <div className="mt-4 space-y-3 rounded-xl border border-border p-4">
+                <p className="text-sm font-medium text-text">What can your agent access?</p>
+                <p className="text-xs text-text-muted">
+                  Activity read is always on — the agent can watch transactions come in. It never sees your overall
+                  financial status unless you allow global access. You can change all of this anytime in Settings.
+                </p>
+                <div className="flex items-center justify-between gap-3">
+                  <label htmlFor="wiz-categorize" className="text-sm text-text">
+                    Smart categorization <span className="text-xs text-text-muted">(lets it write categories on activity)</span>
+                  </label>
+                  <input
+                    id="wiz-categorize"
+                    type="checkbox"
+                    checked={agentAutoCategorize}
+                    onChange={(e) => setAgentAutoCategorize(e.target.checked)}
+                    className="h-5 w-5 accent-[var(--accent)]"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <label htmlFor="wiz-global" className="text-sm text-text">
+                    Global access <span className="text-xs text-text-muted">(balances, budgets, reports)</span>
+                  </label>
+                  <input
+                    id="wiz-global"
+                    type="checkbox"
+                    checked={agentGlobal}
+                    onChange={(e) => setAgentGlobal(e.target.checked)}
+                    className="h-5 w-5 accent-[var(--accent)]"
+                  />
+                </div>
+                {agentGlobal && (
+                  <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
+                    <label htmlFor="wiz-global-write" className="text-sm text-text">
+                      Allow global write <span className="text-xs text-text-muted">(budgets, categories — still asks approval)</span>
+                    </label>
+                    <input
+                      id="wiz-global-write"
+                      type="checkbox"
+                      checked={agentGlobalWrite}
+                      onChange={(e) => setAgentGlobalWrite(e.target.checked)}
+                      className="h-5 w-5 accent-[var(--accent)]"
+                    />
+                  </div>
+                )}
+              </div>
+
               <div className="mt-6 flex gap-3">
                 <Button variant="secondary" onClick={() => setStep("done")} className="flex-1">
                   Do this later
                 </Button>
                 {solo ? (
-                  <Button onClick={() => setStep("done")} className="flex-1">
+                  <Button
+                    onClick={async () => {
+                      await saveAgentPrefs();
+                      setStep("done");
+                    }}
+                    className="flex-1"
+                  >
                     Continue
                   </Button>
                 ) : (
-                  <Button onClick={() => router.push("/agents")} className="flex-1">
+                  <Button
+                    onClick={async () => {
+                      await saveAgentPrefs();
+                      router.push("/agents");
+                    }}
+                    className="flex-1"
+                  >
                     Open Agents page
                   </Button>
                 )}
@@ -463,7 +542,7 @@ export function OnboardingWizard() {
                 <li>🔑 Plaid keys: {keysSaved ? "saved ✓" : "skipped (manual tracking)"}</li>
                 <li>🏦 Banks linked: {linkedCount}</li>
                 <li>🔒 Device PIN: {solo ? (pinSaved ? "set ✓" : "skipped") : "password-protected"}</li>
-                <li>🤖 Agent: set up later in Agents (whenever you&apos;re ready)</li>
+                <li>🤖 Agent: {agentPrefsSaved ? "access configured (activity read" + (agentAutoCategorize ? " + write" : "") + (agentGlobal ? ", global" + (agentGlobalWrite ? " write" : "") : "") + ")" : "set up later in Agents (whenever you're ready)"}</li>
               </ul>
               <p className="mt-4 text-xs text-text-muted">
                 You can replay this tour anytime from Settings → &quot;Restart setup tour&quot;.

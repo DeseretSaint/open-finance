@@ -533,9 +533,11 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         return ok({ prefs: await svc.get(userId) });
       }
       if (method === "PUT") {
-        const autoCategorize = B?.autoCategorize;
-        if (typeof autoCategorize !== "boolean") throw apiErrors.badRequest("autoCategorize must be a boolean");
-        return ok({ prefs: await svc.update(userId, { autoCategorize }) });
+        const patch: Partial<{ autoCategorize: boolean; global: boolean; globalWrite: boolean }> = {};
+        for (const key of ["autoCategorize", "global", "globalWrite"] as const) {
+          if (typeof B?.[key] === "boolean") patch[key] = B[key];
+        }
+        return ok({ prefs: await svc.update(userId, patch) });
       }
     }
 

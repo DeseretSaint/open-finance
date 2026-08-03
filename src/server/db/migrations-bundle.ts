@@ -32,5 +32,9 @@ export const SOLO_MIGRATIONS: { version: number; sql: string }[] = [
   {
     version: 6,
     sql: "-- 006: agent smart-categorization preference. When ON, the connected agent\n-- may auto-categorize uncategorized or generically-named expenses it is\n-- confident about, and may leave ambiguous (\"gray area\") ones alone. When OFF\n-- (default), the agent only suggests and the user categorizes manually.\nALTER TABLE user_settings ADD COLUMN agent_auto_categorize INTEGER NOT NULL DEFAULT 0;\n",
+  },
+  {
+    version: 7,
+    sql: "-- 007: agent access tiers (P20). Together with agent_auto_categorize (006):\n--   agent_auto_categorize — activity WRITE toggle (smart categorization).\n--     OFF (default): agent may only READ activity (transactions) as they come in.\n--     ON: agent may also WRITE categories on activity — but still sees NO\n--     overall financial status (summary, net worth, budgets, reports).\n--   agent_global — full-app READ access (summary, budgets, planning, reports,\n--     investments). OFF (default): agent is activity-only.\n--   agent_global_write — sub-toggle: when ON (and global), agent also gets\n--     every WRITE scope (budgets, categories, planning, settings, sync).\n-- Effective scopes at request time = token scopes ∩ these user-level caps.\nALTER TABLE user_settings ADD COLUMN agent_global INTEGER NOT NULL DEFAULT 0;\nALTER TABLE user_settings ADD COLUMN agent_global_write INTEGER NOT NULL DEFAULT 0;\n",
   }
 ];

@@ -182,8 +182,8 @@ export default function TransactionsPage() {
             aria-modal="true"
             aria-label="Add a transaction"
             onClick={(e) => e.stopPropagation()}
-            className="max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl border border-border bg-surface p-5 shadow-2xl md:max-w-lg md:rounded-3xl"
-            style={{ paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom))" }}
+            className="max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-2rem)] w-full overflow-y-auto rounded-t-3xl border border-border bg-surface p-5 shadow-2xl md:max-w-lg md:rounded-3xl"
+            style={{ paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom))", marginTop: "env(safe-area-inset-top)" }}
           >
             <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border md:hidden" />
             <div className="mb-4 flex items-center justify-between">

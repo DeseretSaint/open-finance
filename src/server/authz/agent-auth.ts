@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiErrors, ApiError } from "@/lib/api";
 import { createAgentTokenService, type AgentTokenRow } from "@/server/authz/tokens";
+import { createAgentPrefsService, capScopes } from "@/server/domain/agent-prefs";
 import { getDb } from "@/server/db/adapter";
 import { withAllowlist, type AllowlistCtx } from "@/server/db/allowlist";
 import { createPermissionService, emitSse } from "@/server/authz/permission-requests";
@@ -57,6 +58,10 @@ export function insufficientScope(missing: string[], tokenName: string): ApiErro
  * Authenticate the request as an agent token and require ALL listed scopes.
  * Returns the agent context. Throws 401 (no/invalid token) or 403
  * insufficient_scope (missing scope — no data in the error).
+ *
+ * Effective scopes = token scopes ∩ the user's access caps (agent-prefs):
+ * an agent token can never see more than the user's settings allow, even if
+ * the token itself carries broader scopes (P20).
  */
 export async function requireAgentScope(req: NextRequest, requiredScopes: string[], tool: string): Promise<AgentCtx> {
   const raw = bearerToken(req);
@@ -65,7 +70,7 @@ export async function requireAgentScope(req: NextRequest, requiredScopes: string
   const token = await svc.authenticate(raw);
   if (!token) throw apiErrors.unauthorized();
 
-  const scopes = JSON.parse(token.scopes ?? "[]") as string[];
+  const scopes = await effectiveScopes(token);
   const missing = requiredScopes.filter((s) => !scopes.includes(s));
   if (missing.length > 0) {
     throw new InsufficientScopeError(missing, token.id, token.name, tool);
@@ -79,6 +84,18 @@ export async function requireAgentScope(req: NextRequest, requiredScopes: string
     allowlist: { accountIds },
     userId: token.user_id,
   };
+}
+
+/**
+ * Token scopes intersected with the user's access caps. Reads the user's
+ * agent prefs each request so a Settings toggle applies immediately — no
+ * token regeneration needed.
+ */
+async function effectiveScopes(token: { user_id: string; scopes: string }): Promise<string[]> {
+  const tokenScopes = JSON.parse(token.scopes ?? "[]") as string[];
+  const prefs = await createAgentPrefsService(getDb()).get(token.user_id);
+  const caps = capScopes(prefs);
+  return tokenScopes.filter((s) => caps.includes(s));
 }
 
 /**
@@ -152,7 +169,7 @@ export async function requireAnyAgentScope(req: NextRequest, anyOf: string[], to
   const svc = createAgentTokenService(getDb());
   const token = await svc.authenticate(raw);
   if (!token) throw apiErrors.unauthorized();
-  const scopes = JSON.parse(token.scopes ?? "[]") as string[];
+  const scopes = await effectiveScopes(token);
   if (anyOf.length > 0 && !anyOf.some((s) => scopes.includes(s))) {
     throw new InsufficientScopeError(anyOf, token.id, token.name, tool);
   }

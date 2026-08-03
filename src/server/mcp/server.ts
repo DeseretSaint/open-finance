@@ -108,7 +108,21 @@ const TOOLS: ToolDef[] = [
         (t) => t.tool
       );
       const prefs = await createAgentPrefsService(getDb()).get(auth.userId);
-      return { preset: auth.token.preset, scopes: auth.scopes, tools, autoCategorize: prefs.autoCategorize };
+      return {
+        preset: auth.token.preset,
+        scopes: auth.scopes,
+        tools,
+        access: {
+          // Activity read is always on (agent can watch transactions).
+          activity: "read",
+          // Write on activity only when smart categorization is enabled.
+          activityWrite: prefs.autoCategorize,
+          // Full-app access when global is on.
+          global: prefs.global,
+          // Full-app write when global + globalWrite are on.
+          globalWrite: prefs.globalWrite,
+        },
+      };
     },
   },
   {

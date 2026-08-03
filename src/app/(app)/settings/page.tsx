@@ -560,11 +560,13 @@ function AgentWiringCard() {
 
   const prefs = useQuery({
     queryKey: ["agent-prefs"],
-    queryFn: () => api.get<{ prefs: { autoCategorize: boolean } }>("/api/agent/prefs"),
+    queryFn: () => api.get<{ prefs: { autoCategorize: boolean; global: boolean; globalWrite: boolean } }>("/api/agent/prefs"),
     retry: false,
   });
-  const setAutoCategorize = useMutation({
-    mutationFn: (autoCategorize: boolean) => api.put("/api/agent/prefs", { autoCategorize }),
+  const p = prefs.data?.prefs;
+  const setPref = useMutation({
+    mutationFn: (patch: { autoCategorize?: boolean; global?: boolean; globalWrite?: boolean }) =>
+      api.put("/api/agent/prefs", patch),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["agent-prefs"] }),
   });
 
@@ -577,31 +579,99 @@ function AgentWiringCard() {
         before any write.
       </p>
 
-      {/* Smart categorization toggle — available in solo and hub modes */}
-      <div className="mt-4 flex items-start justify-between gap-4 rounded-xl border border-border p-4">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-text">Smart categorization</p>
-          <p className="mt-0.5 text-xs text-text-muted">
-            Let your agent categorize unclear expenses — a purchase labeled &ldquo;POS DEBIT&rdquo; or an unnamed
-            charge. It categorizes the ones it&apos;s confident about and leaves the gray-area ones for you. You can
-            always change any category manually in the Activity tab.
-          </p>
+      {/* Access tiers — activity read is always on; the toggles add write/global */}
+      <div className="mt-4 space-y-3">
+        <div className="flex items-start justify-between gap-4 rounded-xl border border-border p-4">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-text">Activity access (read)</p>
+            <p className="mt-0.5 text-xs text-text-muted">
+              Always on — your agent can watch transactions come in. It cannot see your overall financial status
+              (balances, net worth, budgets, reports) unless you turn on global access below.
+            </p>
+          </div>
+          <span className="shrink-0 rounded-full bg-[var(--success-soft)] px-3 py-1 text-xs font-medium text-success">
+            On
+          </span>
         </div>
-        <button
-          role="switch"
-          aria-checked={prefs.data?.prefs.autoCategorize ?? false}
-          onClick={() => setAutoCategorize.mutate(!(prefs.data?.prefs.autoCategorize ?? false))}
-          disabled={setAutoCategorize.isPending}
-          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-            prefs.data?.prefs.autoCategorize ? "bg-[var(--accent)]" : "bg-surface-muted"
-          }`}
-        >
-          <span
-            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
-              prefs.data?.prefs.autoCategorize ? "left-[22px]" : "left-0.5"
+
+        <div className="flex items-start justify-between gap-4 rounded-xl border border-border p-4">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-text">Smart categorization (write)</p>
+            <p className="mt-0.5 text-xs text-text-muted">
+              Let your agent categorize unclear expenses — a purchase labeled &ldquo;POS DEBIT&rdquo; or an unnamed
+              charge. It categorizes the ones it&apos;s confident about and leaves the gray-area ones for you. You can
+              always change any category manually in the Activity tab.
+            </p>
+          </div>
+          <button
+            role="switch"
+            aria-checked={p?.autoCategorize ?? false}
+            onClick={() => setPref.mutate({ autoCategorize: !(p?.autoCategorize ?? false) })}
+            disabled={setPref.isPending}
+            className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+              p?.autoCategorize ? "bg-[var(--accent)]" : "bg-surface-muted"
             }`}
-          />
-        </button>
+          >
+            <span
+              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
+                p?.autoCategorize ? "left-[22px]" : "left-0.5"
+              }`}
+            />
+          </button>
+        </div>
+
+        <div className={`rounded-xl border p-4 ${p?.global ? "border-accent/40" : "border-border"}`}>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-text">Global access (whole app)</p>
+              <p className="mt-0.5 text-xs text-text-muted">
+                Let your agent see everything — balances, net worth, budgets, planning, reports, investments — not
+                just activity.
+              </p>
+            </div>
+            <button
+              role="switch"
+              aria-checked={p?.global ?? false}
+              onClick={() => setPref.mutate({ global: !(p?.global ?? false) })}
+              disabled={setPref.isPending}
+              className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+                p?.global ? "bg-[var(--accent)]" : "bg-surface-muted"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
+                  p?.global ? "left-[22px]" : "left-0.5"
+                }`}
+              />
+            </button>
+          </div>
+          {p?.global && (
+            <div className="mt-3 flex items-start justify-between gap-4 border-t border-border pt-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-text">Allow global write</p>
+                <p className="mt-0.5 text-xs text-text-muted">
+                  Beyond reading, let your agent change budgets, categories, and settings (each write still asks
+                  your approval).
+                </p>
+              </div>
+              <button
+                role="switch"
+                aria-checked={p?.globalWrite ?? false}
+                onClick={() => setPref.mutate({ globalWrite: !(p?.globalWrite ?? false) })}
+                disabled={setPref.isPending}
+                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+                  p?.globalWrite ? "bg-[var(--accent)]" : "bg-surface-muted"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
+                    p?.globalWrite ? "left-[22px]" : "left-0.5"
+                  }`}
+                />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {soloUnsupported ? (

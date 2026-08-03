@@ -8,7 +8,9 @@ import { getDb } from "@/server/db/adapter";
 export const runtime = "nodejs";
 
 const updateSchema = z.object({
-  autoCategorize: z.boolean(),
+  autoCategorize: z.boolean().optional(),
+  global: z.boolean().optional(),
+  globalWrite: z.boolean().optional(),
 });
 
 /** GET /api/agent/prefs — smart-categorization preference. */
