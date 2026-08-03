@@ -446,6 +446,116 @@ export default function AgentsPage() {
       {msg && <p className="text-sm font-medium text-success">{msg}</p>}
       {err && <p className="text-sm text-danger">{err}</p>}
 
+      {/* Wire another agent right here — no need to go to Settings. */}
+      <Card>
+        <CardTitle>Wire another agent</CardTitle>
+        <p className="mt-1 text-sm text-text-muted">
+          Create another token for a second agent (or a replacement) without touching the existing connection. Point
+          it at the endpoint above.
+        </p>
+        <div className="mt-3 space-y-3">
+          <Input placeholder="Token name — e.g. trading-bot" value={name} onChange={(e) => setName(e.target.value)} />
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {PRESET_CARDS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => {
+                  setPreset(p.id);
+                  setScopes([]);
+                }}
+                className={`rounded-lg border p-3 text-left transition-colors ${
+                  preset === p.id ? "border-accent bg-accent/5" : "border-border hover:bg-surface-muted"
+                }`}
+              >
+                <div className="flex items-center gap-1.5 text-sm font-medium text-text">
+                  {p.name} {p.recommended && <Badge>Recommended</Badge>}
+                </div>
+                <div className="mt-1 text-xs text-text-muted">{p.blurb}</div>
+              </button>
+            ))}
+          </div>
+          <div>
+            <p className="mb-1 text-xs font-medium text-text-muted">Scopes</p>
+            {SCOPE_GROUPS.map((g) => (
+              <div key={g.group} className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                <span className="w-12 text-xs text-text-muted">{g.group}</span>
+                {g.scopes.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => toggleScope(s)}
+                    className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+                      effectiveScopes.includes(s)
+                        ? "border-accent bg-accent text-[var(--accent-foreground)]"
+                        : "border-border text-text-muted hover:border-accent/50 hover:text-text"
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <CustomSelect
+              ariaLabel="Account scope"
+              value={accountIds === null ? "all" : "custom"}
+              onChange={(v) => setAccountIds(v === "all" ? null : [])}
+              options={[
+                { value: "all", label: "All accounts (default)" },
+                { value: "custom", label: "Choose accounts…" },
+              ]}
+            />
+            <CustomSelect
+              ariaLabel="Token expiry"
+              value={expiresAt}
+              onChange={setExpiresAt}
+              options={[
+                { value: "", label: "Never expires" },
+                { value: "30d", label: "30 days" },
+                { value: "90d", label: "90 days" },
+              ]}
+            />
+          </div>
+          {accountIds !== null && (
+            <div className="flex flex-wrap gap-1.5">
+              {(accounts.data?.accounts ?? []).map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() =>
+                    setAccountIds((prev) => (prev!.includes(a.id) ? prev!.filter((x) => x !== a.id) : [...prev!, a.id]))
+                  }
+                  className={`rounded-full border px-2.5 py-0.5 text-xs ${
+                    accountIds.includes(a.id) ? "border-accent bg-accent text-[var(--accent-foreground)]" : "border-border text-text-muted"
+                  }`}
+                >
+                  {a.name}
+                </button>
+              ))}
+            </div>
+          )}
+          <Button onClick={() => createToken.mutate()} disabled={!name.trim() || createToken.isPending}>
+            {createToken.isPending ? "Creating…" : "Create token"}
+          </Button>
+          {created && (
+            <div className="rounded-xl border border-success/30 bg-[var(--success-soft)] p-4">
+              <p className="text-xs font-medium text-success">Copy your token now — it is shown only once:</p>
+              <code className="mt-1 block break-all rounded-lg bg-background px-3 py-2 text-sm text-text">{created.token}</code>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="mt-2"
+                onClick={() => navigator.clipboard?.writeText(created.token).catch(() => {})}
+              >
+                <Copy size={13} className="mr-1.5" /> Copy
+              </Button>
+            </div>
+          )}
+        </div>
+      </Card>
+
       {/* Permission inbox */}
       <Card>
         <CardTitle>Permission requests</CardTitle>

@@ -764,6 +764,24 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       });
       return ok({ paydays });
     }
+    if (method === "POST" && path === "/api/agent/categorize-now") {
+      // Smart-categorization "Apply" (solo): mirrors the web route.
+      const userId = await h.deviceUserId();
+      const { autoCategorize } = await import("@/server/domain/categorizer");
+      const connected = await db.get<{ n: number }>(
+        "SELECT COUNT(*) AS n FROM agent_tokens WHERE user_id = ? AND revoked = 0",
+        userId
+      );
+      if (!connected || connected.n === 0) {
+        throw apiErrors.badRequest("No agent connected — wire one in the Agents tab first.");
+      }
+      const prefs = await createAgentPrefsService(db).get(userId);
+      if (!prefs.autoCategorize) {
+        throw apiErrors.badRequest("Smart categorization is off — enable it above, then apply.");
+      }
+      const result = await autoCategorize(db, userId, prefs.categorizeBacklogMonths);
+      return ok(result);
+    }
 
     // ── Idempotent DELETE for transactions/[id] etc. ────────────────────
     if (method === "PATCH" && path.startsWith("/api/transactions/")) {

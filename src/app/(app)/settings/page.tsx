@@ -36,6 +36,9 @@ export default function SettingsPage() {
   const [err, setErr] = useState<string | null>(null);
   const [confirmLogoutAll, setConfirmLogoutAll] = useState(false);
   const [confirmRemoveItem, setConfirmRemoveItem] = useState<string | null>(null);
+  // Density draft: the slider only previews; Apply commits it (issue: it used
+  // to resize the live environment while dragging).
+  const [densityDraft, setDensityDraft] = useState<number>(density);
 
   useEffect(() => {
     if (typeof window !== "undefined") setSolo(isSoloCandidate(window.location.origin));
@@ -170,7 +173,7 @@ export default function SettingsPage() {
 
       <HubPanel setMsg={setMsg} setErr={setErr} />
 
-      <AgentWiringCard />
+      <AgentWiringCard setMsg={setMsg} setErr={setErr} />
 
       <Card>
         <CardTitle>Sessions</CardTitle>
@@ -387,11 +390,13 @@ export default function SettingsPage() {
                 {dark ? <Sun size={14} aria-hidden /> : <Moon size={14} aria-hidden />}
                 {dark ? "Light mode" : "Dark mode"}
               </button>
-              {/* Density — slider with set intervals (issue #20) */}
+              {/* Density — slider with set intervals (issue #20). The slider
+                  only previews inside the preview window; Apply commits it
+                  app-wide so the user sees the effect before it sticks. */}
               <div className="mt-4">
                 <div className="flex items-center justify-between text-xs font-medium text-text-muted">
                   {densities.map((d) => (
-                    <span key={d.value} className={density === d.value ? "text-accent" : undefined}>
+                    <span key={d.value} className={densityDraft === d.value ? "text-accent" : undefined}>
                       {d.label}
                     </span>
                   ))}
@@ -401,25 +406,46 @@ export default function SettingsPage() {
                   min={0}
                   max={densities.length - 1}
                   step={1}
-                  value={densities.findIndex((d) => d.value === density)}
-                  onChange={(e) => setDensity(densities[Number(e.target.value)].value)}
+                  value={densities.findIndex((d) => d.value === densityDraft)}
+                  onChange={(e) => setDensityDraft(densities[Number(e.target.value)].value)}
                   aria-label="Interface density"
                   className="mt-1 h-2 w-full cursor-pointer appearance-none rounded-full bg-surface-muted accent-[var(--accent)]"
                 />
-                <p className="mt-1 text-xs text-text-muted">
-                  Current: <strong className="text-text">{densities.find((d) => d.value === density)?.label}</strong> (
-                  {density === 1 ? "default" : `${Math.round((1 - density) * 100)}% more compact`}) — the whole app
-                  scales together, so nothing overlaps.
-                </p>
+                <div className="mt-1 flex items-center gap-2">
+                  <p className="flex-1 text-xs text-text-muted">
+                    {densityDraft === density ? (
+                      <>
+                        Applied: <strong className="text-text">{densities.find((d) => d.value === density)?.label}</strong>{" "}
+                        ({density === 1 ? "default" : `${Math.round((1 - density) * 100)}% more compact`})
+                      </>
+                    ) : (
+                      <>
+                        Previewing <strong className="text-text">{densities.find((d) => d.value === densityDraft)?.label}</strong> —
+                        not applied yet
+                      </>
+                    )}
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={densityDraft === density}
+                    onClick={() => {
+                      setDensity(densityDraft);
+                      setMsg("Density applied — the whole app scales together, so nothing overlaps.");
+                    }}
+                  >
+                    Apply
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Live preview — renders sample UI at the selected density */}
+          {/* Live preview — renders sample UI at the SELECTED density only */}
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-text-muted">Preview</p>
             <div className="mt-2 rounded-xl border border-border bg-background p-3">
-              <div style={{ zoom: density }}>
+              <div style={{ zoom: densityDraft }}>
                 <div className="rounded-lg border border-border bg-surface p-3 shadow-[var(--shadow-card)]">
                 <div className="flex items-center gap-2">
                   <span
@@ -751,7 +777,7 @@ function NotificationsSecurityCard({ setMsg, setErr }: { setMsg: (s: string | nu
 
 // ── Agent wiring (P12) ─────────────────────────────────────────────────────
 
-function AgentWiringCard() {
+function AgentWiringCard({ setMsg, setErr }: { setMsg: (s: string | null) => void; setErr: (s: string | null) => void }) {
   const [endpoint, setEndpoint] = useState("");
   const qc = useQueryClient();
   useEffect(() => {
@@ -797,6 +823,22 @@ function AgentWiringCard() {
       auditEnabled?: boolean;
     }) => api.put("/api/agent/prefs", patch),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["agent-prefs"] }),
+  });
+
+  // "Apply — start categorizing now": runs the app-side categorizer over the
+  // backlog immediately (same rules the agent would use).
+  const categorizeNow = useMutation({
+    mutationFn: () =>
+      api.post<{ categorized: number; remaining: number; backlogMonths: number }>("/api/agent/categorize-now"),
+    onSuccess: (res) => {
+      if (res.categorized > 0) {
+        setMsg(`Categorized ${res.categorized} transaction${res.categorized === 1 ? "" : "s"} — ${res.remaining} left for the agent.`);
+      } else {
+        setMsg(res.remaining === 0 ? "Nothing to categorize — everything's already assigned." : `No confident matches found — ${res.remaining} left for the agent.`);
+      }
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+    },
+    onError: (e) => setErr(e instanceof Error ? e.message : "Categorization failed."),
   });
 
   const [guideCopied, setGuideCopied] = useState(false);
@@ -932,26 +974,44 @@ function AgentWiringCard() {
               always change any category manually in the Activity tab.
             </p>
             {p?.autoCategorize && (
-              <label className="mt-3 flex flex-wrap items-center gap-2 text-xs text-text-muted">
-                Categorize back:
-                <CustomSelect
-                  ariaLabel="Categorization backlog"
-                  className="w-52"
-                  value={String(p?.categorizeBacklogMonths ?? 1)}
-                  onChange={(v) => setPref.mutate({ categorizeBacklogMonths: Number(v) })}
-                  options={[
-                    { value: "0", label: "None — just new ones", hint: "moving forward" },
-                    { value: "1", label: "1 month", hint: "recommended" },
-                    { value: "3", label: "3 months" },
-                    { value: "6", label: "6 months" },
-                    { value: "12", label: "1 year" },
-                  ]}
-                />
-                <span className="max-w-56">
-                  Backlog is optional — with &ldquo;None&rdquo; the agent only categorizes new transactions as they
-                  come in.
-                </span>
-              </label>
+              <div className="mt-3">
+                <label className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
+                  Categorize back:
+                  <CustomSelect
+                    ariaLabel="Categorization backlog"
+                    className="w-52"
+                    value={String(p?.categorizeBacklogMonths ?? 1)}
+                    onChange={(v) => setPref.mutate({ categorizeBacklogMonths: Number(v) })}
+                    options={[
+                      { value: "0", label: "None — just new ones", hint: "moving forward" },
+                      { value: "1", label: "1 month", hint: "recommended" },
+                      { value: "3", label: "3 months" },
+                      { value: "6", label: "6 months" },
+                      { value: "12", label: "1 year" },
+                    ]}
+                  />
+                  <span className="max-w-56">
+                    Backlog is optional — with &ldquo;None&rdquo; the agent only categorizes new transactions as they
+                    come in.
+                  </span>
+                </label>
+                {/* Apply: fires the connected agent's categorization now (same
+                    rules the agent uses), so it starts immediately instead of
+                    waiting for the agent's next sync. */}
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => categorizeNow.mutate()}
+                    disabled={categorizeNow.isPending || !agents.data?.agents?.length}
+                    title={!agents.data?.agents?.length ? "Connect an agent in the Agents tab first" : "Start categorizing the backlog now"}
+                  >
+                    {categorizeNow.isPending ? "Categorizing…" : "Apply — start categorizing now"}
+                  </Button>
+                  {!agents.data?.agents?.length && (
+                    <span className="text-xs text-text-muted">Connect an agent in the Agents tab first.</span>
+                  )}
+                </div>
+              </div>
             )}
           </div>
           <button

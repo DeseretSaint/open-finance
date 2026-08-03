@@ -116,10 +116,11 @@ export default function PlanPage() {
   const effectivePaydays = paydayDraft ?? paydays.data?.paydays ?? { mode: "auto", interval: null, days: [] };
   const setPaydays = useMutation({
     mutationFn: (patch: Partial<PaydaySettings>) => api.put("/api/planning/paydays", patch),
-    onSuccess: (data) => {
+    onSuccess: () => {
+      // Don't close the editor — the user may be picking several days /
+      // intervals. They close it with "Done".
       qc.invalidateQueries({ queryKey: ["planning", "paydays"] });
       setPaydayDraft(null);
-      setShowPaydays(false);
     },
     onError: (e) => setErr(e instanceof Error ? e.message : "Failed to save paydays."),
   });
