@@ -17,7 +17,7 @@ import { createPlanningService } from "@/server/domain/planning";
 import { createProjectionService } from "@/server/domain/projection";
 import { createReportsService } from "@/server/domain/reports";
 import { createCategoriesService } from "@/server/domain/categories";
-import { createAgentPrefsService } from "@/server/domain/agent-prefs";
+import { createAgentPrefsService, AGENT_TABS } from "@/server/domain/agent-prefs";
 import { getDb } from "@/server/db/adapter";
 
 /**
@@ -113,12 +113,11 @@ const TOOLS: ToolDef[] = [
         scopes: auth.scopes,
         tools,
         access: {
-          // Activity read is always on (agent can watch transactions).
-          activity: "read",
+          // Tabs the agent may read (all of them when global is on).
+          tabs: prefs.global ? AGENT_TABS : prefs.tabs,
+          global: prefs.global,
           // Write on activity only when smart categorization is enabled.
           activityWrite: prefs.autoCategorize,
-          // Full-app access when global is on.
-          global: prefs.global,
           // Full-app write when global + globalWrite are on.
           globalWrite: prefs.globalWrite,
         },

@@ -560,15 +560,35 @@ function AgentWiringCard() {
 
   const prefs = useQuery({
     queryKey: ["agent-prefs"],
-    queryFn: () => api.get<{ prefs: { autoCategorize: boolean; global: boolean; globalWrite: boolean } }>("/api/agent/prefs"),
+    queryFn: () =>
+      api.get<{ prefs: { tabs: string[]; autoCategorize: boolean; global: boolean; globalWrite: boolean } }>(
+        "/api/agent/prefs"
+      ),
     retry: false,
   });
   const p = prefs.data?.prefs;
   const setPref = useMutation({
-    mutationFn: (patch: { autoCategorize?: boolean; global?: boolean; globalWrite?: boolean }) =>
+    mutationFn: (patch: { tabs?: string[]; autoCategorize?: boolean; global?: boolean; globalWrite?: boolean }) =>
       api.put("/api/agent/prefs", patch),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["agent-prefs"] }),
   });
+
+  const TAB_LABELS: Record<string, string> = {
+    dashboard: "Home",
+    accounts: "Accounts",
+    activity: "Activity",
+    budgets: "Budgets",
+    reports: "Reports",
+    planning: "Planning",
+    investments: "Investments",
+  };
+  const TAB_ORDER = ["dashboard", "accounts", "activity", "budgets", "reports", "planning", "investments"];
+  const tabs = p?.tabs ?? ["activity"];
+
+  function toggleTab(tab: string) {
+    const next = tabs.includes(tab) ? tabs.filter((t) => t !== tab) : [...tabs, tab];
+    setPref.mutate({ tabs: next.length > 0 ? next : ["activity"] });
+  }
 
   return (
     <Card className="lg:col-span-2">
@@ -579,19 +599,46 @@ function AgentWiringCard() {
         before any write.
       </p>
 
-      {/* Access tiers — activity read is always on; the toggles add write/global */}
+      {/* Access tiers — per-tab read selection + global master + write */}
       <div className="mt-4 space-y-3">
-        <div className="flex items-start justify-between gap-4 rounded-xl border border-border p-4">
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-text">Activity access (read)</p>
-            <p className="mt-0.5 text-xs text-text-muted">
-              Always on — your agent can watch transactions come in. It cannot see your overall financial status
-              (balances, net worth, budgets, reports) unless you turn on global access below.
-            </p>
+        <div className="rounded-xl border border-border p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-text">Tabs the agent can read</p>
+              <p className="mt-0.5 text-xs text-text-muted">
+                Pick exactly what the agent may see — e.g. Activity + Budgets and nothing else. It never sees the
+                tabs you leave off.
+              </p>
+            </div>
           </div>
-          <span className="shrink-0 rounded-full bg-[var(--success-soft)] px-3 py-1 text-xs font-medium text-success">
-            On
-          </span>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {TAB_ORDER.map((tab) => (
+              <label
+                key={tab}
+                className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                  p?.global
+                    ? "cursor-not-allowed border-border opacity-50"
+                    : tabs.includes(tab)
+                      ? "border-accent bg-accent/5 text-accent"
+                      : "border-border text-text-muted hover:bg-surface-muted"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={p?.global ? true : tabs.includes(tab)}
+                  disabled={!!p?.global}
+                  onChange={() => toggleTab(tab)}
+                  className="h-4 w-4 accent-[var(--accent)]"
+                />
+                {TAB_LABELS[tab]}
+              </label>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-text-muted">
+            {p?.global
+              ? "Global access is on — all tabs are readable."
+              : `Agent can read: ${tabs.map((t) => TAB_LABELS[t]).join(", ")}`}
+          </p>
         </div>
 
         <div className="flex items-start justify-between gap-4 rounded-xl border border-border p-4">
@@ -625,8 +672,8 @@ function AgentWiringCard() {
             <div className="min-w-0">
               <p className="text-sm font-medium text-text">Global access (whole app)</p>
               <p className="mt-0.5 text-xs text-text-muted">
-                Let your agent see everything — balances, net worth, budgets, planning, reports, investments — not
-                just activity.
+                One switch for everything — read access to all tabs: balances, net worth, budgets, planning, reports,
+                investments.
               </p>
             </div>
             <button

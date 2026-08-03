@@ -533,7 +533,15 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         return ok({ prefs: await svc.get(userId) });
       }
       if (method === "PUT") {
-        const patch: Partial<{ autoCategorize: boolean; global: boolean; globalWrite: boolean }> = {};
+        const patch: Partial<{
+          tabs: Array<"dashboard" | "accounts" | "activity" | "budgets" | "reports" | "planning" | "investments">;
+          autoCategorize: boolean;
+          global: boolean;
+          globalWrite: boolean;
+        }> = {};
+        if (Array.isArray(B?.tabs)) {
+          patch.tabs = B.tabs.filter((t: unknown) => typeof t === "string") as typeof patch.tabs;
+        }
         for (const key of ["autoCategorize", "global", "globalWrite"] as const) {
           if (typeof B?.[key] === "boolean") patch[key] = B[key];
         }

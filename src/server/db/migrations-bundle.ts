@@ -36,5 +36,9 @@ export const SOLO_MIGRATIONS: { version: number; sql: string }[] = [
   {
     version: 7,
     sql: "-- 007: agent access tiers (P20). Together with agent_auto_categorize (006):\n--   agent_auto_categorize — activity WRITE toggle (smart categorization).\n--     OFF (default): agent may only READ activity (transactions) as they come in.\n--     ON: agent may also WRITE categories on activity — but still sees NO\n--     overall financial status (summary, net worth, budgets, reports).\n--   agent_global — full-app READ access (summary, budgets, planning, reports,\n--     investments). OFF (default): agent is activity-only.\n--   agent_global_write — sub-toggle: when ON (and global), agent also gets\n--     every WRITE scope (budgets, categories, planning, settings, sync).\n-- Effective scopes at request time = token scopes ∩ these user-level caps.\nALTER TABLE user_settings ADD COLUMN agent_global INTEGER NOT NULL DEFAULT 0;\nALTER TABLE user_settings ADD COLUMN agent_global_write INTEGER NOT NULL DEFAULT 0;\n",
+  },
+  {
+    version: 8,
+    sql: "-- 008: granular per-tab agent read access (P21). agent_tabs holds a JSON\n-- array of tab keys the agent may READ (e.g. [\"activity\",\"budgets\"]).\n-- Valid keys: dashboard, accounts, activity, budgets, reports, planning,\n-- investments. Combined with 006/007:\n--   agent_auto_categorize — activity WRITE (smart categorization)\n--   agent_global — master toggle: read access to ALL tabs (overrides agent_tabs)\n--   agent_global_write — sub-toggle: write access across the whole app\n-- Default: agent may watch activity (transactions) only.\nALTER TABLE user_settings ADD COLUMN agent_tabs TEXT NOT NULL DEFAULT '[\"activity\"]';\n",
   }
 ];

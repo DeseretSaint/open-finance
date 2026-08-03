@@ -52,7 +52,8 @@ export function OnboardingWizard() {
 
   // agent wiring (P12): provider selection in the wizard (web only).
   const [agentProvider, setAgentProvider] = useState<string | null>(null);
-  // agent access tiers (P20): activity read is always on; these add write/global.
+  // agent access tiers (P20/P21): per-tab read selection + global master + write.
+  const [agentTabs, setAgentTabs] = useState<string[]>(["activity"]);
   const [agentAutoCategorize, setAgentAutoCategorize] = useState(false);
   const [agentGlobal, setAgentGlobal] = useState(false);
   const [agentGlobalWrite, setAgentGlobalWrite] = useState(false);
@@ -62,6 +63,7 @@ export function OnboardingWizard() {
     if (agentPrefsSaved) return;
     try {
       await api.put("/api/agent/prefs", {
+        tabs: agentTabs,
         autoCategorize: agentAutoCategorize,
         global: agentGlobal,
         globalWrite: agentGlobalWrite,
@@ -456,16 +458,46 @@ export function OnboardingWizard() {
                 </div>
               )}
 
-              {/* Agent access tiers — set on first entry (P20) */}
+              {/* Agent access tiers — set on first entry (P20/P21) */}
               <div className="mt-4 space-y-3 rounded-xl border border-border p-4">
                 <p className="text-sm font-medium text-text">What can your agent access?</p>
                 <p className="text-xs text-text-muted">
-                  Activity read is always on — the agent can watch transactions come in. It never sees your overall
+                  Pick the tabs it may read — e.g. Activity + Budgets and nothing else. It never sees overall
                   financial status unless you allow global access. You can change all of this anytime in Settings.
                 </p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    ["dashboard", "Home"],
+                    ["accounts", "Accounts"],
+                    ["activity", "Activity"],
+                    ["budgets", "Budgets"],
+                    ["reports", "Reports"],
+                    ["planning", "Planning"],
+                    ["investments", "Investments"],
+                  ].map(([tab, label]) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      disabled={agentGlobal}
+                      onClick={() =>
+                        setAgentTabs((prev) =>
+                          prev.includes(tab) ? prev.filter((t) => t !== tab) : [...prev, tab]
+                        )
+                      }
+                      className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
+                        agentGlobal || agentTabs.includes(tab)
+                          ? "border-accent bg-accent/5 font-medium text-accent"
+                          : "border-border text-text-muted hover:bg-surface-muted"
+                      } ${agentGlobal ? "opacity-60" : ""}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
                 <div className="flex items-center justify-between gap-3">
                   <label htmlFor="wiz-categorize" className="text-sm text-text">
-                    Smart categorization <span className="text-xs text-text-muted">(lets it write categories on activity)</span>
+                    Smart categorization{" "}
+                    <span className="text-xs text-text-muted">(lets it write categories on activity)</span>
                   </label>
                   <input
                     id="wiz-categorize"
@@ -477,7 +509,8 @@ export function OnboardingWizard() {
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <label htmlFor="wiz-global" className="text-sm text-text">
-                    Global access <span className="text-xs text-text-muted">(balances, budgets, reports)</span>
+                    Global access{" "}
+                    <span className="text-xs text-text-muted">(read all tabs: balances, budgets, reports)</span>
                   </label>
                   <input
                     id="wiz-global"
@@ -490,7 +523,8 @@ export function OnboardingWizard() {
                 {agentGlobal && (
                   <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
                     <label htmlFor="wiz-global-write" className="text-sm text-text">
-                      Allow global write <span className="text-xs text-text-muted">(budgets, categories — still asks approval)</span>
+                      Allow global write{" "}
+                      <span className="text-xs text-text-muted">(budgets, categories — still asks approval)</span>
                     </label>
                     <input
                       id="wiz-global-write"
@@ -542,7 +576,7 @@ export function OnboardingWizard() {
                 <li>🔑 Plaid keys: {keysSaved ? "saved ✓" : "skipped (manual tracking)"}</li>
                 <li>🏦 Banks linked: {linkedCount}</li>
                 <li>🔒 Device PIN: {solo ? (pinSaved ? "set ✓" : "skipped") : "password-protected"}</li>
-                <li>🤖 Agent: {agentPrefsSaved ? "access configured (activity read" + (agentAutoCategorize ? " + write" : "") + (agentGlobal ? ", global" + (agentGlobalWrite ? " write" : "") : "") + ")" : "set up later in Agents (whenever you're ready)"}</li>
+                <li>🤖 Agent: {agentPrefsSaved ? `access configured (${agentGlobal ? "global read" : agentTabs.join(" + ")}${agentAutoCategorize || agentGlobalWrite ? " + write" : ""})` : "set up later in Agents (whenever you're ready)"}</li>
               </ul>
               <p className="mt-4 text-xs text-text-muted">
                 You can replay this tour anytime from Settings → &quot;Restart setup tour&quot;.

@@ -2,12 +2,13 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { ok, parseBody, route } from "@/lib/api";
 import { requireCsrf, requireSession } from "@/server/auth/service";
-import { createAgentPrefsService } from "@/server/domain/agent-prefs";
+import { createAgentPrefsService, AGENT_TABS } from "@/server/domain/agent-prefs";
 import { getDb } from "@/server/db/adapter";
 
 export const runtime = "nodejs";
 
 const updateSchema = z.object({
+  tabs: z.array(z.enum(AGENT_TABS)).optional(),
   autoCategorize: z.boolean().optional(),
   global: z.boolean().optional(),
   globalWrite: z.boolean().optional(),
