@@ -113,14 +113,52 @@ export function agentRoute(
       if (e instanceof InsufficientScopeError) {
         try {
           const perms = createPermissionService(getDb());
-          for (const scope of e.missing) {
+          // Guardrail (D4): "auto-approve reads within caps". When the user
+          // enabled it, a READ-scope miss that the user's own caps already
+          // allow is granted immediately (appended to the token) instead of
+          // sitting in the inbox. Writes are NEVER auto-approved — they ask.
+          const tokenRow = await getDb().get<{ user_id: string; scopes: string }>(
+            "SELECT user_id, scopes FROM agent_tokens WHERE id = ?",
+            e.tokenId
+          );
+          const prefs = await createAgentPrefsService(getDb()).get(tokenRow?.user_id ?? "");
+          const caps = capScopes(prefs);
+          const autoGrantable = prefs.autoApproveReads
+            ? e.missing.filter((s) => s.startsWith("read:") && caps.includes(s))
+            : [];
+          const stillMissing = e.missing.filter((s) => !autoGrantable.includes(s));
+
+          if (autoGrantable.length > 0 && tokenRow) {
+            const scopes = JSON.parse(tokenRow.scopes ?? "[]") as string[];
+            let changed = false;
+            for (const s of autoGrantable) {
+              if (!scopes.includes(s)) {
+                scopes.push(s);
+                changed = true;
+              }
+              // Recorded in the audit trail as a denied-then-auto-granted call.
+              await perms.logDenied(e.tokenId, s, e.tool, req.method, null);
+            }
+            if (changed) {
+              await getDb().run("UPDATE agent_tokens SET scopes = ? WHERE id = ?", JSON.stringify(scopes), e.tokenId);
+            }
+          }
+
+          for (const scope of stillMissing) {
             await perms.requestScope(e.tokenId, scope);
             await perms.logDenied(e.tokenId, scope, e.tool, req.method, null);
+          }
+          if (stillMissing.length === 0) {
+            // Everything missing was auto-granted — the caller can retry now.
+            return NextResponse.json(
+              { error: { code: "auto_granted", message: `Granted ${autoGrantable.join(", ")} within your caps — retry the call.`, missing: [] } },
+              { status: 409 }
+            );
           }
           emitSse("permission_requested", {
             tokenId: e.tokenId,
             tokenName: e.tokenName,
-            missing: e.missing,
+            missing: stillMissing,
             tool: e.tool,
           });
         } catch {

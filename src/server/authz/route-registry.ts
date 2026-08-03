@@ -61,6 +61,7 @@ export const AGENT_ROUTES: RouteEntry[] = [
   // Always available
   { method: "GET", path: "/api/agent/capabilities", scopes: [] },
   { method: "GET", path: "/api/agent/events", scopes: [] },
+  { method: "GET", path: "/api/agent/guide", scopes: [] },
 ];
 
 export const USER_ONLY_ROUTES: string[] = [

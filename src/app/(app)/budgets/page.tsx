@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { CustomDatePicker } from "@/components/ui/custom-date-picker";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Money } from "@/components/money";
+import { AgentWidgets } from "@/components/agent-widgets";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 
 interface Budget {
@@ -120,6 +121,9 @@ export default function BudgetsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Widgets your AI added (dev:ui) */}
+      <AgentWidgets tab="budgets" />
+
       {/* Time-frame selector */}
       <Card>
         <div className="flex flex-wrap items-center gap-3">

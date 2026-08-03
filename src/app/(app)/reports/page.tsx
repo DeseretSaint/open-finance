@@ -22,6 +22,7 @@ import { api } from "@/lib/api-client";
 import { Card, CardLabel, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Money } from "@/components/money";
+import { AgentWidgets } from "@/components/agent-widgets";
 
 const CHART_COLORS = [
   "var(--chart-1)",
@@ -145,6 +146,9 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Widgets your AI added (dev:ui) */}
+      <AgentWidgets tab="reports" />
+
       {/* Month navigator */}
       <Card>
         <div className="flex items-center justify-between gap-3">

@@ -15,6 +15,9 @@ const updateSchema = z.object({
   categorizeBacklogMonths: z.number().int().refine((v) => (CATEGORIZE_BACKLOGS as readonly number[]).includes(v)).optional(),
   global: z.boolean().optional(),
   globalWrite: z.boolean().optional(),
+  autoApproveReads: z.boolean().optional(),
+  requireWriteConfirm: z.boolean().optional(),
+  auditEnabled: z.boolean().optional(),
 });
 
 /** GET /api/agent/prefs — smart-categorization preference. */

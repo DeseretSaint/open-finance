@@ -48,5 +48,9 @@ export const SOLO_MIGRATIONS: { version: number; sql: string }[] = [
   {
     version: 10,
     sql: "-- 010: per-account net-worth inclusion (P24). Accounts linked as investments\n-- (e.g. Robinhood) can be excluded from the day-to-day net worth shown on the\n-- Home overview, while still appearing in the Accounts tab. Default: included.\nALTER TABLE accounts ADD COLUMN include_in_net_worth INTEGER NOT NULL DEFAULT 1;\n",
+  },
+  {
+    version: 11,
+    sql: "-- 011: AI guardrails (D4). User-facing safety rails for the agent, each\n-- changeable in Settings → AI agent → Advanced and audited on change.\n--   agent_auto_approve_reads — when ON, permission requests for READ scopes\n--     that fall inside the user's existing caps are auto-approved instead of\n--     sitting in the inbox. OFF (default): every out-of-scope attempt asks.\n--   agent_require_write_confirm — when ON (default), destructive agent writes\n--     (delete budget / category / planning item) require an explicit Grant in\n--     the permission inbox before they run. OFF: a token holding the write\n--     scope may delete directly (still fully audited).\n--   agent_audit_enabled — when ON (default), every agent call lands in the\n--     audit log. Recommended always-on; exposed with a warning.\nALTER TABLE user_settings ADD COLUMN agent_auto_approve_reads INTEGER NOT NULL DEFAULT 0;\nALTER TABLE user_settings ADD COLUMN agent_require_write_confirm INTEGER NOT NULL DEFAULT 1;\nALTER TABLE user_settings ADD COLUMN agent_audit_enabled INTEGER NOT NULL DEFAULT 1;\n",
   }
 ];

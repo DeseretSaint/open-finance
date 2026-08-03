@@ -7,6 +7,7 @@ import { api } from "@/lib/api-client";
 import { Card, CardLabel, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/badge";
 import { Money } from "@/components/money";
+import { AgentWidgets } from "@/components/agent-widgets";
 
 interface Summary {
   totalBalanceCents: number;
@@ -60,6 +61,9 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Widgets your AI added (dev:ui) — removable inline */}
+      <AgentWidgets tab="dashboard" />
+
       {/* Hero balance */}
       <Card
         className="border-accent/20"

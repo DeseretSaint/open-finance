@@ -574,6 +574,9 @@ function AgentWiringCard() {
           categorizeBacklogMonths: number;
           global: boolean;
           globalWrite: boolean;
+          autoApproveReads: boolean;
+          requireWriteConfirm: boolean;
+          auditEnabled: boolean;
         };
       }>("/api/agent/prefs"),
     retry: false,
@@ -587,9 +590,33 @@ function AgentWiringCard() {
       categorizeBacklogMonths?: number;
       global?: boolean;
       globalWrite?: boolean;
+      autoApproveReads?: boolean;
+      requireWriteConfirm?: boolean;
+      auditEnabled?: boolean;
     }) => api.put("/api/agent/prefs", patch),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["agent-prefs"] }),
   });
+
+  const [guideCopied, setGuideCopied] = useState(false);
+  async function copyGuide() {
+    try {
+      // The guide endpoint needs an agent token; for the user's own agent we
+      // fetch a compact, human-readable version built from the same content.
+      const text =
+        "You are connected to Open Finance — a self-hosted personal finance app.\n" +
+        "Fetch your full handbook at GET /api/agent/guide (Bearer token). Key rules:\n" +
+        "- Money is integer cents. Positive = income, negative = expense.\n" +
+        "- Call get_capabilities first; plan around what it says you have.\n" +
+        "- Read-only by default; out-of-scope calls create a permission request for the user.\n" +
+        "- To add a UI widget, use create_custom_view (dev:ui scope) with a declarative JSON definition.\n" +
+        "- Never claim to have moved money — the app has no payment rails.";
+      await navigator.clipboard.writeText(text);
+      setGuideCopied(true);
+      setTimeout(() => setGuideCopied(false), 2500);
+    } catch {
+      setGuideCopied(false);
+    }
+  }
 
   const TAB_LABELS: Record<string, string> = {
     dashboard: "Home",
@@ -731,6 +758,112 @@ function AgentWiringCard() {
                 }`}
               />
             </button>
+          </div>
+        </div>
+
+        {/* AI guardrails (D4) — advanced safety rails with plain-language risk copy */}
+        <div className="rounded-xl border border-border p-4">
+          <p className="text-sm font-medium text-text">AI guardrails</p>
+          <p className="mt-0.5 text-xs text-text-muted">
+            Safety rails your agent runs under. Two can&apos;t be turned off: your agent can never delete accounts,
+            and it can never move money (Open Finance has no payment rails — structural).
+          </p>
+          <div className="mt-3 space-y-3">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-sm text-text">Auto-approve read requests</p>
+                <p className="mt-0.5 text-xs text-text-muted">
+                  When your agent asks to <em>read</em> something your settings already allow, grant it instantly
+                  instead of filling your inbox. Writes always still ask.
+                  {p?.autoApproveReads && (
+                    <span className="mt-0.5 block text-warning">On: read requests inside your caps skip the inbox.</span>
+                  )}
+                </p>
+              </div>
+              <button
+                role="switch"
+                aria-checked={p?.autoApproveReads ?? false}
+                onClick={() => setPref.mutate({ autoApproveReads: !(p?.autoApproveReads ?? false) })}
+                disabled={setPref.isPending}
+                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+                  p?.autoApproveReads ? "bg-[var(--accent)]" : "bg-surface-muted"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
+                    p?.autoApproveReads ? "left-[22px]" : "left-0.5"
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-sm text-text">Confirm before destructive writes</p>
+                <p className="mt-0.5 text-xs text-text-muted">
+                  Deleting a budget, category, bill, debt or goal needs your explicit OK first.
+                  {!p?.requireWriteConfirm && (
+                    <span className="mt-0.5 block text-danger">
+                      Off: your AI can delete budgets, categories and planning items without asking.
+                    </span>
+                  )}
+                </p>
+              </div>
+              <button
+                role="switch"
+                aria-checked={p?.requireWriteConfirm ?? true}
+                onClick={() => setPref.mutate({ requireWriteConfirm: !(p?.requireWriteConfirm ?? true) })}
+                disabled={setPref.isPending}
+                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+                  p?.requireWriteConfirm ?? true ? "bg-[var(--accent)]" : "bg-surface-muted"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
+                    p?.requireWriteConfirm ?? true ? "left-[22px]" : "left-0.5"
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-sm text-text">Audit log</p>
+                <p className="mt-0.5 text-xs text-text-muted">
+                  Record every call your agent makes. Recommended on — it&apos;s how you see exactly what it did.
+                  {!p?.auditEnabled && (
+                    <span className="mt-0.5 block text-warning">
+                      Off: new agent calls won&apos;t be recorded. You lose the trail of what your AI did.
+                    </span>
+                  )}
+                </p>
+              </div>
+              <button
+                role="switch"
+                aria-checked={p?.auditEnabled ?? true}
+                onClick={() => setPref.mutate({ auditEnabled: !(p?.auditEnabled ?? true) })}
+                disabled={setPref.isPending}
+                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+                  p?.auditEnabled ?? true ? "bg-[var(--accent)]" : "bg-surface-muted"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
+                    p?.auditEnabled ?? true ? "left-[22px]" : "left-0.5"
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 border-t border-border pt-3">
+            <Button variant="secondary" size="sm" onClick={copyGuide}>
+              {guideCopied ? "Copied ✓" : "Give your AI its bearings"}
+            </Button>
+            <p className="mt-1.5 text-xs text-text-muted">
+              Copies a short brief to paste into your agent — what Open Finance is, the money rules, and where its
+              full handbook lives (<code className="text-accent">/api/agent/guide</code>).
+            </p>
           </div>
         </div>
       </div>

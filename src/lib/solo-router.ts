@@ -593,6 +593,9 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
           categorizeBacklogMonths: number;
           global: boolean;
           globalWrite: boolean;
+          autoApproveReads: boolean;
+          requireWriteConfirm: boolean;
+          auditEnabled: boolean;
         }> = {};
         if (Array.isArray(B?.tabs)) {
           patch.tabs = B.tabs.filter((t: unknown) => typeof t === "string") as typeof patch.tabs;
@@ -604,6 +607,9 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         if (typeof B?.categorizeBacklogMonths === "number") patch.categorizeBacklogMonths = B.categorizeBacklogMonths;
         if (typeof B?.global === "boolean") patch.global = B.global;
         if (typeof B?.globalWrite === "boolean") patch.globalWrite = B.globalWrite;
+        if (typeof B?.autoApproveReads === "boolean") patch.autoApproveReads = B.autoApproveReads;
+        if (typeof B?.requireWriteConfirm === "boolean") patch.requireWriteConfirm = B.requireWriteConfirm;
+        if (typeof B?.auditEnabled === "boolean") patch.auditEnabled = B.auditEnabled;
         return ok({ prefs: await svc.update(userId, patch) });
       }
     }

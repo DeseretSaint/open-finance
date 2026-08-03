@@ -70,6 +70,12 @@ export interface AgentPrefs {
   global: boolean;
   /** Sub-toggle: WRITE access across the whole app (implies global). */
   globalWrite: boolean;
+  /** Guardrail: auto-approve READ permission requests that fall within the user's caps. */
+  autoApproveReads: boolean;
+  /** Guardrail: destructive agent writes (delete budget/category/planning item) need an explicit Grant. */
+  requireWriteConfirm: boolean;
+  /** Guardrail: log every agent call to the audit log (recommended on). */
+  auditEnabled: boolean;
 }
 
 const DEFAULTS: AgentPrefs = {
@@ -79,6 +85,9 @@ const DEFAULTS: AgentPrefs = {
   categorizeBacklogMonths: DEFAULT_CATEGORIZE_BACKLOG,
   global: false,
   globalWrite: false,
+  autoApproveReads: false,
+  requireWriteConfirm: true,
+  auditEnabled: true,
 };
 
 /**
@@ -136,8 +145,11 @@ export function createAgentPrefsService(db: Db = getDb()) {
         agent_categorize_backlog_months: number | null;
         agent_global: number | null;
         agent_global_write: number | null;
+        agent_auto_approve_reads: number | null;
+        agent_require_write_confirm: number | null;
+        agent_audit_enabled: number | null;
       }>(
-        "SELECT agent_tabs, agent_tabs_write, agent_auto_categorize, agent_categorize_backlog_months, agent_global, agent_global_write FROM user_settings WHERE user_id = ?",
+        "SELECT agent_tabs, agent_tabs_write, agent_auto_categorize, agent_categorize_backlog_months, agent_global, agent_global_write, agent_auto_approve_reads, agent_require_write_confirm, agent_audit_enabled FROM user_settings WHERE user_id = ?",
         userId
       );
       if (!row) return DEFAULTS;
@@ -152,6 +164,10 @@ export function createAgentPrefsService(db: Db = getDb()) {
         categorizeBacklogMonths: backlog,
         global: row.agent_global === 1,
         globalWrite: row.agent_global_write === 1,
+        autoApproveReads: row.agent_auto_approve_reads === 1,
+        // Default ON even on pre-011 rows (null) — the safe posture.
+        requireWriteConfirm: row.agent_require_write_confirm !== 0,
+        auditEnabled: row.agent_audit_enabled !== 0,
       };
     },
 
@@ -164,12 +180,16 @@ export function createAgentPrefsService(db: Db = getDb()) {
         categorizeBacklogMonths: input.categorizeBacklogMonths ?? cur.categorizeBacklogMonths,
         global: input.global ?? cur.global,
         globalWrite: input.globalWrite ?? cur.globalWrite,
+        autoApproveReads: input.autoApproveReads ?? cur.autoApproveReads,
+        requireWriteConfirm: input.requireWriteConfirm ?? cur.requireWriteConfirm,
+        auditEnabled: input.auditEnabled ?? cur.auditEnabled,
       };
       await db.run(
         `INSERT INTO user_settings
            (user_id, agent_tabs, agent_tabs_write, agent_auto_categorize, agent_categorize_backlog_months,
-            agent_global, agent_global_write, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            agent_global, agent_global_write, agent_auto_approve_reads, agent_require_write_confirm,
+            agent_audit_enabled, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(user_id) DO UPDATE SET
            agent_tabs = excluded.agent_tabs,
            agent_tabs_write = excluded.agent_tabs_write,
@@ -177,6 +197,9 @@ export function createAgentPrefsService(db: Db = getDb()) {
            agent_categorize_backlog_months = excluded.agent_categorize_backlog_months,
            agent_global = excluded.agent_global,
            agent_global_write = excluded.agent_global_write,
+           agent_auto_approve_reads = excluded.agent_auto_approve_reads,
+           agent_require_write_confirm = excluded.agent_require_write_confirm,
+           agent_audit_enabled = excluded.agent_audit_enabled,
            updated_at = excluded.updated_at`,
         userId,
         JSON.stringify(next.tabs),
@@ -185,6 +208,9 @@ export function createAgentPrefsService(db: Db = getDb()) {
         next.categorizeBacklogMonths,
         next.global ? 1 : 0,
         next.globalWrite ? 1 : 0,
+        next.autoApproveReads ? 1 : 0,
+        next.requireWriteConfirm ? 1 : 0,
+        next.auditEnabled ? 1 : 0,
         new Date().toISOString()
       );
       return next;

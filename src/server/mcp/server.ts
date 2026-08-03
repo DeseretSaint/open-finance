@@ -124,6 +124,8 @@ const TOOLS: ToolDef[] = [
           // How far back (months) auto-categorization may reach.
           categorizeBacklogMonths: prefs.categorizeBacklogMonths,
         },
+        // The agent handbook — fetch it once at connect time.
+        guide: "/api/agent/guide",
       };
     },
   },
@@ -505,6 +507,90 @@ const TOOLS: ToolDef[] = [
     parse: () => z.object({}),
     run: async () => ({ message: "Sync queued (Plaid items only — manual data never touched)." }),
   },
+  {
+    name: "list_custom_views",
+    description:
+      "List the custom widgets on the user's tabs (dev:ui). Widgets are declarative JSON cards the app renders natively on the dashboard, budgets, and reports tabs.",
+    inputSchema: jsonSchema({ tab: z.enum(["dashboard", "budgets", "reports"]).optional() }),
+    parse: () => z.object({ tab: z.enum(["dashboard", "budgets", "reports"]).optional() }),
+    run: async (auth, args) => {
+      const { tab } = args as { tab?: "dashboard" | "budgets" | "reports" };
+      const { createCustomViewsService } = await import("@/server/domain/custom-views");
+      const views = await createCustomViewsService(getDb()).list(auth.userId, tab);
+      return { views };
+    },
+  },
+  {
+    name: "create_custom_view",
+    description:
+      "Add a widget to a tab (dev:ui). Params: tab (dashboard|budgets|reports), name, widget — a declarative JSON definition: " +
+      "{ kind: 'stat', title, valueCents | valueText, sub?, sentiment? } · " +
+      "{ kind: 'progress', title, spentCents, limitCents } · " +
+      "{ kind: 'list', title, rows: [{ label, valueCents?, hint? }] } · " +
+      "{ kind: 'line', title, points: [{ label, value }] } · " +
+      "{ kind: 'donut', title, slices: [{ label, valueCents, color? }] }. " +
+      "Fetch the numbers with the read tools first; the widget only displays them. Money is integer cents (positive = income, negative = expense).",
+    inputSchema: jsonSchema({
+      tab: z.enum(["dashboard", "budgets", "reports"]),
+      name: z.string().min(1),
+      widget: z.record(z.string(), z.unknown()),
+    }),
+    parse: () =>
+      z.object({
+        tab: z.enum(["dashboard", "budgets", "reports"]),
+        name: z.string().min(1),
+        widget: z.record(z.string(), z.unknown()),
+      }),
+    run: async (auth, args) => {
+      const { tab, name, widget } = args as { tab: "dashboard" | "budgets" | "reports"; name: string; widget: unknown };
+      const { createCustomViewsService } = await import("@/server/domain/custom-views");
+      const view = await createCustomViewsService(getDb()).create(auth.userId, auth.token.id, { tab, name, widget });
+      return { view, note: "The widget now renders on the user's " + tab + " tab. They can remove it anytime." };
+    },
+  },
+  {
+    name: "update_custom_view",
+    description: "Update a widget's definition, name, position, or enabled state (dev:ui). Params: viewId + any of name, widget, position, enabled.",
+    inputSchema: jsonSchema({
+      viewId: z.string().min(1),
+      name: z.string().min(1).optional(),
+      widget: z.record(z.string(), z.unknown()).optional(),
+      position: z.number().int().optional(),
+      enabled: z.boolean().optional(),
+    }),
+    parse: () =>
+      z.object({
+        viewId: z.string().min(1),
+        name: z.string().min(1).optional(),
+        widget: z.record(z.string(), z.unknown()).optional(),
+        position: z.number().int().optional(),
+        enabled: z.boolean().optional(),
+      }),
+    run: async (auth, args) => {
+      const { viewId, name, widget, position, enabled } = args as {
+        viewId: string;
+        name?: string;
+        widget?: unknown;
+        position?: number;
+        enabled?: boolean;
+      };
+      const { createCustomViewsService } = await import("@/server/domain/custom-views");
+      const view = await createCustomViewsService(getDb()).update(auth.userId, viewId, { name, widget, position, enabled });
+      return { view };
+    },
+  },
+  {
+    name: "delete_custom_view",
+    description: "Remove a widget from a tab (dev:ui). Params: viewId.",
+    inputSchema: jsonSchema({ viewId: z.string().min(1) }),
+    parse: () => z.object({ viewId: z.string().min(1) }),
+    run: async (auth, args) => {
+      const { viewId } = args as { viewId: string };
+      const { createCustomViewsService } = await import("@/server/domain/custom-views");
+      await createCustomViewsService(getDb()).remove(auth.userId, viewId);
+      return { ok: true, deleted: viewId };
+    },
+  },
 ];
 
 async function requireScopes(auth: McpAuth, toolName: string, scopes: string[]): Promise<void> {
@@ -565,6 +651,25 @@ export function createOpenFinanceMcpServer(getAuth: () => Promise<McpAuth>): Ser
       throw new McpError(ErrorCode.InvalidParams, args.error.issues.map((i) => i.message).join("; "));
     }
     const result = await tool.run(auth, args.data);
+    // Guardrail (D4): the audit log is user-toggleable (default on). Denied
+    // calls are always logged (agent-auth); successful tool calls land here.
+    try {
+      const prefs = await createAgentPrefsService(getDb()).get(auth.userId);
+      if (prefs.auditEnabled) {
+        const { randomUUID } = await import("node:crypto");
+        await getDb().run(
+          `INSERT INTO agent_access_log (id, token_id, scope_used, tool, method, params_json, status, latency_ms, created_at)
+           VALUES (?, ?, ?, ?, 'mcp', NULL, 200, NULL, ?)`,
+          randomUUID(),
+          auth.token.id,
+          scopesFor(name)[0] ?? null,
+          name,
+          new Date().toISOString()
+        );
+      }
+    } catch {
+      // Audit must never break the tool call.
+    }
     return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
   });
 
