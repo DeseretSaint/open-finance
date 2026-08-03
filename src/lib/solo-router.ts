@@ -301,6 +301,7 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         name: typeof B?.name === "string" ? B.name : "",
         userCategoryId: B?.userCategoryId == null ? null : String(B.userCategoryId),
         userNote: B?.userNote == null ? null : String(B.userNote),
+        excludeFromBudgets: B?.excludeFromBudgets === true,
       });
       return ok({ transaction }, 201);
     }
@@ -452,7 +453,29 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         linkedAt: new Date().toISOString(),
         accounts,
       });
-      return ok({ ok: true, itemId });
+      // Import transaction history immediately so the wizard's link step
+      // populates the Activity log (P23). Best-effort; never fails the link.
+      const userId = await h.deviceUserId();
+      let synced = 0;
+      try {
+        const { syncSoloItem } = await import("@/lib/solo-plaid-sync");
+        const result = await syncSoloItem({
+          db,
+          userId,
+          itemId,
+          institutionName: typeof B?.institutionName === "string" ? B.institutionName : null,
+          environment: env,
+          creds: { ...creds, environment: env },
+          accessToken,
+          accounts,
+          client: createNativePlaidClient() as never,
+          cursor: null,
+        });
+        synced = result.ok ? result.added + result.modified : 0;
+      } catch {
+        synced = 0;
+      }
+      return ok({ ok: true, itemId, synced });
     }
 
     if (method === "GET" && path === "/api/plaid/items") {
@@ -535,16 +558,22 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       if (method === "PUT") {
         const patch: Partial<{
           tabs: Array<"dashboard" | "accounts" | "activity" | "budgets" | "reports" | "planning" | "investments">;
+          tabsWrite: Array<"dashboard" | "accounts" | "activity" | "budgets" | "reports" | "planning" | "investments">;
           autoCategorize: boolean;
+          categorizeBacklogMonths: number;
           global: boolean;
           globalWrite: boolean;
         }> = {};
         if (Array.isArray(B?.tabs)) {
           patch.tabs = B.tabs.filter((t: unknown) => typeof t === "string") as typeof patch.tabs;
         }
-        for (const key of ["autoCategorize", "global", "globalWrite"] as const) {
-          if (typeof B?.[key] === "boolean") patch[key] = B[key];
+        if (Array.isArray(B?.tabsWrite)) {
+          patch.tabsWrite = B.tabsWrite.filter((t: unknown) => typeof t === "string") as typeof patch.tabsWrite;
         }
+        if (typeof B?.autoCategorize === "boolean") patch.autoCategorize = B.autoCategorize;
+        if (typeof B?.categorizeBacklogMonths === "number") patch.categorizeBacklogMonths = B.categorizeBacklogMonths;
+        if (typeof B?.global === "boolean") patch.global = B.global;
+        if (typeof B?.globalWrite === "boolean") patch.globalWrite = B.globalWrite;
         return ok({ prefs: await svc.update(userId, patch) });
       }
     }

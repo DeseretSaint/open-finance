@@ -25,6 +25,7 @@ const createSchema = z.object({
   name: z.string().min(1, "Name is required.").max(200),
   userCategoryId: z.string().nullable().optional(),
   userNote: z.string().max(500).nullable().optional(),
+  excludeFromBudgets: z.boolean().optional(),
 });
 
 /** Transactions — user session, or agent token (read:banking/read:investments + allowlist). */

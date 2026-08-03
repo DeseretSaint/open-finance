@@ -115,11 +115,15 @@ const TOOLS: ToolDef[] = [
         access: {
           // Tabs the agent may read (all of them when global is on).
           tabs: prefs.global ? AGENT_TABS : prefs.tabs,
+          // Tabs the agent may write to (all of them when globalWrite is on).
+          tabsWrite: prefs.globalWrite ? AGENT_TABS : prefs.tabsWrite,
           global: prefs.global,
           // Write on activity only when smart categorization is enabled.
           activityWrite: prefs.autoCategorize,
           // Full-app write when global + globalWrite are on.
           globalWrite: prefs.globalWrite,
+          // How far back (months) auto-categorization may reach.
+          categorizeBacklogMonths: prefs.categorizeBacklogMonths,
         },
       };
     },
@@ -181,7 +185,9 @@ const TOOLS: ToolDef[] = [
     description:
       "Transactions with no category yet, or with a generic/unclear name (for smart categorization). " +
       "When the user has enabled 'smart categorization', use set_transaction_category for the ones you are confident " +
-      "about and LEAVE the ambiguous ('gray area') ones alone. Params: limit (default 50), includeGeneric (default true).",
+      "about and LEAVE the ambiguous ('gray area') ones alone. Only transactions within the user's categorization " +
+      "backlog window are returned (default 1 month back; see access.categorizeBacklogMonths). " +
+      "Params: limit (default 50), includeGeneric (default true).",
     inputSchema: jsonSchema({
       limit: z.number().int().min(1).max(200).optional(),
       includeGeneric: z.boolean().optional(),
@@ -189,15 +195,20 @@ const TOOLS: ToolDef[] = [
     parse: () => z.object({ limit: z.number().int().min(1).max(200).optional(), includeGeneric: z.boolean().optional() }),
     run: async (auth, args) => {
       const { limit, includeGeneric } = args as { limit?: number; includeGeneric?: boolean };
+      const prefs = await createAgentPrefsService(getDb()).get(auth.userId);
       const txns = createTransactionsService(getDb());
+      // Restrict to the user's categorization backlog (default 1 month).
+      const since = new Date();
+      since.setMonth(since.getMonth() - prefs.categorizeBacklogMonths);
       const { rows } = await txns.list(auth.userId, {
         categoryId: null,
+        from: since.toISOString().slice(0, 10),
         limit: limit ?? 50,
         offset: 0,
         accountIds: auth.accountIds,
       });
       const generic = includeGeneric === false ? [] : rows.filter((r) => /^(purchase|payment|pos|debit|card|withdrawal|transfer|misc|other|internet|online)\b/i.test(r.name));
-      return { uncategorized: rows, generic: generic.map((r) => r.id) };
+      return { uncategorized: rows, generic: generic.map((r) => r.id), backlogMonths: prefs.categorizeBacklogMonths };
     },
   },
   {

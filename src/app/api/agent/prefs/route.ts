@@ -2,14 +2,17 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { ok, parseBody, route } from "@/lib/api";
 import { requireCsrf, requireSession } from "@/server/auth/service";
-import { createAgentPrefsService, AGENT_TABS } from "@/server/domain/agent-prefs";
+import { createAgentPrefsService, AGENT_TABS, CATEGORIZE_BACKLOGS } from "@/server/domain/agent-prefs";
 import { getDb } from "@/server/db/adapter";
 
 export const runtime = "nodejs";
 
+const TAB_ENUM = z.enum(AGENT_TABS);
 const updateSchema = z.object({
-  tabs: z.array(z.enum(AGENT_TABS)).optional(),
+  tabs: z.array(TAB_ENUM).optional(),
+  tabsWrite: z.array(TAB_ENUM).optional(),
   autoCategorize: z.boolean().optional(),
+  categorizeBacklogMonths: z.number().int().refine((v) => (CATEGORIZE_BACKLOGS as readonly number[]).includes(v)).optional(),
   global: z.boolean().optional(),
   globalWrite: z.boolean().optional(),
 });

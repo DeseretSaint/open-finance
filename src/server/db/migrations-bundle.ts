@@ -40,5 +40,9 @@ export const SOLO_MIGRATIONS: { version: number; sql: string }[] = [
   {
     version: 8,
     sql: "-- 008: granular per-tab agent read access (P21). agent_tabs holds a JSON\n-- array of tab keys the agent may READ (e.g. [\"activity\",\"budgets\"]).\n-- Valid keys: dashboard, accounts, activity, budgets, reports, planning,\n-- investments. Combined with 006/007:\n--   agent_auto_categorize — activity WRITE (smart categorization)\n--   agent_global — master toggle: read access to ALL tabs (overrides agent_tabs)\n--   agent_global_write — sub-toggle: write access across the whole app\n-- Default: agent may watch activity (transactions) only.\nALTER TABLE user_settings ADD COLUMN agent_tabs TEXT NOT NULL DEFAULT '[\"activity\"]';\n",
+  },
+  {
+    version: 9,
+    sql: "-- 009: per-tab agent WRITE access + categorization backlog (P22/P23).\n-- agent_tabs_write holds a JSON array of tab keys the agent may WRITE to\n-- (in addition to reading them). Valid keys (same as agent_tabs):\n-- dashboard, accounts, activity, budgets, reports, planning, investments.\n-- Tabs without write scopes are no-ops:\n--   activity  → transactions:edit (categorize)\n--   budgets   → budgets:write\n--   planning  → planning:write\n-- agent_global_write still overrides everything (all scopes).\n--\n-- agent_categorize_backlog_months: how far back (in months) the agent may\n-- auto-categorize when smart categorization is on. Default 1 (recommended);\n-- allowed 1, 3, 6, 12.\nALTER TABLE user_settings ADD COLUMN agent_tabs_write TEXT NOT NULL DEFAULT '[]';\nALTER TABLE user_settings ADD COLUMN agent_categorize_backlog_months INTEGER NOT NULL DEFAULT 1;\n",
   }
 ];

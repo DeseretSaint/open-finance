@@ -124,6 +124,7 @@ export function createTransactionsService(db: Db = getDb()) {
         name: string;
         userCategoryId?: string | null;
         userNote?: string | null;
+        excludeFromBudgets?: boolean;
       }
     ): Promise<TransactionRow> {
       const account = await db.get<{ id: string }>(
@@ -145,10 +146,10 @@ export function createTransactionsService(db: Db = getDb()) {
       const id = randomUUID();
       await db.run(
         `INSERT INTO transactions
-           (id, account_id, plaid_transaction_id, amount_cents, date, authorized_date, name,
+          (id, account_id, plaid_transaction_id, amount_cents, date, authorized_date, name,
             merchant_name, category_path, personal_finance_category, pending, user_category_id,
             user_note, exclude_from_budgets, source, created_at)
-         VALUES (?, ?, NULL, ?, ?, NULL, ?, NULL, NULL, NULL, 0, ?, ?, 0, 'manual', ?)`,
+         VALUES (?, ?, NULL, ?, ?, NULL, ?, NULL, NULL, NULL, 0, ?, ?, ?, 'manual', ?)`,
         id,
         input.accountId,
         input.amountCents,
@@ -156,6 +157,7 @@ export function createTransactionsService(db: Db = getDb()) {
         name,
         input.userCategoryId ?? null,
         input.userNote?.trim().slice(0, 500) || null,
+        input.excludeFromBudgets ? 1 : 0,
         now()
       );
       return this.get(userId, id);

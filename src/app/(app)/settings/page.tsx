@@ -561,15 +561,28 @@ function AgentWiringCard() {
   const prefs = useQuery({
     queryKey: ["agent-prefs"],
     queryFn: () =>
-      api.get<{ prefs: { tabs: string[]; autoCategorize: boolean; global: boolean; globalWrite: boolean } }>(
-        "/api/agent/prefs"
-      ),
+      api.get<{
+        prefs: {
+          tabs: string[];
+          tabsWrite: string[];
+          autoCategorize: boolean;
+          categorizeBacklogMonths: number;
+          global: boolean;
+          globalWrite: boolean;
+        };
+      }>("/api/agent/prefs"),
     retry: false,
   });
   const p = prefs.data?.prefs;
   const setPref = useMutation({
-    mutationFn: (patch: { tabs?: string[]; autoCategorize?: boolean; global?: boolean; globalWrite?: boolean }) =>
-      api.put("/api/agent/prefs", patch),
+    mutationFn: (patch: {
+      tabs?: string[];
+      tabsWrite?: string[];
+      autoCategorize?: boolean;
+      categorizeBacklogMonths?: number;
+      global?: boolean;
+      globalWrite?: boolean;
+    }) => api.put("/api/agent/prefs", patch),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["agent-prefs"] }),
   });
 
@@ -584,10 +597,16 @@ function AgentWiringCard() {
   };
   const TAB_ORDER = ["dashboard", "accounts", "activity", "budgets", "reports", "planning", "investments"];
   const tabs = p?.tabs ?? ["activity"];
+  const tabsWrite = p?.tabsWrite ?? [];
 
   function toggleTab(tab: string) {
     const next = tabs.includes(tab) ? tabs.filter((t) => t !== tab) : [...tabs, tab];
     setPref.mutate({ tabs: next.length > 0 ? next : ["activity"] });
+  }
+
+  function toggleTabWrite(tab: string) {
+    const next = tabsWrite.includes(tab) ? tabsWrite.filter((t) => t !== tab) : [...tabsWrite, tab];
+    setPref.mutate({ tabsWrite: next });
   }
 
   return (
@@ -604,40 +623,84 @@ function AgentWiringCard() {
         <div className="rounded-xl border border-border p-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-text">Tabs the agent can read</p>
+              <p className="text-sm font-medium text-text">Tabs the agent can access</p>
               <p className="mt-0.5 text-xs text-text-muted">
-                Pick exactly what the agent may see — e.g. Activity + Budgets and nothing else. It never sees the
-                tabs you leave off.
+                Pick what the agent may see — and optionally write. E.g. Activity + Budgets and nothing else. It never
+                touches the tabs you leave off.
               </p>
             </div>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div className="mt-3 space-y-2">
             {TAB_ORDER.map((tab) => (
-              <label
-                key={tab}
-                className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                  p?.global
-                    ? "cursor-not-allowed border-border opacity-50"
-                    : tabs.includes(tab)
-                      ? "border-accent bg-accent/5 text-accent"
-                      : "border-border text-text-muted hover:bg-surface-muted"
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={p?.global ? true : tabs.includes(tab)}
-                  disabled={!!p?.global}
-                  onChange={() => toggleTab(tab)}
-                  className="h-4 w-4 accent-[var(--accent)]"
-                />
-                {TAB_LABELS[tab]}
-              </label>
+              <div key={tab} className="flex flex-wrap items-center justify-between gap-2">
+                <label
+                  className={`flex cursor-pointer items-center gap-2 text-sm transition-colors ${
+                    p?.global ? "cursor-not-allowed opacity-50" : tabs.includes(tab) ? "text-text" : "text-text-muted"
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`flex h-5 w-5 items-center justify-center rounded border transition-colors ${
+                      p?.global || tabs.includes(tab) ? "border-accent bg-accent text-[var(--accent-foreground)]" : "border-border bg-surface"
+                    }`}
+                  >
+                    {(p?.global || tabs.includes(tab)) && (
+                      <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M2 6.5L4.5 9L10 3" />
+                      </svg>
+                    )}
+                  </span>
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={p?.global || tabs.includes(tab)}
+                    disabled={!!p?.global}
+                    onChange={() => toggleTab(tab)}
+                  />
+                  {TAB_LABELS[tab]}
+                </label>
+                <label
+                  className={`flex cursor-pointer items-center gap-1.5 text-xs transition-colors ${
+                    p?.globalWrite || (p?.global === false && tabsWrite.includes(tab))
+                      ? "text-accent"
+                      : p?.global
+                        ? "cursor-not-allowed opacity-50 text-text-muted"
+                        : tabs.includes(tab)
+                          ? "text-text-muted"
+                          : "cursor-not-allowed opacity-40 text-text-muted"
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${
+                      p?.globalWrite || (!p?.global && tabsWrite.includes(tab))
+                        ? "border-accent bg-accent text-[var(--accent-foreground)]"
+                        : "border-border bg-surface"
+                    }`}
+                  >
+                    {(p?.globalWrite || (!p?.global && tabsWrite.includes(tab))) && (
+                      <svg viewBox="0 0 12 12" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M2 6.5L4.5 9L10 3" />
+                      </svg>
+                    )}
+                  </span>
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={p?.globalWrite || (!p?.global && tabsWrite.includes(tab))}
+                    disabled={!!p?.global || !tabs.includes(tab)}
+                    onChange={() => toggleTabWrite(tab)}
+                  />
+                  write
+                </label>
+              </div>
             ))}
           </div>
           <p className="mt-2 text-xs text-text-muted">
             {p?.global
               ? "Global access is on — all tabs are readable."
-              : `Agent can read: ${tabs.map((t) => TAB_LABELS[t]).join(", ")}`}
+              : `Agent can read: ${tabs.map((t) => TAB_LABELS[t]).join(", ") || "nothing"}`}
+            {!p?.global && tabsWrite.length > 0 && ` · write: ${tabsWrite.map((t) => TAB_LABELS[t]).join(", ")}`}
           </p>
         </div>
 
@@ -649,6 +712,21 @@ function AgentWiringCard() {
               charge. It categorizes the ones it&apos;s confident about and leaves the gray-area ones for you. You can
               always change any category manually in the Activity tab.
             </p>
+            {p?.autoCategorize && (
+              <label className="mt-3 flex flex-wrap items-center gap-2 text-xs text-text-muted">
+                Categorize back:
+                <select
+                  value={p?.categorizeBacklogMonths ?? 1}
+                  onChange={(e) => setPref.mutate({ categorizeBacklogMonths: Number(e.target.value) })}
+                  className="rounded-lg border border-border bg-surface px-2 py-1 text-xs text-text"
+                >
+                  <option value={1}>1 month (recommended)</option>
+                  <option value={3}>3 months</option>
+                  <option value={6}>6 months</option>
+                  <option value={12}>1 year</option>
+                </select>
+              </label>
+            )}
           </div>
           <button
             role="switch"

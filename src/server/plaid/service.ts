@@ -4,6 +4,7 @@ import { apiErrors } from "@/lib/api";
 import { getDb, type Db } from "@/server/db/adapter";
 import type { PlaidClient, PlaidCreds, PlaidEnvironment } from "./adapter";
 import { realPlaidClient } from "./real";
+import { createSyncService } from "./sync";
 
 export interface PlaidCredentialRow {
   id: string;
@@ -147,7 +148,18 @@ export function createPlaidService(db: Db = getDb(), clientFactory: (creds: Plai
         );
       }
 
-      return { itemId: itemRowId, accountCount: accounts.length };
+      // Import the transaction history right away so the wizard's "link a
+      // bank" step populates the activity log immediately (P23). Best-effort:
+      // a failed sync must not fail the link — the user can retry later.
+      let synced = 0;
+      try {
+        const sync = await createSyncService(db).syncOne(userId, itemRowId);
+        synced = sync.added + sync.modified;
+      } catch {
+        synced = 0;
+      }
+
+      return { itemId: itemRowId, accountCount: accounts.length, synced };
     },
 
     async listItems(userId: string) {

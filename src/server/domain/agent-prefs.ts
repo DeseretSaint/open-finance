@@ -2,18 +2,17 @@ import type { Db } from "@/server/db/types";
 import { getDb } from "@/server/db/registry";
 
 /**
- * Agent access preferences (P20/P21). One service shared by the server routes
+ * Agent access preferences (P20–P23). One service shared by the server routes
  * and the solo router — no node:* imports (webview-safe).
  *
- * Lives on user_settings (migrations 006, 007, 008):
- *   agent_tabs            — JSON array of tab keys the agent may READ.
- *                           Keys: dashboard, accounts, activity, budgets,
- *                           reports, planning, investments.
- *   agent_auto_categorize — activity WRITE toggle (smart categorization).
- *   agent_global          — master toggle: READ access to ALL tabs (overrides
- *                           agent_tabs).
- *   agent_global_write    — sub-toggle: WRITE access across the whole app
- *                           (implies global).
+ * Lives on user_settings (migrations 006–009):
+ *   agent_tabs                   — JSON array of tab keys the agent may READ.
+ *   agent_tabs_write             — JSON array of tab keys the agent may WRITE.
+ *   agent_auto_categorize        — activity WRITE toggle (smart categorization).
+ *   agent_categorize_backlog_months — how far back (months) auto-categorization
+ *                                  may reach. Default 1; allowed 1/3/6/12.
+ *   agent_global                 — master toggle: READ access to ALL tabs.
+ *   agent_global_write           — sub-toggle: WRITE access across the whole app.
  *
  * These are user-level CAPS: at request time the effective scopes are
  * token scopes ∩ caps (see capScopes below, enforced in agent-auth).
@@ -31,6 +30,10 @@ export const AGENT_TABS = [
 ] as const;
 export type AgentTab = (typeof AGENT_TABS)[number];
 
+/** Allowed categorization-backlog values (months). */
+export const CATEGORIZE_BACKLOGS = [1, 3, 6, 12] as const;
+export const DEFAULT_CATEGORIZE_BACKLOG = 1;
+
 /** Read scopes granted per tab. */
 const TAB_SCOPES: Record<AgentTab, string[]> = {
   dashboard: ["read:summary"],
@@ -40,6 +43,17 @@ const TAB_SCOPES: Record<AgentTab, string[]> = {
   reports: ["read:reports"],
   planning: ["read:planning"],
   investments: ["read:investments"],
+};
+
+/** Write scopes granted per tab (empty = read-only tab). */
+const TAB_WRITE_SCOPES: Record<AgentTab, string[]> = {
+  activity: ["transactions:edit"],
+  budgets: ["budgets:write"],
+  planning: ["planning:write"],
+  dashboard: [],
+  accounts: [],
+  reports: [],
+  investments: [],
 };
 
 const ALL_READ_SCOPES = Array.from(new Set(Object.values(TAB_SCOPES).flat()));
@@ -55,8 +69,12 @@ const ALL_WRITE_SCOPES = [
 export interface AgentPrefs {
   /** Tab keys the agent may READ (ignored when global is on). */
   tabs: AgentTab[];
+  /** Tab keys the agent may WRITE to (subset of tabs; ignored when globalWrite is on). */
+  tabsWrite: AgentTab[];
   /** Activity WRITE (smart categorization). Off = activity read-only. */
   autoCategorize: boolean;
+  /** How far back (months) auto-categorization may reach. */
+  categorizeBacklogMonths: number;
   /** Master toggle: READ access to ALL tabs. */
   global: boolean;
   /** Sub-toggle: WRITE access across the whole app (implies global). */
@@ -65,7 +83,9 @@ export interface AgentPrefs {
 
 const DEFAULTS: AgentPrefs = {
   tabs: ["activity"],
+  tabsWrite: [],
   autoCategorize: false,
+  categorizeBacklogMonths: DEFAULT_CATEGORIZE_BACKLOG,
   global: false,
   globalWrite: false,
 };
@@ -90,11 +110,31 @@ export function capScopes(prefs: AgentPrefs): string[] {
       for (const s of TAB_SCOPES[tab] ?? []) add(s);
     }
   }
-  if (prefs.autoCategorize) add("transactions:edit");
+  // Per-tab write scopes (autoCategorize is a shortcut for activity write).
   if (prefs.globalWrite) {
     for (const s of ALL_WRITE_SCOPES) add(s);
+  } else {
+    const writeTabs: AgentTab[] = [...prefs.tabsWrite];
+    if (prefs.autoCategorize && !writeTabs.includes("activity")) writeTabs.push("activity");
+    for (const tab of writeTabs) {
+      for (const s of TAB_WRITE_SCOPES[tab] ?? []) add(s);
+    }
   }
   return caps;
+}
+
+function parseTabs(raw: string | null | undefined, fallback: AgentTab[]): AgentTab[] {
+  if (!raw) return fallback;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (Array.isArray(parsed)) {
+      const valid = parsed.filter((t): t is AgentTab => (AGENT_TABS as readonly string[]).includes(String(t)));
+      return valid.length > 0 ? valid : fallback;
+    }
+  } catch {
+    // Unparseable → keep default.
+  }
+  return fallback;
 }
 
 export function createAgentPrefsService(db: Db = getDb()) {
@@ -102,28 +142,25 @@ export function createAgentPrefsService(db: Db = getDb()) {
     async get(userId: string): Promise<AgentPrefs> {
       const row = await db.get<{
         agent_tabs: string | null;
+        agent_tabs_write: string | null;
         agent_auto_categorize: number | null;
+        agent_categorize_backlog_months: number | null;
         agent_global: number | null;
         agent_global_write: number | null;
       }>(
-        "SELECT agent_tabs, agent_auto_categorize, agent_global, agent_global_write FROM user_settings WHERE user_id = ?",
+        "SELECT agent_tabs, agent_tabs_write, agent_auto_categorize, agent_categorize_backlog_months, agent_global, agent_global_write FROM user_settings WHERE user_id = ?",
         userId
       );
       if (!row) return DEFAULTS;
-      let tabs: AgentTab[] = DEFAULTS.tabs;
-      if (row.agent_tabs) {
-        try {
-          const parsed = JSON.parse(row.agent_tabs) as unknown;
-          if (Array.isArray(parsed)) {
-            tabs = parsed.filter((t): t is AgentTab => (AGENT_TABS as readonly string[]).includes(String(t)));
-          }
-        } catch {
-          // Unparseable → keep default.
-        }
-      }
+      const tabs = parseTabs(row.agent_tabs, DEFAULTS.tabs);
+      const tabsWrite = parseTabs(row.agent_tabs_write, DEFAULTS.tabsWrite);
+      let backlog = Number(row.agent_categorize_backlog_months ?? DEFAULT_CATEGORIZE_BACKLOG);
+      if (!(CATEGORIZE_BACKLOGS as readonly number[]).includes(backlog)) backlog = DEFAULT_CATEGORIZE_BACKLOG;
       return {
-        tabs: tabs.length > 0 ? tabs : DEFAULTS.tabs,
+        tabs,
+        tabsWrite,
         autoCategorize: row.agent_auto_categorize === 1,
+        categorizeBacklogMonths: backlog,
         global: row.agent_global === 1,
         globalWrite: row.agent_global_write === 1,
       };
@@ -133,22 +170,30 @@ export function createAgentPrefsService(db: Db = getDb()) {
       const cur = await this.get(userId);
       const next: AgentPrefs = {
         tabs: input.tabs ?? cur.tabs,
+        tabsWrite: input.tabsWrite ?? cur.tabsWrite,
         autoCategorize: input.autoCategorize ?? cur.autoCategorize,
+        categorizeBacklogMonths: input.categorizeBacklogMonths ?? cur.categorizeBacklogMonths,
         global: input.global ?? cur.global,
         globalWrite: input.globalWrite ?? cur.globalWrite,
       };
       await db.run(
-        `INSERT INTO user_settings (user_id, agent_tabs, agent_auto_categorize, agent_global, agent_global_write, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)
+        `INSERT INTO user_settings
+           (user_id, agent_tabs, agent_tabs_write, agent_auto_categorize, agent_categorize_backlog_months,
+            agent_global, agent_global_write, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(user_id) DO UPDATE SET
            agent_tabs = excluded.agent_tabs,
+           agent_tabs_write = excluded.agent_tabs_write,
            agent_auto_categorize = excluded.agent_auto_categorize,
+           agent_categorize_backlog_months = excluded.agent_categorize_backlog_months,
            agent_global = excluded.agent_global,
            agent_global_write = excluded.agent_global_write,
            updated_at = excluded.updated_at`,
         userId,
         JSON.stringify(next.tabs),
+        JSON.stringify(next.tabsWrite),
         next.autoCategorize ? 1 : 0,
+        next.categorizeBacklogMonths,
         next.global ? 1 : 0,
         next.globalWrite ? 1 : 0,
         new Date().toISOString()

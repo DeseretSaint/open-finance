@@ -111,6 +111,7 @@ export default function TransactionsPage() {
   const [addDate, setAddDate] = useState(new Date().toISOString().slice(0, 10));
   const [addAccount, setAddAccount] = useState("");
   const [addCategory, setAddCategory] = useState("");
+  const [addExclude, setAddExclude] = useState(false);
 
   const add = useMutation({
     mutationFn: () =>
@@ -120,6 +121,7 @@ export default function TransactionsPage() {
         date: addDate,
         name: addName,
         userCategoryId: addCategory || null,
+        excludeFromBudgets: addExclude,
       }),
     onSuccess: () => {
       setAddName("");
@@ -175,15 +177,18 @@ export default function TransactionsPage() {
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm md:items-center md:p-6"
           onClick={() => !add.isPending && setShowAdd(false)}
-          style={{ bottom: kbdHeight > 0 ? `${kbdHeight}px` : undefined }}
+          style={{ paddingBottom: kbdHeight > 0 ? `${kbdHeight}px` : undefined }}
         >
           <div
             role="dialog"
             aria-modal="true"
             aria-label="Add a transaction"
             onClick={(e) => e.stopPropagation()}
-            className="max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-2rem)] w-full overflow-y-auto rounded-t-3xl border border-border bg-surface p-5 shadow-2xl md:max-w-lg md:rounded-3xl"
-            style={{ paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom))", marginTop: "env(safe-area-inset-top)" }}
+            className="w-full overflow-y-auto rounded-t-3xl border border-border bg-surface p-5 shadow-2xl md:max-w-lg md:rounded-3xl"
+            style={{
+              paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom))",
+              maxHeight: `calc(100dvh - ${kbdHeight}px - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2rem)`,
+            }}
           >
             <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border md:hidden" />
             <div className="mb-4 flex items-center justify-between">
@@ -254,6 +259,27 @@ export default function TransactionsPage() {
                 </Select>
               </div>
               <p className="text-xs text-text-muted">Expenses are negative, income is positive — e.g. -45.00 for a purchase, 2500.00 for a paycheck.</p>
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-text select-none">
+                <span
+                  aria-hidden="true"
+                  className={`flex h-5 w-5 items-center justify-center rounded border transition-colors ${
+                    addExclude ? "border-accent bg-accent text-[var(--accent-foreground)]" : "border-border bg-surface"
+                  }`}
+                >
+                  {addExclude && (
+                    <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M2 6.5L4.5 9L10 3" />
+                    </svg>
+                  )}
+                </span>
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={addExclude}
+                  onChange={(e) => setAddExclude(e.target.checked)}
+                />
+                Keep this transaction out of budgets
+              </label>
               {error && (
                 <p role="alert" className="rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-sm text-danger">
                   {error}
@@ -350,12 +376,24 @@ export default function TransactionsPage() {
                   {/* expanded details — categorize, exclude, delete */}
                   {expanded && (
                     <div className="flex flex-wrap items-center gap-3 border-t border-border bg-surface-muted/40 px-4 py-3 md:px-5">
-                      <label className="flex items-center gap-1.5 text-xs text-text-muted">
+                      <label className="flex cursor-pointer items-center gap-2 text-xs text-text-muted select-none">
+                        <span
+                          aria-hidden="true"
+                          className={`flex h-5 w-5 items-center justify-center rounded border transition-colors ${
+                            t.exclude_from_budgets === 1 ? "border-accent bg-accent text-[var(--accent-foreground)]" : "border-border bg-surface"
+                          }`}
+                        >
+                          {t.exclude_from_budgets === 1 && (
+                            <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M2 6.5L4.5 9L10 3" />
+                            </svg>
+                          )}
+                        </span>
                         <input
                           type="checkbox"
+                          className="sr-only"
                           checked={t.exclude_from_budgets === 1}
                           onChange={(e) => toggleExclude.mutate({ id: t.id, exclude: e.target.checked })}
-                          className="h-4 w-4 accent-[var(--accent)]"
                         />
                         Exclude from budgets
                       </label>

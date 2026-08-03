@@ -165,15 +165,18 @@ export default function AccountsPage() {
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm md:items-center md:p-6"
           onClick={() => !create.isPending && setShowAdd(false)}
-          style={{ bottom: kbdHeight > 0 ? `${kbdHeight}px` : undefined }}
+          style={{ paddingBottom: kbdHeight > 0 ? `${kbdHeight}px` : undefined }}
         >
           <div
             role="dialog"
             aria-modal="true"
             aria-label="Add a manual account"
             onClick={(e) => e.stopPropagation()}
-            className="max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-2rem)] w-full overflow-y-auto rounded-t-3xl border border-border bg-surface p-5 shadow-2xl md:max-w-lg md:rounded-3xl"
-            style={{ paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom))", marginTop: "env(safe-area-inset-top)" }}
+            className="w-full overflow-y-auto rounded-t-3xl border border-border bg-surface p-5 shadow-2xl md:max-w-lg md:rounded-3xl"
+            style={{
+              paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom))",
+              maxHeight: `calc(100dvh - ${kbdHeight}px - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2rem)`,
+            }}
           >
             <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border md:hidden" />
             <div className="mb-4 flex items-center justify-between">

@@ -3,12 +3,14 @@ import { createAgentPrefsService, capScopes } from "@/server/domain/agent-prefs"
 import { createTestDb, seedUser } from "./helpers";
 
 describe("agent prefs (per-tab access tiers)", () => {
-  it("defaults: activity tab only, no write, no global", async () => {
+  it("defaults: activity tab only, no write, no global, backlog 1", async () => {
     const db = createTestDb();
     const user = await seedUser(db);
     const prefs = await createAgentPrefsService(db).get(user.id);
     expect(prefs.tabs).toEqual(["activity"]);
+    expect(prefs.tabsWrite).toEqual([]);
     expect(prefs.autoCategorize).toBe(false);
+    expect(prefs.categorizeBacklogMonths).toBe(1);
     expect(prefs.global).toBe(false);
     expect(prefs.globalWrite).toBe(false);
     // Default caps: activity read only.
@@ -28,6 +30,23 @@ describe("agent prefs (per-tab access tiers)", () => {
     expect(caps).not.toContain("read:planning");
   });
 
+  it("per-tab write: budgets write grants budgets:write, activity write grants transactions:edit", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const svc = createAgentPrefsService(db);
+    await svc.update(user.id, { tabs: ["activity", "budgets"], tabsWrite: ["budgets"] });
+    const caps = capScopes(await svc.get(user.id));
+    expect(caps).toContain("read:banking");
+    expect(caps).toContain("read:budgets");
+    expect(caps).toContain("budgets:write");
+    expect(caps).not.toContain("transactions:edit");
+
+    await svc.update(user.id, { tabsWrite: ["budgets", "activity"] });
+    const caps2 = capScopes(await svc.get(user.id));
+    expect(caps2).toContain("transactions:edit");
+    expect(caps2).toContain("budgets:write");
+  });
+
   it("smart categorization adds activity write but not global reads", async () => {
     const db = createTestDb();
     const user = await seedUser(db);
@@ -41,11 +60,21 @@ describe("agent prefs (per-tab access tiers)", () => {
     expect(caps).not.toContain("read:budgets");
   });
 
+  it("categorize backlog persists and clamps to allowed values", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const svc = createAgentPrefsService(db);
+    await svc.update(user.id, { categorizeBacklogMonths: 12 });
+    expect((await svc.get(user.id)).categorizeBacklogMonths).toBe(12);
+    // Direct garbage write is clamped back to default.
+    await db.run("UPDATE user_settings SET agent_categorize_backlog_months = 5 WHERE user_id = ?", user.id);
+    expect((await svc.get(user.id)).categorizeBacklogMonths).toBe(1);
+  });
+
   it("global overrides tabs with all reads; globalWrite adds writes", async () => {
     const db = createTestDb();
     const user = await seedUser(db);
     const svc = createAgentPrefsService(db);
-    // Even with a narrow tab list, global wins.
     await svc.update(user.id, { tabs: ["activity"], global: true });
     const readCaps = capScopes(await svc.get(user.id));
     expect(readCaps).toContain("read:summary");
@@ -64,7 +93,6 @@ describe("agent prefs (per-tab access tiers)", () => {
     const db = createTestDb();
     const user = await seedUser(db);
     const svc = createAgentPrefsService(db);
-    // Persist garbage directly to simulate a bad write.
     await db.run("UPDATE user_settings SET agent_tabs = ? WHERE user_id = ?", JSON.stringify(["nope", "activity"]), user.id);
     const prefs = await svc.get(user.id);
     expect(prefs.tabs).toEqual(["activity"]);

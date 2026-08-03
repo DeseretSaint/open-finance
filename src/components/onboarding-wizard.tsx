@@ -52,9 +52,11 @@ export function OnboardingWizard() {
 
   // agent wiring (P12): provider selection in the wizard (web only).
   const [agentProvider, setAgentProvider] = useState<string | null>(null);
-  // agent access tiers (P20/P21): per-tab read selection + global master + write.
+  // agent access tiers (P20–P23): per-tab read/write selection + global + backlog.
   const [agentTabs, setAgentTabs] = useState<string[]>(["activity"]);
+  const [agentTabsWrite, setAgentTabsWrite] = useState<string[]>([]);
   const [agentAutoCategorize, setAgentAutoCategorize] = useState(false);
+  const [agentBacklog, setAgentBacklog] = useState(1);
   const [agentGlobal, setAgentGlobal] = useState(false);
   const [agentGlobalWrite, setAgentGlobalWrite] = useState(false);
   const [agentPrefsSaved, setAgentPrefsSaved] = useState(false);
@@ -64,7 +66,9 @@ export function OnboardingWizard() {
     try {
       await api.put("/api/agent/prefs", {
         tabs: agentTabs,
+        tabsWrite: agentTabsWrite,
         autoCategorize: agentAutoCategorize,
+        categorizeBacklogMonths: agentBacklog,
         global: agentGlobal,
         globalWrite: agentGlobalWrite,
       });
@@ -458,14 +462,14 @@ export function OnboardingWizard() {
                 </div>
               )}
 
-              {/* Agent access tiers — set on first entry (P20/P21) */}
+              {/* Agent access tiers — set on first entry (P20–P23) */}
               <div className="mt-4 space-y-3 rounded-xl border border-border p-4">
                 <p className="text-sm font-medium text-text">What can your agent access?</p>
                 <p className="text-xs text-text-muted">
-                  Pick the tabs it may read — e.g. Activity + Budgets and nothing else. It never sees overall
-                  financial status unless you allow global access. You can change all of this anytime in Settings.
+                  Pick the tabs it may read — and optionally write. E.g. Activity + Budgets and nothing else. It never
+                  sees overall financial status unless you allow global access. Change anytime in Settings.
                 </p>
-                <div className="flex flex-wrap gap-2">
+                <div className="space-y-1.5">
                   {[
                     ["dashboard", "Home"],
                     ["accounts", "Accounts"],
@@ -475,23 +479,60 @@ export function OnboardingWizard() {
                     ["planning", "Planning"],
                     ["investments", "Investments"],
                   ].map(([tab, label]) => (
-                    <button
-                      key={tab}
-                      type="button"
-                      disabled={agentGlobal}
-                      onClick={() =>
-                        setAgentTabs((prev) =>
-                          prev.includes(tab) ? prev.filter((t) => t !== tab) : [...prev, tab]
-                        )
-                      }
-                      className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
-                        agentGlobal || agentTabs.includes(tab)
-                          ? "border-accent bg-accent/5 font-medium text-accent"
-                          : "border-border text-text-muted hover:bg-surface-muted"
-                      } ${agentGlobal ? "opacity-60" : ""}`}
-                    >
-                      {label}
-                    </button>
+                    <div key={tab} className="flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        disabled={agentGlobal}
+                        onClick={() =>
+                          setAgentTabs((prev) => (prev.includes(tab) ? prev.filter((t) => t !== tab) : [...prev, tab]))
+                        }
+                        className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs transition-colors ${
+                          agentGlobal || agentTabs.includes(tab)
+                            ? "border-accent bg-accent/5 font-medium text-accent"
+                            : "border-border text-text-muted hover:bg-surface-muted"
+                        } ${agentGlobal ? "opacity-60" : ""}`}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`flex h-4 w-4 items-center justify-center rounded border ${
+                            agentGlobal || agentTabs.includes(tab) ? "border-accent bg-accent text-[var(--accent-foreground)]" : "border-border bg-surface"
+                          }`}
+                        >
+                          {(agentGlobal || agentTabs.includes(tab)) && (
+                            <svg viewBox="0 0 12 12" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M2 6.5L4.5 9L10 3" />
+                            </svg>
+                          )}
+                        </span>
+                        {label}
+                      </button>
+                      <label className={`flex cursor-pointer items-center gap-1.5 text-xs ${agentTabs.includes(tab) && !agentGlobal ? "text-text-muted" : "cursor-not-allowed opacity-40 text-text-muted"}`}>
+                        <span
+                          aria-hidden="true"
+                          className={`flex h-4 w-4 items-center justify-center rounded border ${
+                            agentGlobalWrite || (!agentGlobal && agentTabsWrite.includes(tab))
+                              ? "border-accent bg-accent text-[var(--accent-foreground)]"
+                              : "border-border bg-surface"
+                          }`}
+                        >
+                          {(agentGlobalWrite || (!agentGlobal && agentTabsWrite.includes(tab))) && (
+                            <svg viewBox="0 0 12 12" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M2 6.5L4.5 9L10 3" />
+                            </svg>
+                          )}
+                        </span>
+                        <input
+                          type="checkbox"
+                          className="sr-only"
+                          checked={agentGlobalWrite || (!agentGlobal && agentTabsWrite.includes(tab))}
+                          disabled={agentGlobal || !agentTabs.includes(tab)}
+                          onChange={() =>
+                            setAgentTabsWrite((prev) => (prev.includes(tab) ? prev.filter((t) => t !== tab) : [...prev, tab]))
+                          }
+                        />
+                        write
+                      </label>
+                    </div>
                   ))}
                 </div>
                 <div className="flex items-center justify-between gap-3">
@@ -507,6 +548,21 @@ export function OnboardingWizard() {
                     className="h-5 w-5 accent-[var(--accent)]"
                   />
                 </div>
+                {agentAutoCategorize && (
+                  <label className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
+                    Categorize back:
+                    <select
+                      value={agentBacklog}
+                      onChange={(e) => setAgentBacklog(Number(e.target.value))}
+                      className="rounded-lg border border-border bg-surface px-2 py-1 text-xs text-text"
+                    >
+                      <option value={1}>1 month (recommended)</option>
+                      <option value={3}>3 months</option>
+                      <option value={6}>6 months</option>
+                      <option value={12}>1 year</option>
+                    </select>
+                  </label>
+                )}
                 <div className="flex items-center justify-between gap-3">
                   <label htmlFor="wiz-global" className="text-sm text-text">
                     Global access{" "}
@@ -576,7 +632,7 @@ export function OnboardingWizard() {
                 <li>🔑 Plaid keys: {keysSaved ? "saved ✓" : "skipped (manual tracking)"}</li>
                 <li>🏦 Banks linked: {linkedCount}</li>
                 <li>🔒 Device PIN: {solo ? (pinSaved ? "set ✓" : "skipped") : "password-protected"}</li>
-                <li>🤖 Agent: {agentPrefsSaved ? `access configured (${agentGlobal ? "global read" : agentTabs.join(" + ")}${agentAutoCategorize || agentGlobalWrite ? " + write" : ""})` : "set up later in Agents (whenever you're ready)"}</li>
+                <li>🤖 Agent: {agentPrefsSaved ? `access configured (${agentGlobal ? "global read" : agentTabs.join(" + ")}${agentAutoCategorize || agentGlobalWrite || agentTabsWrite.length > 0 ? " + write" : ""})` : "set up later in Agents (whenever you're ready)"}</li>
               </ul>
               <p className="mt-4 text-xs text-text-muted">
                 You can replay this tour anytime from Settings → &quot;Restart setup tour&quot;.
