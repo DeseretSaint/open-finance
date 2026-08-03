@@ -390,4 +390,77 @@ describe("projection", () => {
     // never actually hits zero within 12 months (balance 400,000 at end) → no danger
     expect(p.dangerMonths).toHaveLength(0);
   });
+
+  it("expense goals (one-off bills) persist their contribution plan (012)", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const svc = createPlanningService(db);
+    const expense = await svc.createGoal(user.id, {
+      name: "Midwife",
+      type: "expense",
+      targetCents: 380_000,
+      targetDate: "2026-08-31",
+      monthlyContributionCents: 20_000,
+      contributionMode: "days_of_month",
+      contributionDays: [5, 20],
+    });
+    expect(expense.type).toBe("expense");
+    expect(expense.contribution_mode).toBe("days_of_month");
+    expect(JSON.parse(expense.contribution_days ?? "[]")).toEqual([5, 20]);
+
+    // Interval mode validates its interval.
+    const iv = await svc.createGoal(user.id, {
+      name: "Car registration",
+      type: "expense",
+      targetCents: 60_000,
+      contributionMode: "interval",
+      contributionInterval: "biweekly",
+    });
+    expect(iv.contribution_mode).toBe("interval");
+    expect(iv.contribution_interval).toBe("biweekly");
+
+    // Bad mode rejected.
+    await expect(
+      svc.createGoal(user.id, { name: "Bad", type: "expense", targetCents: 100, contributionMode: "sometimes" as string })
+    ).rejects.toThrow();
+    // Interval without an interval rejected.
+    await expect(
+      svc.createGoal(user.id, { name: "Bad2", type: "expense", targetCents: 100, contributionMode: "interval" })
+    ).rejects.toThrow();
+
+    // updateGoal can switch the plan.
+    const switched = await svc.updateGoal(user.id, expense.id, { contributionMode: "agent" });
+    expect(switched.contribution_mode).toBe("agent");
+  });
+
+  it("manual paydays: set/get + next payday calculation (012)", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const svc = createPlanningService(db);
+
+    expect(await svc.getPaydays(user.id)).toEqual({ mode: "auto", interval: null, days: [] });
+
+    const set = await svc.setPaydays(user.id, { mode: "days_of_month", days: [15, 30] });
+    expect(set.mode).toBe("days_of_month");
+    expect(set.days).toEqual([15, 30]);
+
+    const next = await svc.nextPaydayAfter(user.id, "2026-08-10");
+    expect(next).toBe("2026-08-15");
+
+    // Next month when both days have passed.
+    const next2 = await svc.nextPaydayAfter(user.id, "2026-08-31");
+    expect(next2).toBe("2026-09-15");
+
+    // Interval mode.
+    await svc.setPaydays(user.id, { mode: "interval", interval: "biweekly" });
+    expect(await svc.nextPaydayAfter(user.id, "2026-08-10")).toBe("2026-08-24");
+
+    // Auto mode returns null (caller falls back to income probe).
+    await svc.setPaydays(user.id, { mode: "auto" });
+    expect(await svc.nextPaydayAfter(user.id, "2026-08-10")).toBeNull();
+
+    // Validation: days_of_month needs days; interval needs an interval.
+    await expect(svc.setPaydays(user.id, { mode: "days_of_month", days: [] })).rejects.toThrow();
+    await expect(svc.setPaydays(user.id, { mode: "interval" })).rejects.toThrow();
+  });
 });

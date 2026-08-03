@@ -166,6 +166,8 @@ export default function SettingsPage() {
 
       <NotificationsSecurityCard setMsg={setMsg} setErr={setErr} />
 
+      <PaydaysCard setMsg={setMsg} setErr={setErr} />
+
       <HubPanel setMsg={setMsg} setErr={setErr} />
 
       <AgentWiringCard />
@@ -1150,6 +1152,120 @@ function AgentWiringCard() {
             </div>
           </details>
         </>
+      )}
+    </Card>
+  );
+}
+
+// ── Paydays (012) — manual payday schedule for accurate projections ────────
+
+function PaydaysCard({ setMsg, setErr }: { setMsg: (s: string | null) => void; setErr: (s: string | null) => void }) {
+  const qc = useQueryClient();
+  const paydays = useQuery({
+    queryKey: ["planning", "paydays"],
+    queryFn: () =>
+      api.get<{ paydays: { mode: string; interval: string | null; days: number[] } }>("/api/planning/paydays"),
+    retry: false,
+  });
+  const save = useMutation({
+    mutationFn: (patch: { mode?: string; interval?: string | null; days?: number[] }) =>
+      api.put("/api/planning/paydays", patch),
+    onSuccess: () => {
+      setMsg("Paydays saved — the Plan tab and projections now use your schedule.");
+      qc.invalidateQueries({ queryKey: ["planning", "paydays"] });
+    },
+    onError: (e) => setErr(e instanceof Error ? e.message : "Failed to save paydays."),
+  });
+
+  const pd = paydays.data?.paydays ?? { mode: "auto", interval: null, days: [] };
+  // Optimistic draft so picking a mode renders its controls before the save round-trips.
+  const [draft, setDraft] = useState<typeof pd | null>(null);
+  const eff = draft ?? pd;
+
+  function toggleDay(d: number) {
+    const next = eff.days.includes(d) ? eff.days.filter((x) => x !== d) : [...eff.days, d].sort((a, b) => a - b);
+    setDraft({ ...eff, mode: "days_of_month", days: next });
+    if (next.length > 0) save.mutate({ mode: "days_of_month", days: next });
+  }
+
+  function pickMode(mode: string) {
+    setDraft({ ...eff, mode: mode as typeof eff.mode });
+    if (mode !== "days_of_month" || eff.days.length > 0) save.mutate({ mode });
+  }
+
+  function pickInterval(iv: string) {
+    setDraft({ ...eff, mode: "interval", interval: iv as typeof eff.interval });
+    save.mutate({ mode: "interval", interval: iv });
+  }
+
+  return (
+    <Card className="lg:col-span-2">
+      <CardTitle>Paydays</CardTitle>
+      <p className="mt-1 text-sm text-text-muted">
+        Tell the app when you get paid so the Plan tab&apos;s &ldquo;Next paycheck&rdquo; horizon and the 12-month
+        projection are accurate — especially if you track manually. Auto mode guesses from your income transactions.
+      </p>
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {(
+          [
+            ["auto", "Auto — detect from income"],
+            ["interval", "Regular interval"],
+            ["days_of_month", "Specific days of the month"],
+          ] as const
+        ).map(([mode, label]) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => pickMode(mode)}
+            disabled={save.isPending}
+            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+              eff.mode === mode ? "border-accent bg-accent/10 text-accent" : "border-border text-text-muted hover:text-text"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {eff.mode === "interval" && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {(["weekly", "biweekly", "monthly"] as const).map((iv) => (
+            <button
+              key={iv}
+              type="button"
+              onClick={() => pickInterval(iv)}
+              disabled={save.isPending}
+              className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                eff.interval === iv ? "border-accent bg-accent/10 font-medium text-accent" : "border-border text-text-muted hover:text-text"
+              }`}
+            >
+              {iv === "biweekly" ? "Every 2 weeks" : iv === "weekly" ? "Every week" : "Every month"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {eff.mode === "days_of_month" && (
+        <div className="mt-3">
+          <div className="flex flex-wrap gap-1.5">
+            {[1, 5, 10, 15, 20, 25, 30].map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => toggleDay(d)}
+                disabled={save.isPending}
+                className={`h-9 w-9 rounded-full border text-xs transition-colors ${
+                  eff.days.includes(d) ? "border-accent bg-accent/10 font-medium text-accent" : "border-border text-text-muted hover:text-text"
+                }`}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1.5 text-xs text-text-muted">
+            {eff.days.length > 0 ? `Paid on the ${eff.days.join(" & ")} of each month` : "Pick the days you get paid"}
+          </p>
+        </div>
       )}
     </Card>
   );

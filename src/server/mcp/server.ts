@@ -266,18 +266,20 @@ const TOOLS: ToolDef[] = [
   },
   {
     name: "get_planning_items",
-    description: "Bills, debts, goals and the 12-month projection (read:planning).",
+    description:
+      "Bills, debts, goals (savings + one-off expenses with their contribution plans), the manual payday schedule and the 12-month projection (read:planning).",
     inputSchema: jsonSchema({}),
     parse: () => z.object({}),
     run: async (auth) => {
       const planning = createPlanningService(getDb());
-      const [bills, debts, goals, projection] = await Promise.all([
+      const [bills, debts, goals, paydays, projection] = await Promise.all([
         planning.listBills(auth.userId),
         planning.listDebts(auth.userId),
         planning.listGoals(auth.userId),
+        planning.getPaydays(auth.userId),
         createProjectionService(getDb()).project(auth.userId),
       ]);
-      return { bills, debts, goals, projection };
+      return { bills, debts, goals, paydays, projection };
     },
   },
   {

@@ -9,12 +9,15 @@ export const runtime = "nodejs";
 
 const updateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
-  type: z.string().max(30).optional(),
+  type: z.enum(["savings", "expense"]).optional(),
   category: z.string().max(50).optional(),
   targetCents: z.number().int().positive().optional(),
   targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   currentCents: z.number().int().nonnegative().optional(),
   monthlyContributionCents: z.number().int().nonnegative().nullable().optional(),
+  contributionMode: z.enum(["none", "interval", "days_of_month", "agent"]).optional(),
+  contributionInterval: z.enum(["weekly", "biweekly", "monthly"]).nullable().optional(),
+  contributionDays: z.array(z.number().int().min(1).max(31)).optional(),
   accountId: z.string().nullable().optional(),
   notes: z.string().max(500).nullable().optional(),
 });

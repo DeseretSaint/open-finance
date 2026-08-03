@@ -65,6 +65,9 @@ export interface GoalRow {
   target_date: string | null;
   current_cents: number;
   monthly_contribution_cents: number | null;
+  contribution_mode: string;
+  contribution_interval: string | null;
+  contribution_days: string | null;
   account_id: string | null;
   notes: string | null;
   created_at: string;
@@ -76,6 +79,48 @@ export interface GoalWithProgress extends GoalRow {
   monthsLeft: number | null; // to target date
   requiredMonthlyCents: number | null; // to hit target by date
   projectedCompletionDate: string | null; // at current contribution rate
+}
+
+// ── Manual payday schedule (012) ──────────────────────────────────────────
+export type PaydayMode = "auto" | "interval" | "days_of_month";
+export type PaydayInterval = "weekly" | "biweekly" | "monthly";
+
+export interface PaydaySettings {
+  mode: PaydayMode;
+  interval: PaydayInterval | null;
+  days: number[]; // day-of-month, e.g. [1, 15]
+}
+
+export const PAYDAY_MODES: PaydayMode[] = ["auto", "interval", "days_of_month"];
+export const PAYDAY_INTERVALS: PaydayInterval[] = ["weekly", "biweekly", "monthly"];
+
+export const CONTRIBUTION_MODES = ["none", "interval", "days_of_month", "agent"] as const;
+export type ContributionMode = (typeof CONTRIBUTION_MODES)[number];
+
+function validateContributionMode(mode: string | undefined): ContributionMode {
+  // Legacy savings goals don't send a mode → "none" (no plan). Expense goals
+  // always send an explicit mode from the UI.
+  const m = (mode ?? "none") as ContributionMode;
+  if (!CONTRIBUTION_MODES.includes(m)) throw apiErrors.badRequest("Contribution mode must be none, interval, days_of_month or agent.");
+  return m;
+}
+
+function normalizeContributionDays(days: number[] | undefined): number[] {
+  if (!days || days.length === 0) return [];
+  const cleaned = Array.from(new Set(days.map((d) => Math.round(d)))).filter((d) => d >= 1 && d <= 31).sort((a, b) => a - b);
+  if (cleaned.length === 0) return [];
+  return cleaned;
+}
+
+/** Parse a stored JSON day list (e.g. "[1,15]") back into numbers. */
+export function parseDayList(raw: string | null | undefined): number[] {
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.filter((d) => Number.isInteger(d) && d >= 1 && d <= 31).sort((a: number, b: number) => a - b) : [];
+  } catch {
+    return [];
+  }
 }
 
 function now(): string {
@@ -548,6 +593,9 @@ export function createPlanningService(db: Db = getDb()) {
         targetDate?: string | null;
         currentCents?: number;
         monthlyContributionCents?: number | null;
+        contributionMode?: string;
+        contributionInterval?: string | null;
+        contributionDays?: number[];
         accountId?: string | null;
         notes?: string | null;
       }
@@ -570,13 +618,22 @@ export function createPlanningService(db: Db = getDb()) {
         const acc = await db.get("SELECT id FROM accounts WHERE id = ? AND user_id = ?", input.accountId, userId);
         if (!acc) throw apiErrors.badRequest("That account does not exist.");
       }
+      // Contribution plan (012): one-off expenses can set money aside on a
+      // schedule — regular intervals, specific days of the month, or agent-managed.
+      const contributionMode = validateContributionMode(input.contributionMode);
+      const contributionInterval = input.contributionInterval ?? null;
+      if (contributionMode === "interval" && (!contributionInterval || !PAYDAY_INTERVALS.includes(contributionInterval as PaydayInterval))) {
+        throw apiErrors.badRequest("Regular-interval contributions need an interval: weekly, biweekly or monthly.");
+      }
+      const contributionDays = normalizeContributionDays(input.contributionDays);
 
       const id = randomUUID();
       const ts = now();
       await db.run(
         `INSERT INTO goals (id, user_id, name, type, category, target_cents, target_date, current_cents,
-                            monthly_contribution_cents, account_id, notes, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                            monthly_contribution_cents, contribution_mode, contribution_interval, contribution_days,
+                            account_id, notes, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         id,
         userId,
         name,
@@ -586,6 +643,9 @@ export function createPlanningService(db: Db = getDb()) {
         input.targetDate ?? null,
         current,
         input.monthlyContributionCents ?? null,
+        contributionMode,
+        contributionInterval,
+        contributionDays.length > 0 ? JSON.stringify(contributionDays) : null,
         input.accountId ?? null,
         input.notes?.trim().slice(0, 500) || null,
         ts,
@@ -605,6 +665,9 @@ export function createPlanningService(db: Db = getDb()) {
         targetDate: string | null;
         currentCents: number;
         monthlyContributionCents: number | null;
+        contributionMode: string;
+        contributionInterval: string | null;
+        contributionDays: number[];
         accountId: string | null;
         notes: string | null;
       }>
@@ -622,10 +685,17 @@ export function createPlanningService(db: Db = getDb()) {
       if (contribution !== null && (!Number.isInteger(contribution) || contribution < 0)) {
         throw apiErrors.badRequest("Monthly contribution must be non-negative cents.");
       }
+      const contributionMode = input.contributionMode !== undefined ? validateContributionMode(input.contributionMode) : row.contribution_mode;
+      const contributionInterval = input.contributionInterval !== undefined ? input.contributionInterval : row.contribution_interval;
+      if (contributionMode === "interval" && (!contributionInterval || !PAYDAY_INTERVALS.includes(contributionInterval as PaydayInterval))) {
+        throw apiErrors.badRequest("Regular-interval contributions need an interval: weekly, biweekly or monthly.");
+      }
+      const contributionDays = input.contributionDays !== undefined ? normalizeContributionDays(input.contributionDays) : parseDayList(row.contribution_days);
 
       await db.run(
         `UPDATE goals SET name = ?, type = ?, category = ?, target_cents = ?, target_date = ?, current_cents = ?,
-                          monthly_contribution_cents = ?, account_id = ?, notes = ?, updated_at = ?
+                          monthly_contribution_cents = ?, contribution_mode = ?, contribution_interval = ?, contribution_days = ?,
+                          account_id = ?, notes = ?, updated_at = ?
           WHERE id = ? AND user_id = ?`,
         name,
         input.type !== undefined ? input.type.trim().slice(0, 30) || "savings" : row.type,
@@ -634,6 +704,9 @@ export function createPlanningService(db: Db = getDb()) {
         targetDate,
         current,
         contribution,
+        contributionMode,
+        contributionInterval,
+        contributionDays.length > 0 ? JSON.stringify(contributionDays) : null,
         input.accountId !== undefined ? input.accountId : row.account_id,
         input.notes != null ? input.notes.trim().slice(0, 500) || null : row.notes,
         now(),
@@ -645,6 +718,72 @@ export function createPlanningService(db: Db = getDb()) {
 
     async removeGoal(userId: string, id: string): Promise<void> {
       await db.run("DELETE FROM goals WHERE id = ? AND user_id = ?", id, userId);
+    },
+
+    // ── MANUAL PAYDAYS (012) ──────────────────────────────────────────────
+    /** Read the user's payday schedule. Defaults to auto (detect from income). */
+    async getPaydays(userId: string): Promise<PaydaySettings> {
+      const row = await db.get<{ payday_mode: string; payday_interval: string | null; payday_days: string | null }>(
+        "SELECT payday_mode, payday_interval, payday_days FROM user_settings WHERE user_id = ?",
+        userId
+      );
+      if (!row) return { mode: "auto", interval: null, days: [] };
+      const mode = (PAYDAY_MODES as string[]).includes(row.payday_mode) ? (row.payday_mode as PaydayMode) : "auto";
+      const interval = row.payday_interval && (PAYDAY_INTERVALS as string[]).includes(row.payday_interval)
+        ? (row.payday_interval as PaydayInterval)
+        : null;
+      return { mode, interval, days: parseDayList(row.payday_days) };
+    },
+
+    async setPaydays(userId: string, input: { mode?: string; interval?: string | null; days?: number[] }): Promise<PaydaySettings> {
+      const current = await this.getPaydays(userId);
+      const mode = input.mode !== undefined ? input.mode as PaydayMode : current.mode;
+      if (!PAYDAY_MODES.includes(mode)) throw apiErrors.badRequest("Payday mode must be auto, interval or days_of_month.");
+      if (mode === "interval" && (!input.interval || !PAYDAY_INTERVALS.includes(input.interval as PaydayInterval))) {
+        throw apiErrors.badRequest("Payday intervals need an interval: weekly, biweekly or monthly.");
+      }
+      const interval = input.interval !== undefined ? (input.interval as PaydayInterval | null) : current.interval;
+      if (mode === "days_of_month" && (!input.days || input.days.length === 0)) {
+        throw apiErrors.badRequest("Pick at least one payday day of the month.");
+      }
+      const days = input.days !== undefined ? normalizeContributionDays(input.days) : current.days;
+      await db.run(
+        `INSERT INTO user_settings (user_id, payday_mode, payday_interval, payday_days, updated_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(user_id) DO UPDATE SET
+           payday_mode = excluded.payday_mode,
+           payday_interval = excluded.payday_interval,
+           payday_days = excluded.payday_days,
+           updated_at = excluded.updated_at`,
+        userId,
+        mode,
+        interval,
+        days.length > 0 ? JSON.stringify(days) : null,
+        now()
+      );
+      return this.getPaydays(userId);
+    },
+
+    /** Next payday on/after `refDate` per the manual schedule, or null when auto. */
+    async nextPaydayAfter(userId: string, refDate: string): Promise<string | null> {
+      const pd = await this.getPaydays(userId);
+      if (pd.mode === "auto") return null;
+      if (pd.mode === "interval" && pd.interval) {
+        switch (pd.interval) {
+          case "weekly":
+            return addDaysISO(refDate, 7);
+          case "biweekly":
+            return addDaysISO(refDate, 14);
+          case "monthly":
+            return addDaysISO(addMonthsISO(refDate, 1), 0);
+        }
+      }
+      if (pd.mode === "days_of_month" && pd.days.length > 0) {
+        // Next occurrence of any listed day, clamped to month ends.
+        const candidates = pd.days.map((d) => nextOccurrenceOfDay(d, refDate)).sort();
+        return candidates[0] ?? null;
+      }
+      return null;
     },
 
     // ── DIGEST ─────────────────────────────────────────────────────────────

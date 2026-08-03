@@ -26,7 +26,7 @@ import { useKeyboardHeight } from "@/lib/use-keyboard-height";
  * Demo users never see it (the demo route marks onboarding complete).
  */
 
-const STEPS = ["welcome", "security", "plaid", "bank", "agent", "done"] as const;
+const STEPS = ["welcome", "paydays", "security", "plaid", "bank", "agent", "done"] as const;
 type Step = (typeof STEPS)[number];
 
 const PLAID_SIGNUP_URL = "https://dashboard.plaid.com/signup";
@@ -45,6 +45,23 @@ export function OnboardingWizard() {
   const [clientId, setClientId] = useState("");
   const [secret, setSecret] = useState("");
   const [environment, setEnvironment] = useState<"sandbox" | "production">("sandbox");
+  // Manual payday schedule (012) — optional, for accurate projections.
+  const [payMode, setPayMode] = useState<"auto" | "interval" | "days_of_month">("auto");
+  const [payInterval, setPayInterval] = useState<"weekly" | "biweekly" | "monthly">("monthly");
+  const [payDays, setPayDays] = useState<number[]>([]);
+
+  async function savePaydays() {
+    if (payMode === "auto") return;
+    try {
+      await api.put("/api/planning/paydays", {
+        mode: payMode,
+        interval: payMode === "interval" ? payInterval : null,
+        days: payMode === "days_of_month" ? payDays : undefined,
+      });
+    } catch {
+      // Non-blocking — the user can set paydays later in Settings.
+    }
+  }
   const [keysSaved, setKeysSaved] = useState(false);
   const [linkToken, setLinkToken] = useState<string | null>(null);
   const [linkedCount, setLinkedCount] = useState(0);
@@ -226,8 +243,102 @@ export function OnboardingWizard() {
                 <Button variant="secondary" onClick={skipAll} className="flex-1" disabled={busy}>
                   Skip
                 </Button>
-                <Button onClick={() => setStep("security")} className="flex-1">
+                <Button onClick={() => setStep("paydays")} className="flex-1">
                   Get started
+                </Button>
+              </div>
+            </>
+          )}
+
+          {step === "paydays" && (
+            <>
+              <h1 className="text-2xl font-bold text-text">When do you get paid?</h1>
+              <p className="mt-2 text-sm text-text-muted">
+                Optional — but it makes the Plan tab&apos;s projections accurate, even before your first synced
+                paycheck. Skip it and the app guesses from your income.
+              </p>
+              <div className="mt-4 space-y-3">
+                <div className="flex flex-wrap gap-1.5">
+                  {(
+                    [
+                      ["auto", "Auto — skip for now"],
+                      ["interval", "Regular interval"],
+                      ["days_of_month", "Specific days"],
+                    ] as const
+                  ).map(([mode, label]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setPayMode(mode)}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                        payMode === mode ? "border-accent bg-accent/10 text-accent" : "border-border text-text-muted hover:text-text"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {payMode === "interval" && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {(["weekly", "biweekly", "monthly"] as const).map((iv) => (
+                      <button
+                        key={iv}
+                        type="button"
+                        onClick={() => setPayInterval(iv)}
+                        className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                          payInterval === iv ? "border-accent bg-accent/10 font-medium text-accent" : "border-border text-text-muted hover:text-text"
+                        }`}
+                      >
+                        {iv === "biweekly" ? "Every 2 weeks" : iv === "weekly" ? "Every week" : "Every month"}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {payMode === "days_of_month" && (
+                  <div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[1, 5, 10, 15, 20, 25, 30].map((d) => (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() =>
+                            setPayDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort((a, b) => a - b)))
+                          }
+                          className={`h-9 w-9 rounded-full border text-xs transition-colors ${
+                            payDays.includes(d) ? "border-accent bg-accent/10 font-medium text-accent" : "border-border text-text-muted hover:text-text"
+                          }`}
+                        >
+                          {d}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="mt-1.5 text-xs text-text-muted">
+                      {payDays.length > 0 ? `Paid on the ${payDays.join(" & ")} of each month` : "Pick the days you get paid"}
+                    </p>
+                  </div>
+                )}
+              </div>
+              <div className="mt-6 flex gap-3">
+                <Button
+                  variant="secondary"
+                  onClick={async () => {
+                    await savePaydays();
+                    setStep("security");
+                  }}
+                  className="flex-1"
+                  disabled={busy}
+                >
+                  Skip
+                </Button>
+                <Button
+                  onClick={async () => {
+                    await savePaydays();
+                    setStep("security");
+                  }}
+                  className="flex-1"
+                  disabled={busy || (payMode === "days_of_month" && payDays.length === 0)}
+                >
+                  Continue
                 </Button>
               </div>
             </>

@@ -39,13 +39,23 @@ interface Debt {
 interface Goal {
   id: string;
   name: string;
+  type: string;
   target_cents: number;
   target_date: string | null;
   current_cents: number;
   monthly_contribution_cents: number | null;
+  contribution_mode: string;
+  contribution_interval: string | null;
+  contribution_days: string | null;
   pct: number;
   requiredMonthlyCents: number | null;
   projectedCompletionDate: string | null;
+}
+
+interface PaydaySettings {
+  mode: "auto" | "interval" | "days_of_month";
+  interval: "weekly" | "biweekly" | "monthly" | null;
+  days: number[];
 }
 
 interface Projection {
@@ -92,6 +102,27 @@ export default function PlanPage() {
   const [horizon, setHorizon] = useState<Horizon>("30d");
   const [customUntil, setCustomUntil] = useState("");
   const [paycheckDate, setPaycheckDate] = useState<string | null>(null);
+  const [showPaydays, setShowPaydays] = useState(false);
+
+  // Manual payday schedule (012) — used for "Next paycheck" + projections.
+  const paydays = useQuery({
+    queryKey: ["planning", "paydays"],
+    queryFn: () => api.get<{ paydays: PaydaySettings }>("/api/planning/paydays"),
+    retry: false,
+  });
+  // Optimistic draft so picking a mode renders its controls before the save
+  // round-trips (the server validates days/interval only on save).
+  const [paydayDraft, setPaydayDraft] = useState<PaydaySettings | null>(null);
+  const effectivePaydays = paydayDraft ?? paydays.data?.paydays ?? { mode: "auto", interval: null, days: [] };
+  const setPaydays = useMutation({
+    mutationFn: (patch: Partial<PaydaySettings>) => api.put("/api/planning/paydays", patch),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["planning", "paydays"] });
+      setPaydayDraft(null);
+      setShowPaydays(false);
+    },
+    onError: (e) => setErr(e instanceof Error ? e.message : "Failed to save paydays."),
+  });
 
   // Find the next future income transaction ("before next paycheck").
   const paycheckProbe = useQuery({
@@ -111,6 +142,34 @@ export default function PlanPage() {
     retry: false,
   });
 
+  // Manual schedule wins over the income probe; both fall back to EOM.
+  const manualPayday = useMemo<string | null>(() => {
+    const pd = paydays.data?.paydays;
+    if (!pd || pd.mode === "auto") return null;
+    const today = new Date();
+    if (pd.mode === "interval" && pd.interval) {
+      if (pd.interval === "weekly") return iso(addDays(today, 7));
+      if (pd.interval === "biweekly") return iso(addDays(today, 14));
+      if (pd.interval === "monthly") {
+        const d = new Date(today.getFullYear(), today.getMonth() + 1, today.getDate());
+        return iso(d);
+      }
+    }
+    if (pd.mode === "days_of_month" && pd.days.length > 0) {
+      const year = today.getFullYear();
+      const month = today.getMonth();
+      const last = new Date(year, month + 1, 0).getDate();
+      const upcoming = pd.days
+        .filter((d) => d >= today.getDate())
+        .map((d) => new Date(year, month, Math.min(d, last)))
+        .filter((d) => d >= today)
+        .sort((a, b) => a.getTime() - b.getTime());
+      const next = upcoming[0] ?? new Date(year, month + 1, Math.min(pd.days[0], new Date(year, month + 2, 0).getDate()));
+      return iso(next);
+    }
+    return null;
+  }, [paydays.data]);
+
   const horizonUntil = useMemo<{ days?: number; until?: string }>(() => {
     if (horizon === "7d") return { days: 7 };
     if (horizon === "30d") return { days: 30 };
@@ -120,7 +179,7 @@ export default function PlanPage() {
       return { until: iso(last) };
     }
     if (horizon === "paycheck") {
-      const d = paycheckDate ?? paycheckProbe.data ?? null;
+      const d = manualPayday ?? paycheckDate ?? paycheckProbe.data ?? null;
       if (d) return { until: d };
       // No future income found → fall back to end of month with a note.
       const now = new Date();
@@ -129,7 +188,7 @@ export default function PlanPage() {
     }
     if (horizon === "custom" && customUntil) return { until: customUntil };
     return { days: 30 };
-  }, [horizon, customUntil, paycheckDate, paycheckProbe.data]);
+  }, [horizon, customUntil, paycheckDate, manualPayday, paycheckProbe.data]);
 
   useEffect(() => {
     if (paycheckProbe.data) setPaycheckDate(paycheckProbe.data);
@@ -160,7 +219,8 @@ export default function PlanPage() {
 
   // ── Add sheet (FAB) ──
   const [showAdd, setShowAdd] = useState(false);
-  const [addKind, setAddKind] = useState<"bill" | "debt" | "goal" | null>(null);
+  const [addKind, setAddKind] = useState<"bill" | "debt" | "goal" | "expense" | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
   // ── Bill form ──
   const [billName, setBillName] = useState("");
@@ -224,7 +284,7 @@ export default function PlanPage() {
   });
   const removeDebt = useMutation({ mutationFn: (id: string) => api.del(`/api/planning/debts/${id}`), onSuccess: invalidate });
 
-  // ── Goal form ──
+  // ── Goal form (savings) ──
   const [goalName, setGoalName] = useState("");
   const [goalTarget, setGoalTarget] = useState("");
   const [goalCurrent, setGoalCurrent] = useState("");
@@ -235,6 +295,7 @@ export default function PlanPage() {
     mutationFn: () =>
       api.post("/api/planning/goals", {
         name: goalName,
+        type: "savings",
         targetCents: Math.round(parseFloat(goalTarget) * 100),
         currentCents: Math.round((parseFloat(goalCurrent) || 0) * 100),
         monthlyContributionCents: goalContribution ? Math.round(parseFloat(goalContribution) * 100) : null,
@@ -253,6 +314,52 @@ export default function PlanPage() {
     },
     onError: (e) => setGoalError(e instanceof Error ? e.message : "Failed to create goal."),
   });
+
+  // ── Upcoming expense form (one-off bill with an optional set-aside plan) ──
+  const [expName, setExpName] = useState("");
+  const [expAmount, setExpAmount] = useState("");
+  const [expDate, setExpDate] = useState("");
+  const [expSaved, setExpSaved] = useState("");
+  const [expSetAside, setExpSetAside] = useState(true);
+  const [expMode, setExpMode] = useState<"interval" | "days_of_month" | "agent">("interval");
+  const [expInterval, setExpInterval] = useState<"weekly" | "biweekly" | "monthly">("monthly");
+  const [expContribution, setExpContribution] = useState("");
+  const [expDays, setExpDays] = useState<number[]>([]);
+  const [expDayInput, setExpDayInput] = useState("");
+  const [expError, setExpError] = useState<string | null>(null);
+
+  function toggleExpDay(d: number) {
+    setExpDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort((a, b) => a - b)));
+  }
+
+  const createExpense = useMutation({
+    mutationFn: () =>
+      api.post("/api/planning/goals", {
+        name: expName,
+        type: "expense",
+        targetCents: Math.round(parseFloat(expAmount) * 100),
+        targetDate: expDate || null,
+        currentCents: Math.round((parseFloat(expSaved) || 0) * 100),
+        monthlyContributionCents: expSetAside && expContribution ? Math.round(parseFloat(expContribution) * 100) : null,
+        contributionMode: expSetAside ? expMode : "none",
+        contributionInterval: expSetAside && expMode === "interval" ? expInterval : null,
+        contributionDays: expSetAside && expMode === "days_of_month" ? expDays : undefined,
+      }),
+    onSuccess: () => {
+      setExpName("");
+      setExpAmount("");
+      setExpDate("");
+      setExpSaved("");
+      setExpContribution("");
+      setExpDays([]);
+      setExpDayInput("");
+      setExpError(null);
+      setShowAdd(false);
+      setAddKind(null);
+      invalidate();
+    },
+    onError: (e) => setExpError(e instanceof Error ? e.message : "Failed to create expense."),
+  });
   const removeGoal = useMutation({ mutationFn: (id: string) => api.del(`/api/planning/goals/${id}`), onSuccess: invalidate });
 
   // ── Custom delete confirmations ──
@@ -261,18 +368,21 @@ export default function PlanPage() {
   const chartData = (projection.data?.points ?? []).map((p) => ({ month: p.month, Balance: p.balanceCents / 100 }));
 
   const horizonCaption =
-    horizon === "paycheck" && !paycheckDate && paycheckProbe.isLoading
-      ? "looking for your next paycheck…"
-      : horizon === "paycheck" && !paycheckDate
-        ? "no future income found — showing to end of month"
-        : horizon === "custom" && !customUntil
-          ? "pick an end date below"
-          : horizonUntil.until
-            ? `through ${horizonUntil.until}`
-            : `next ${horizonUntil.days ?? 30} days`;
+    horizon === "paycheck" && manualPayday
+      ? `through your next payday (${manualPayday})`
+      : horizon === "paycheck" && !paycheckDate && paycheckProbe.isLoading
+        ? "looking for your next paycheck…"
+        : horizon === "paycheck" && !paycheckDate
+          ? "no future income found — showing to end of month (set your paydays 💰)"
+          : horizon === "custom" && !customUntil
+            ? "pick an end date below"
+            : horizonUntil.until
+              ? `through ${horizonUntil.until}`
+              : `next ${horizonUntil.days ?? 30} days`;
 
   return (
     <div className="space-y-6">
+      {err && <p className="text-sm text-danger">{err}</p>}
       {/* Upcoming bills digest */}
       <Card>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -300,8 +410,112 @@ export default function PlanPage() {
                 {h.label}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => setShowPaydays((s) => !s)}
+              className={`h-8 rounded-full border px-3 text-xs font-medium transition-colors ${
+                showPaydays || (paydays.data?.paydays.mode ?? "auto") !== "auto"
+                  ? "border-accent bg-accent/10 text-accent"
+                  : "border-border text-text-muted hover:text-text"
+              }`}
+              title="Set your payday schedule for accurate projections"
+            >
+              💰 Paydays
+            </button>
           </div>
         </div>
+        {showPaydays && (
+          <div className="mt-3 space-y-3 border-t border-border pt-3">
+            <p className="text-xs text-text-muted">
+              Tell the app when you get paid so the &ldquo;Next paycheck&rdquo; horizon and projections are accurate.{" "}
+              {manualPayday && <span className="text-accent">Next payday: {manualPayday}.</span>}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {(
+                [
+                  ["auto", "Auto (from income)"],
+                  ["interval", "Regular interval"],
+                  ["days_of_month", "Specific days"],
+                ] as const
+              ).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => {
+                    setPaydayDraft({ ...effectivePaydays, mode });
+                    if (mode !== "days_of_month" || (effectivePaydays.days.length > 0)) setPaydays.mutate({ mode });
+                  }}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                    effectivePaydays.mode === mode
+                      ? "border-accent bg-accent/10 text-accent"
+                      : "border-border text-text-muted hover:text-text"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {effectivePaydays.mode === "interval" && (
+              <div className="flex flex-wrap gap-1.5">
+                {(["weekly", "biweekly", "monthly"] as const).map((iv) => (
+                  <button
+                    key={iv}
+                    type="button"
+                    onClick={() => {
+                      setPaydayDraft({ ...effectivePaydays, mode: "interval", interval: iv });
+                      setPaydays.mutate({ mode: "interval", interval: iv });
+                    }}
+                    className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                      effectivePaydays.interval === iv
+                        ? "border-accent bg-accent/10 font-medium text-accent"
+                        : "border-border text-text-muted hover:text-text"
+                    }`}
+                  >
+                    {iv === "biweekly" ? "Every 2 weeks" : iv === "weekly" ? "Every week" : "Every month"}
+                  </button>
+                ))}
+              </div>
+            )}
+            {effectivePaydays.mode === "days_of_month" && (
+              <div>
+                <div className="flex flex-wrap gap-1.5">
+                  {[1, 5, 10, 15, 20, 25, 30].map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => {
+                        const cur = effectivePaydays.days;
+                        const next = cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d].sort((a, b) => a - b);
+                        setPaydayDraft({ ...effectivePaydays, mode: "days_of_month", days: next });
+                        if (next.length > 0) setPaydays.mutate({ mode: "days_of_month", days: next });
+                      }}
+                      className={`h-8 w-8 rounded-full border text-xs transition-colors ${
+                        effectivePaydays.days.includes(d)
+                          ? "border-accent bg-accent/10 font-medium text-accent"
+                          : "border-border text-text-muted hover:text-text"
+                      }`}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1 text-xs text-text-muted">
+                  {effectivePaydays.days.length > 0
+                    ? `Paid on the ${effectivePaydays.days.join(" & ")} of each month`
+                    : "Pick the days you get paid"}
+                </p>
+              </div>
+            )}
+            {setPaydays.isError && <p className="text-sm text-danger">Couldn&apos;t save paydays — try again.</p>}
+            <button
+              type="button"
+              onClick={() => setShowPaydays(false)}
+              className="text-xs font-medium text-accent transition-colors hover:underline"
+            >
+              Done
+            </button>
+          </div>
+        )}
         {horizon === "custom" && (
           <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
             <CustomDatePicker ariaLabel="Look ahead until" value={customUntil} onChange={setCustomUntil} min={new Date().toISOString().slice(0, 10)} className="w-44" />
@@ -467,11 +681,59 @@ export default function PlanPage() {
         </Card>
       </div>
 
+      {/* Upcoming expenses — one-off bills with optional set-aside plans */}
+      <Card>
+        <CardTitle>Upcoming expenses</CardTitle>
+        <p className="mt-1 text-xs text-text-muted">One-off bills you&apos;re planning for — with any money being set aside.</p>
+        <div className="mt-3 space-y-2">
+          {(goals.data?.goals ?? []).filter((g) => g.type === "expense").map((g) => (
+            <div key={g.id} className="rounded-lg border border-border px-3 py-2.5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium text-text">{g.name}</p>
+                  <p className="text-xs text-text-muted">
+                    Due {g.target_date ?? "someday"} · <Money cents={g.target_cents} />
+                    {g.current_cents > 0 ? ` · ${Math.round((g.current_cents / g.target_cents) * 100)}% set aside` : ""}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setConfirmDelete({ kind: "goal", id: g.id, name: g.name })}
+                  className="text-xs text-text-muted hover:text-danger"
+                  aria-label={`Delete expense ${g.name}`}
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="mt-1.5 text-xs text-text-muted">
+                {g.contribution_mode === "none" && "No set-aside — pay it when it's due."}
+                {g.contribution_mode === "interval" && (
+                  <>
+                    Setting aside <Money cents={g.monthly_contribution_cents ?? 0} />{" "}
+                    {g.contribution_interval === "weekly" ? "every week" : g.contribution_interval === "biweekly" ? "every 2 weeks" : "every month"}
+                    {g.projectedCompletionDate ? ` · paid off by ${g.projectedCompletionDate}` : ""}
+                  </>
+                )}
+                {g.contribution_mode === "days_of_month" && g.contribution_days && (
+                  <>
+                    Setting aside <Money cents={g.monthly_contribution_cents ?? 0} /> on the{" "}
+                    {JSON.parse(g.contribution_days).join(" & ")} of each month
+                  </>
+                )}
+                {g.contribution_mode === "agent" && "Agent will schedule payments to fit your cash flow."}
+              </p>
+            </div>
+          ))}
+          {(goals.data?.goals ?? []).filter((g) => g.type === "expense").length === 0 && (
+            <p className="text-sm text-text-muted">No upcoming expenses yet — add one with the + button (one-off bill).</p>
+          )}
+        </div>
+      </Card>
+
       {/* Goals */}
       <Card>
         <CardTitle>Goals</CardTitle>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {(goals.data?.goals ?? []).map((g) => (
+          {(goals.data?.goals ?? []).filter((g) => g.type !== "expense").map((g) => (
             <div key={g.id} className="rounded-lg border border-border p-3">
               <div className="flex items-start justify-between">
                 <div>
@@ -508,7 +770,7 @@ export default function PlanPage() {
               </p>
             </div>
           ))}
-          {(goals.data?.goals ?? []).length === 0 && <p className="text-sm text-text-muted">No goals yet.</p>}
+          {(goals.data?.goals ?? []).filter((g) => g.type !== "expense").length === 0 && <p className="text-sm text-text-muted">No goals yet.</p>}
         </div>
       </Card>
 
@@ -574,6 +836,14 @@ export default function PlanPage() {
                 >
                   <span className="font-medium text-text">Savings goal</span>
                   <span className="text-xs text-text-muted">Emergency fund, trip…</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddKind("expense")}
+                  className="flex items-center justify-between rounded-xl border border-border px-4 py-3 text-left text-sm transition-colors hover:border-accent/50 hover:bg-surface-muted"
+                >
+                  <span className="font-medium text-text">Upcoming expense</span>
+                  <span className="text-xs text-text-muted">One-off bill — with optional set-aside</span>
                 </button>
               </div>
             )}
@@ -708,8 +978,154 @@ export default function PlanPage() {
                 <Button type="submit" disabled={createGoal.isPending || !goalName || !goalTarget}>
                   {createGoal.isPending ? "Adding…" : "Add goal"}
                 </Button>
-              </form>
-            )}
+                </form>
+                )}
+
+                {addKind === "expense" && (
+                <form
+                className="flex flex-col gap-4"
+                onSubmit={(e) => {
+                 e.preventDefault();
+                 createExpense.mutate();
+                }}
+                >
+                <div>
+                 <label htmlFor="plan-exp-name" className="mb-1 block text-xs font-medium text-text-muted">
+                   Name
+                 </label>
+                 <Input id="plan-exp-name" placeholder="e.g. Midwife payment" value={expName} onChange={(e) => setExpName(e.target.value)} required autoFocus />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                 <div>
+                   <label htmlFor="plan-exp-amount" className="mb-1 block text-xs font-medium text-text-muted">
+                     Amount ($)
+                   </label>
+                   <Input id="plan-exp-amount" placeholder="3800.00" inputMode="decimal" value={expAmount} onChange={(e) => setExpAmount(e.target.value)} required />
+                 </div>
+                 <div>
+                   <label htmlFor="plan-exp-saved" className="mb-1 block text-xs font-medium text-text-muted">
+                     Set aside so far ($)
+                   </label>
+                   <Input id="plan-exp-saved" placeholder="0.00" inputMode="decimal" value={expSaved} onChange={(e) => setExpSaved(e.target.value)} />
+                 </div>
+                </div>
+                <div>
+                 <label id="plan-exp-date-label" className="mb-1 block text-xs font-medium text-text-muted">
+                   Due date
+                 </label>
+                 <CustomDatePicker ariaLabel="Expense due date" value={expDate} onChange={setExpDate} min={new Date().toISOString().slice(0, 10)} />
+                </div>
+
+                {/* Optional set-aside plan */}
+                <div className="rounded-xl border border-border p-3">
+                 <label className="flex items-center gap-2 text-sm text-text">
+                   <input
+                     type="checkbox"
+                     checked={expSetAside}
+                     onChange={(e) => setExpSetAside(e.target.checked)}
+                     className="h-4 w-4 accent-[var(--accent)]"
+                   />
+                   Set money aside for this
+                 </label>
+                 {expSetAside && (
+                   <div className="mt-3 space-y-3">
+                     <div>
+                       <label htmlFor="plan-exp-contrib" className="mb-1 block text-xs font-medium text-text-muted">
+                         Per payment ($)
+                       </label>
+                       <Input id="plan-exp-contrib" placeholder="200.00" inputMode="decimal" value={expContribution} onChange={(e) => setExpContribution(e.target.value)} />
+                     </div>
+                     <div>
+                       <p className="mb-1 text-xs font-medium text-text-muted">When</p>
+                       <div className="flex flex-wrap gap-1.5">
+                         {(
+                           [
+                             ["interval", "Regular intervals"],
+                             ["days_of_month", "Specific days"],
+                             ["agent", "Let the agent schedule it"],
+                           ] as const
+                         ).map(([mode, label]) => (
+                           <button
+                             key={mode}
+                             type="button"
+                             onClick={() => setExpMode(mode)}
+                             className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                               expMode === mode ? "border-accent bg-accent/10 text-accent" : "border-border text-text-muted hover:text-text"
+                             }`}
+                           >
+                             {label}
+                           </button>
+                         ))}
+                       </div>
+                     </div>
+                     {expMode === "interval" && (
+                       <div className="flex flex-wrap gap-1.5">
+                         {(["weekly", "biweekly", "monthly"] as const).map((iv) => (
+                           <button
+                             key={iv}
+                             type="button"
+                             onClick={() => setExpInterval(iv)}
+                             className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                               expInterval === iv ? "border-accent bg-accent/10 font-medium text-accent" : "border-border text-text-muted hover:text-text"
+                             }`}
+                           >
+                             {iv === "biweekly" ? "Every 2 weeks" : iv === "weekly" ? "Every week" : "Every month"}
+                           </button>
+                         ))}
+                       </div>
+                     )}
+                     {expMode === "days_of_month" && (
+                       <div>
+                         <div className="flex flex-wrap gap-1.5">
+                           {[1, 5, 10, 15, 20, 25].map((d) => (
+                             <button
+                               key={d}
+                               type="button"
+                               onClick={() => toggleExpDay(d)}
+                               className={`h-8 w-8 rounded-full border text-xs transition-colors ${
+                                 expDays.includes(d) ? "border-accent bg-accent/10 font-medium text-accent" : "border-border text-text-muted hover:text-text"
+                               }`}
+                             >
+                               {d}
+                             </button>
+                           ))}
+                         </div>
+                         <div className="mt-2 flex items-center gap-2">
+                           <Input
+                             aria-label="Other days of the month (comma separated)"
+                             placeholder="Other days, e.g. 2, 27"
+                             inputMode="numeric"
+                             value={expDayInput}
+                             onChange={(e) => {
+                               setExpDayInput(e.target.value);
+                               const parsed = e.target.value
+                                 .split(/[,\s]+/)
+                                 .map((s) => parseInt(s, 10))
+                                 .filter((n) => Number.isInteger(n) && n >= 1 && n <= 31);
+                               if (parsed.length > 0) setExpDays((prev) => Array.from(new Set([...prev, ...parsed])).sort((a, b) => a - b));
+                             }}
+                           />
+                         </div>
+                         <p className="mt-1 text-xs text-text-muted">
+                           {expDays.length > 0 ? `Paying on the ${expDays.join(" & ")} of each month` : "Pick at least one day"}
+                         </p>
+                       </div>
+                     )}
+                     {expMode === "agent" && (
+                       <p className="text-xs text-text-muted">
+                         Your agent will work out a schedule that fits your cash flow and keep it updated here. It still
+                         asks before any change to your money.
+                       </p>
+                     )}
+                   </div>
+                 )}
+                </div>
+                {expError && <p className="text-sm text-danger">{expError}</p>}
+                <Button type="submit" disabled={createExpense.isPending || !expName || !expAmount || (expSetAside && expMode === "days_of_month" && expDays.length === 0)}>
+                 {createExpense.isPending ? "Adding…" : "Add expense"}
+                </Button>
+                </form>
+                )}
           </div>
         </div>
       )}

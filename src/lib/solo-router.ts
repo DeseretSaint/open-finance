@@ -647,6 +647,124 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       return ok(await h.planning.digest(userId, days, until));
     }
 
+    // ── Planning CRUD (solo) — bills / debts / goals / paydays ───────────
+    // These were missing (issue: "Route not found in solo mode" when adding
+    // a goal/bill/debt from the Plan tab on-device). Mirrors the web routes.
+    if (method === "POST" && path === "/api/planning/bills") {
+      const userId = await h.deviceUserId();
+      const bill = await h.planning.createBill(userId, {
+        name: String(B?.name ?? ""),
+        amountCents: Math.round(Number(B?.amountCents) || 0),
+        frequency: (String(B?.frequency ?? "monthly") || "monthly") as "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly" | "one-time",
+        dueDay: B?.dueDay == null ? null : parseInt(String(B.dueDay), 10),
+        nextDueDate: B?.nextDueDate == null ? null : String(B.nextDueDate),
+        categoryId: B?.categoryId == null ? null : String(B.categoryId),
+        accountId: B?.accountId == null ? null : String(B.accountId),
+        notes: B?.notes == null ? null : String(B.notes),
+      });
+      return ok({ bill }, 201);
+    }
+    if (method === "PATCH" && path.startsWith("/api/planning/bills/")) {
+      const userId = await h.deviceUserId();
+      const id = parseId(path, "/api/planning/bills/");
+      const patch: Record<string, unknown> = {};
+      if (B?.name !== undefined) patch.name = String(B.name);
+      if (B?.amountCents !== undefined) patch.amountCents = Math.round(Number(B.amountCents));
+      if (B?.frequency !== undefined) patch.frequency = String(B.frequency);
+      if (B?.nextDueDate !== undefined) patch.nextDueDate = B.nextDueDate == null ? null : String(B.nextDueDate);
+      if (B?.active !== undefined) patch.active = B.active === true;
+      const bill = await h.planning.updateBill(userId, id, patch as Parameters<typeof h.planning.updateBill>[2]);
+      return ok({ bill });
+    }
+    if (method === "DELETE" && path.startsWith("/api/planning/bills/")) {
+      const userId = await h.deviceUserId();
+      const id = parseId(path, "/api/planning/bills/");
+      await h.planning.removeBill(userId, id);
+      return ok({ ok: true });
+    }
+    if (method === "POST" && path === "/api/planning/debts") {
+      const userId = await h.deviceUserId();
+      const debt = await h.planning.createDebt(userId, {
+        name: String(B?.name ?? ""),
+        principalCents: Math.round(Number(B?.principalCents) || 0),
+        aprBps: Math.round(Number(B?.aprBps) || 0),
+        minPaymentCents: Math.round(Number(B?.minPaymentCents) || 0),
+        type: String(B?.type ?? "other"),
+        notes: B?.notes == null ? null : String(B.notes),
+      });
+      return ok({ debt }, 201);
+    }
+    if (method === "PATCH" && path.startsWith("/api/planning/debts/")) {
+      const userId = await h.deviceUserId();
+      const id = parseId(path, "/api/planning/debts/");
+      const patch: Record<string, unknown> = {};
+      if (B?.name !== undefined) patch.name = String(B.name);
+      if (B?.principalCents !== undefined) patch.principalCents = Math.round(Number(B.principalCents));
+      if (B?.aprBps !== undefined) patch.aprBps = Math.round(Number(B.aprBps));
+      if (B?.minPaymentCents !== undefined) patch.minPaymentCents = Math.round(Number(B.minPaymentCents));
+      const debt = await h.planning.updateDebt(userId, id, patch as Parameters<typeof h.planning.updateDebt>[2]);
+      return ok({ debt });
+    }
+    if (method === "DELETE" && path.startsWith("/api/planning/debts/")) {
+      const userId = await h.deviceUserId();
+      const id = parseId(path, "/api/planning/debts/");
+      await h.planning.removeDebt(userId, id);
+      return ok({ ok: true });
+    }
+    if (method === "POST" && path === "/api/planning/goals") {
+      const userId = await h.deviceUserId();
+      const goal = await h.planning.createGoal(userId, {
+        name: String(B?.name ?? ""),
+        type: String(B?.type ?? "savings"),
+        category: B?.category == null ? "general" : String(B.category),
+        targetCents: Math.round(Number(B?.targetCents) || 0),
+        targetDate: B?.targetDate == null ? null : String(B.targetDate),
+        currentCents: Math.round(Number(B?.currentCents) || 0),
+        monthlyContributionCents: B?.monthlyContributionCents == null ? null : Math.round(Number(B.monthlyContributionCents)),
+        contributionMode: B?.contributionMode == null ? undefined : String(B.contributionMode),
+        contributionInterval: B?.contributionInterval == null ? null : String(B.contributionInterval),
+        contributionDays: Array.isArray(B?.contributionDays) ? (B.contributionDays as unknown[]).map((d) => Number(d)) : undefined,
+        accountId: B?.accountId == null ? null : String(B.accountId),
+        notes: B?.notes == null ? null : String(B.notes),
+      });
+      return ok({ goal }, 201);
+    }
+    if (method === "PATCH" && path.startsWith("/api/planning/goals/")) {
+      const userId = await h.deviceUserId();
+      const id = parseId(path, "/api/planning/goals/");
+      const patch: Record<string, unknown> = {};
+      if (B?.name !== undefined) patch.name = String(B.name);
+      if (B?.type !== undefined) patch.type = String(B.type);
+      if (B?.targetCents !== undefined) patch.targetCents = Math.round(Number(B.targetCents));
+      if (B?.targetDate !== undefined) patch.targetDate = B.targetDate == null ? null : String(B.targetDate);
+      if (B?.currentCents !== undefined) patch.currentCents = Math.round(Number(B.currentCents));
+      if (B?.monthlyContributionCents !== undefined) patch.monthlyContributionCents = B.monthlyContributionCents == null ? null : Math.round(Number(B.monthlyContributionCents));
+      if (B?.contributionMode !== undefined) patch.contributionMode = String(B.contributionMode);
+      if (B?.contributionInterval !== undefined) patch.contributionInterval = B.contributionInterval == null ? null : String(B.contributionInterval);
+      if (B?.contributionDays !== undefined) patch.contributionDays = (B.contributionDays as unknown[]).map((d) => Number(d));
+      const goal = await h.planning.updateGoal(userId, id, patch as Parameters<typeof h.planning.updateGoal>[2]);
+      return ok({ goal });
+    }
+    if (method === "DELETE" && path.startsWith("/api/planning/goals/")) {
+      const userId = await h.deviceUserId();
+      const id = parseId(path, "/api/planning/goals/");
+      await h.planning.removeGoal(userId, id);
+      return ok({ ok: true });
+    }
+    if (method === "GET" && path === "/api/planning/paydays") {
+      const userId = await h.deviceUserId();
+      return ok({ paydays: await h.planning.getPaydays(userId) });
+    }
+    if (method === "PUT" && path === "/api/planning/paydays") {
+      const userId = await h.deviceUserId();
+      const paydays = await h.planning.setPaydays(userId, {
+        mode: B?.mode == null ? "auto" : String(B.mode),
+        interval: B?.interval == null ? null : String(B.interval),
+        days: Array.isArray(B?.days) ? (B.days as unknown[]).map((d) => Number(d)) : undefined,
+      });
+      return ok({ paydays });
+    }
+
     // ── Idempotent DELETE for transactions/[id] etc. ────────────────────
     if (method === "PATCH" && path.startsWith("/api/transactions/")) {
       const userId = await h.deviceUserId();
