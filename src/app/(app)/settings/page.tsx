@@ -1232,6 +1232,7 @@ function PaydaysCard({ setMsg, setErr }: { setMsg: (s: string | null) => void; s
       api.put("/api/planning/paydays", patch),
     onSuccess: () => {
       setMsg("Paydays saved — the Plan tab and projections now use your schedule.");
+      setErr(null);
       qc.invalidateQueries({ queryKey: ["planning", "paydays"] });
     },
     onError: (e) => setErr(e instanceof Error ? e.message : "Failed to save paydays."),
@@ -1250,7 +1251,12 @@ function PaydaysCard({ setMsg, setErr }: { setMsg: (s: string | null) => void; s
 
   function pickMode(mode: string) {
     setDraft({ ...eff, mode: mode as typeof eff.mode });
-    if (mode !== "days_of_month" || eff.days.length > 0) save.mutate({ mode });
+    // Only save immediately when the mode is complete — auto saves alone;
+    // interval/days_of_month wait for a value so server validation can't
+    // fire a spurious error that then lingers.
+    if (mode === "auto") save.mutate({ mode });
+    else if (mode === "interval" && eff.interval) save.mutate({ mode, interval: eff.interval });
+    else if (mode === "days_of_month" && eff.days.length > 0) save.mutate({ mode, days: eff.days });
   }
 
   function pickInterval(iv: string) {

@@ -118,9 +118,10 @@ export default function PlanPage() {
     mutationFn: (patch: Partial<PaydaySettings>) => api.put("/api/planning/paydays", patch),
     onSuccess: () => {
       // Don't close the editor — the user may be picking several days /
-      // intervals. They close it with "Done".
+      // intervals. They close it with "Done". Also clear any stale error.
       qc.invalidateQueries({ queryKey: ["planning", "paydays"] });
       setPaydayDraft(null);
+      setErr(null);
     },
     onError: (e) => setErr(e instanceof Error ? e.message : "Failed to save paydays."),
   });
@@ -444,7 +445,15 @@ export default function PlanPage() {
                   type="button"
                   onClick={() => {
                     setPaydayDraft({ ...effectivePaydays, mode });
-                    if (mode !== "days_of_month" || (effectivePaydays.days.length > 0)) setPaydays.mutate({ mode });
+                    // Only save immediately when the mode is complete: auto
+                    // saves alone; interval/days_of_month wait for a value so
+                    // the server's validation can't fire a spurious error.
+                    if (mode === "auto") setPaydays.mutate({ mode });
+                    else if (mode === "interval" && effectivePaydays.interval) {
+                      setPaydays.mutate({ mode, interval: effectivePaydays.interval });
+                    } else if (mode === "days_of_month" && effectivePaydays.days.length > 0) {
+                      setPaydays.mutate({ mode, days: effectivePaydays.days });
+                    }
                   }}
                   className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
                     effectivePaydays.mode === mode

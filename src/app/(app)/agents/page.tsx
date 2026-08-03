@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { PairingSection } from "@/components/pairing-section";
 import { isSoloCandidate } from "@/lib/mobile-mode";
 
 /* ── types ─────────────────────────────────────────────────────────────── */
@@ -235,8 +236,13 @@ export default function AgentsPage() {
             <CardTitle>On this phone, agents connect through a hub</CardTitle>
             <ol className="mt-3 list-inside list-decimal space-y-2 text-sm text-text">
               <li>
-                In <strong className="text-text">Settings → Hub &amp; phone pairing</strong>, scan the QR code from a
-                computer running Open Finance (or enter its URL). This pairs your phone to that hub.
+                <div className="inline">
+                  <strong className="text-text">Pair with a hub</strong> — scan the QR code a computer running Open
+                  Finance shows on its pair page (or type its URL) right here:
+                </div>
+                <div className="mt-2">
+                  <PairingSection compact />
+                </div>
               </li>
               <li>
                 On the hub (computer), open its <strong className="text-text">Agents</strong> tab and follow this
