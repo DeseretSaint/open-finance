@@ -1,0 +1,24 @@
+name: android
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      cap_server_url:
+        description: "Hub URL for a connected APK (e.g. http://192.168.1.10:3000). Empty = bundled/solo build."
+        type: string
+        required: false
+        default: ""
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    uses: ./.github/workflows/apk-build.yml
+    with:
+      cap_server_url: ${{ inputs.cap_server_url || '' }}
+    secrets: inherit

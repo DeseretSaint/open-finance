@@ -1,0 +1,54 @@
+export type PlaidEnvironment = "sandbox" | "production";
+
+export interface PlaidCreds {
+  clientId: string;
+  secret: string;
+  environment: PlaidEnvironment;
+}
+
+export interface PlaidAccount {
+  id: string;
+  name: string;
+  officialName: string | null;
+  type: string;
+  subtype: string | null;
+  mask: string | null;
+  currentBalanceCents: number | null;
+  availableBalanceCents: number | null;
+  currency: string;
+}
+
+export interface PlaidTransaction {
+  id: string;
+  accountId: string;
+  amountCents: number; // Plaid sign: positive = money out (debit)
+  date: string;
+  authorizedDate: string | null;
+  name: string;
+  merchantName: string | null;
+  categoryPath: string | null;
+  personalFinanceCategory: string | null;
+  pending: boolean;
+}
+
+export interface PlaidSyncResult {
+  added: PlaidTransaction[];
+  modified: PlaidTransaction[];
+  removed: { transactionId: string }[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+/** All Plaid calls go through this interface so tests can inject a fake and
+ *  the Android native plugin can implement the same surface in P8b. */
+export interface PlaidClient {
+  createLinkToken(creds: PlaidCreds, clientUserId: string): Promise<string>;
+  exchangePublicToken(
+    creds: PlaidCreds,
+    publicToken: string
+  ): Promise<{ accessToken: string; itemId: string }>;
+  getAccounts(creds: PlaidCreds, accessToken: string): Promise<PlaidAccount[]>;
+  syncTransactions(creds: PlaidCreds, accessToken: string, cursor: string | null): Promise<PlaidSyncResult>;
+  removeItem(creds: PlaidCreds, accessToken: string): Promise<void>;
+  testCredentials(creds: PlaidCreds): Promise<{ ok: boolean; message?: string }>;
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "open-finance",
+  "product": "Open Finance",
+  "version": "0.1.0",
+  "description": "Self-hosted, open-source personal finance app. Bring your own Plaid keys (or none), bring your own agent.",
+  "license": "MIT",
+  "repository": "https://github.com/DeseretSaint/open-finance",
+  "agent": {
+    "mcp": {
+      "stdio": "node dist/mcp-cli.mjs --url <URL> --token <TOKEN>",
+      "http": "/mcp",
+      "auth": "Bearer <agent token>"
+    },
+    "endpoints": {
+      "summary": "/api/agent/summary",
+      "capabilities": "/api/agent/capabilities",
+      "events": "/api/agent/events",
+      "openapi": "/api/openapi.json"
+    },
+    "scopes": [
+      "read:summary",
+      "read:banking",
+      "read:investments",
+      "read:budgets",
+      "read:planning",
+      "read:reports",
+      "transactions:edit",
+      "budgets:write",
+      "planning:write",
+      "categories:write",
+      "settings:write",
+      "sync:run",
+      "dev:ui"
+    ],
+    "defaultPreset": "read-only",
+    "permissionModel": "read-only by default; every scope (including investments) grantable; insufficient_scope triggers an in-app Grant/Deny request; all calls audited"
+  },
+  "docs": {
+    "plan": "docs/PLAN.md",
+    "design": "docs/DESIGN.md",
+    "agentGuide": "docs/AGENTS.md"
+  }
+}

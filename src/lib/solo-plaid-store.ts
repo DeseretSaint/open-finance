@@ -1,0 +1,71 @@
+"use client";
+
+/**
+ * Solo Plaid state (P8b) — device-local credential + item storage.
+ *
+ * In solo mode there is no server to encrypt/store Plaid keys, so they live
+ * in the device's localStorage (the same trust boundary as the local SQLite
+ * DB — keys never leave the phone). The native PlaidProxy plugin does the
+ * actual Plaid REST calls with creds passed per-call.
+ *
+ * Items are stored as a lightweight list (id, institution, environment,
+ * access token) so the UI can show what's linked and re-sync via the proxy.
+ */
+
+export interface SoloPlaidCreds {
+  clientId: string;
+  secret: string;
+  environment: "sandbox" | "production";
+  updatedAt: string;
+}
+
+export interface SoloPlaidItem {
+  id: string;
+  institutionName: string | null;
+  environment: string;
+  accessToken: string;
+  linkedAt: string;
+  accounts: Array<{ id: string; name: string; type: string | null; mask: string | null }>;
+}
+
+const CREDS_KEY = "of-solo-plaid-creds";
+const ITEMS_KEY = "of-solo-plaid-items";
+
+function read<T>(key: string): T | null {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+function write(key: string, value: unknown): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* storage full / private mode — ignore */
+  }
+}
+
+export function getSoloPlaidCreds(): SoloPlaidCreds | null {
+  return read<SoloPlaidCreds>(CREDS_KEY);
+}
+
+export function setSoloPlaidCreds(creds: SoloPlaidCreds): void {
+  write(CREDS_KEY, creds);
+}
+
+export function getSoloPlaidItems(): SoloPlaidItem[] {
+  return read<SoloPlaidItem[]>(ITEMS_KEY) ?? [];
+}
+
+export function addSoloPlaidItem(item: SoloPlaidItem): void {
+  const items = getSoloPlaidItems().filter((i) => i.id !== item.id);
+  items.unshift(item);
+  write(ITEMS_KEY, items);
+}
+
+export function removeSoloPlaidItem(id: string): void {
+  write(ITEMS_KEY, getSoloPlaidItems().filter((i) => i.id !== id));
+}

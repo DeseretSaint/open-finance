@@ -1,0 +1,40 @@
+# dependencies / build
+node_modules/
+.next/
+out/
+dist/
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# runtime data
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# env & secrets
+.env
+.env.*
+!.env.example
+android/key.properties
+*.keystore
+*.jks
+
+# tests
+coverage/
+playwright-report/
+test-results/
+
+# misc
+.DS_Store
+*.log
+
+# Capacitor / Android build outputs
+android/app/build/
+android/.gradle/
+android/local.properties
+android/capacitor-cordova-android-plugins/build/
+android/.cxx/
+*.apk
+android/app/src/main/assets/

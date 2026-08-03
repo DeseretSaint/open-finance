@@ -1,0 +1,102 @@
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { api } from "@/lib/api-client";
+import { Sidebar } from "@/components/sidebar";
+import { OfflineToast } from "@/components/offline-toast";
+import { DeviceLockGate } from "@/components/device-lock-gate";
+import { UpdateBanner } from "@/components/update-banner";
+import { OnboardingWizard } from "@/components/onboarding-wizard";
+
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const { data, isLoading } = useQuery({
+    queryKey: ["me"],
+    queryFn: () => api.get<{ user: { display_name: string; username: string | null; is_demo?: boolean } }>("/api/auth/me"),
+  });
+  const onboarding = useQuery({
+    queryKey: ["onboarding"],
+    queryFn: () => api.get<{ completed: boolean }>("/api/onboarding"),
+    enabled: !!data,
+  });
+
+  useEffect(() => {
+    if (!isLoading && !data) router.replace("/login");
+  }, [isLoading, data, router]);
+
+  // P11: keep the on-device status notification schedule fresh on every launch
+  // (native only — the plugin is a no-op elsewhere).
+  useEffect(() => {
+    if (!data || onboarding.data?.completed === false) return;
+    if (typeof window === "undefined") return;
+    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    if (!cap?.isNativePlatform?.()) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const prefs = await api.get<{ notifEnabled: boolean; notifFrequency: "daily" | "weekly"; notifTime: string }>(
+          "/api/notifications/prefs"
+        );
+        if (cancelled || !prefs.notifEnabled) return;
+        const { syncNotificationSchedule } = await import("@/lib/solo-notifications");
+        const { getSoloDb } = await import("@/lib/solo-router");
+        const db = await getSoloDb();
+        await syncNotificationSchedule(db, {
+          enabled: prefs.notifEnabled,
+          frequency: prefs.notifFrequency,
+          time: prefs.notifTime,
+        });
+      } catch {
+        /* best-effort */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.user.display_name, onboarding.data?.completed]);
+
+  if (isLoading || !data) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-background text-text-muted">
+        Loading…
+      </div>
+    );
+  }
+
+  // First-run walkthrough: gate the app until onboarding completes. Demo users
+  // skip it (the demo route marks onboarding complete + is_demo flag).
+  if (onboarding.isLoading) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-background text-text-muted">
+        Loading…
+      </div>
+    );
+  }
+  const isDemo = data.user.is_demo === true;
+  if (!isDemo && !onboarding.data?.completed) {
+    return <OnboardingWizard />;
+  }
+
+  return (
+    <DeviceLockGate>
+      <div
+        className="flex min-h-dvh bg-background text-text md:h-dvh md:overflow-hidden"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
+        <Sidebar />
+        <main className="flex-1 overflow-y-auto px-4 pb-24 pt-4 md:p-8">
+          <header className="mb-4 md:mb-6">
+            <h2 className="text-sm text-text-muted">Welcome back,</h2>
+            <h1 className="text-2xl font-bold">{data.user.display_name}</h1>
+          </header>
+          {children}
+          <OfflineToast />
+        </main>
+      </div>
+      <UpdateBanner />
+    </DeviceLockGate>
+  );
+}

@@ -1,0 +1,60 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Migration bundle parity (solo schema == migrations/)
+        run: pnpm check:migrations
+
+      - name: Unit & integration tests
+        env:
+          ENCRYPTION_KEY: ci-test-encryption-key
+          AUTH_SECRET: ci-test-auth-secret
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+        env:
+          ENCRYPTION_KEY: build-time-dummy
+          AUTH_SECRET: build-time-dummy
+
+      - name: Design tokens lint
+        run: pnpm dlx @google/design.md lint docs/DESIGN.md
+
+      - name: Dependency audit
+        run: pnpm audit --prod
+
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

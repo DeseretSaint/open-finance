@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Open Finance — self-hosted, open-source personal finance app</title>
+  <meta name="description" content="Own your data. Bring your own Plaid keys — or track manually. Even bring your own AI agent — optional, but it's the headline. Desktop · hub · phone." />
+  <meta property="og:title" content="Open Finance — self-hosted, open-source personal finance" />
+  <meta property="og:description" content="Bring your own Plaid keys (or none — manual entry). Bring your own agent. SQLite everywhere: desktop solo · hub · phone." />
+  <meta property="og:image" content="https://deseretsaint.github.io/open-finance/og-image.png" />
+  <meta property="og:type" content="website" />
+  <link rel="canonical" href="https://deseretsaint.github.io/open-finance/" />
+  <style>
+    :root {
+      --accent: #10B981;
+      --bg: #FAFAF9;
+      --surface: #FFFFFF;
+      --border: #E7E5E4;
+      --text: #1C1917;
+      --muted: #78716C;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      background: var(--bg); color: var(--text);
+      line-height: 1.5; -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+    header { padding: 64px 0 24px; text-align: center; }
+    .logo {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 64px; height: 64px; border-radius: 20px;
+      background: var(--accent); color: #fff; font-size: 32px; font-weight: 700;
+    }
+    h1 { font-size: clamp(2rem, 5vw, 3.2rem); letter-spacing: -0.02em; margin-top: 20px; }
+    .sub { color: var(--muted); font-size: 1.15rem; max-width: 640px; margin: 16px auto 0; }
+    .cta { margin-top: 32px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      display: inline-block; padding: 12px 28px; border-radius: 12px;
+      font-weight: 600; text-decoration: none; font-size: 0.95rem;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-ghost { border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin: 64px 0; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 28px;
+    }
+    .card h3 { font-size: 1.05rem; margin-bottom: 8px; }
+    .card p { color: var(--muted); font-size: 0.92rem; }
+    .tag { color: var(--accent); font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+    section.byoa {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 20px; padding: 48px 32px; margin: 48px 0;
+    }
+    section.byoa h2 { font-size: 1.6rem; letter-spacing: -0.01em; }
+    section.byoa ul { margin-top: 16px; padding-left: 20px; color: var(--muted); display: grid; gap: 8px; }
+    footer { padding: 40px 0 64px; color: var(--muted); font-size: 0.85rem; text-align: center; }
+    footer a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">₿</div>
+      <h1>Open Finance</h1>
+      <p class="sub">The finance app that lets you <strong>bring your own agent</strong> — and asks permission before it looks anywhere. Self-hosted, open source, MIT.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="https://github.com/DeseretSaint/open-finance">Get started</a>
+        <a class="btn btn-ghost" href="https://github.com/DeseretSaint/open-finance">View on GitHub</a>
+      </div>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <span class="tag">Desktop</span>
+        <h3>Your machine, your data</h3>
+        <p>A SQLite file on your computer. Launcher opens localhost; installable as a PWA. We run nothing.</p>
+      </div>
+      <div class="card">
+        <span class="tag">Hub</span>
+        <h3>Host for your phone</h3>
+        <p>One question, three cards: same Wi-Fi, anywhere via Tailscale, or your own domain. Pair by QR — no env editing.</p>
+      </div>
+      <div class="card">
+        <span class="tag">Phone</span>
+        <h3>Solo on the go</h3>
+        <p>Manual entry works without any bank connection. Plaid optional, everywhere.</p>
+      </div>
+    </div>
+
+    <section class="byoa">
+      <span class="tag">Android APK</span>
+      <h2>Download for Android</h2>
+      <p style="margin-top:12px; color:var(--muted); font-size:0.95rem;">
+        Grab the latest APK straight from GitHub Releases — no store account, no sign-up, no tracking.
+        Built from source by GitHub Actions, checksummed, and MIT licensed.
+      </p>
+      <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+        <a class="btn btn-primary" href="https://github.com/DeseretSaint/open-finance/releases/latest">Download APK</a>
+        <a class="btn btn-ghost" href="https://github.com/DeseretSaint/open-finance/releases">All releases</a>
+        <span style="color:var(--muted); font-size:0.82rem;">Verify with the SHA256SUMS file on the release page.</span>
+      </div>
+    </section>
+
+    <section class="byoa">
+      <span class="tag">Bring Your Own Agent</span>
+      <h2>The feature you don't have to use</h2>
+      <ul>
+        <li><strong>Read-only by default.</strong> Your agent starts with no reach beyond a summary of your accounts.</li>
+        <li><strong>You control every read and write</strong> — including investments — and you can change it anytime.</li>
+        <li><strong>It asks before it looks anywhere.</strong> Missing permission? The app asks you: Grant or Deny.</li>
+      </ul>
+      <p style="margin-top:20px; color:var(--muted); font-size:0.92rem;">Works with MCP-capable agents: Hermes, OpenClaw, Claude Desktop, Cursor, and custom scripts. No agent? Everything works without one.</p>
+    </section>
+
+    <footer>
+      <p>MIT licensed · <a href="https://github.com/DeseretSaint/open-finance">github.com/DeseretSaint/open-finance</a></p>
+      <p style="margin-top:8px;">Own your data. Bring your own Plaid keys — or track manually. Bring your own agent.</p>
+    </footer>
+  </div>
+</body>
+</html>

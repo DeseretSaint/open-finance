@@ -1,0 +1,114 @@
+name: apk-build
+
+on:
+  workflow_call:
+    inputs:
+      cap_server_url:
+        description: "CAP_SERVER_URL for a connected APK (hub URL). Empty = bundled/solo build."
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web bundle
+        run: pnpm build
+        env:
+          ENCRYPTION_KEY: build-time-dummy
+          AUTH_SECRET: build-time-dummy
+
+      - name: Build mobile solo export (dist/mobile)
+        run: node scripts/build-mobile.mjs
+        env:
+          ENCRYPTION_KEY: build-time-dummy
+          AUTH_SECRET: build-time-dummy
+
+      - name: Prepare mobile web assets (solo export or connected URL)
+        env:
+          CAP_SERVER_URL: ${{ inputs.cap_server_url }}
+        run: |
+          if [ -n "$CAP_SERVER_URL" ]; then
+            # Connected build: webview loads the hub; webDir only needs to exist.
+            mkdir -p dist/mobile
+            echo '<!doctype html><html><body>Open Finance</body></html>' > dist/mobile/index.html
+            echo "connected build → webview loads $CAP_SERVER_URL"
+          else
+            echo "solo build → bundled app in dist/mobile"
+          fi
+          test -f dist/mobile/index.html && echo "webDir OK: dist/mobile/index.html"
+
+      - name: Prepare Capacitor android project
+        env:
+          CAP_SERVER_URL: ${{ inputs.cap_server_url }}
+        run: |
+          npx cap sync android
+          npx cap copy android
+
+      - name: Grant gradle wrapper permission
+        run: chmod +x android/gradlew
+
+      - name: Assemble debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Sign release APK (guarded — needs secrets)
+        if: ${{ env.ANDROID_KEYSTORE_B64 != '' }}
+        run: |
+          echo "$ANDROID_KEYSTORE_B64" | base64 -d > android/keystore.jks
+          ./android/gradlew -p android assembleRelease \
+            -Pandroid.injected.signing.store.file=keystore.jks \
+            -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$ANDROID_KEYSTORE_PASSWORD" \
+            --no-daemon
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-finance-apks
+          path: |
+            android/app/build/outputs/apk/debug/*.apk
+            android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: warn
+
+      - name: Compute SHA256SUMS
+        if: ${{ !cancelled() }}
+        working-directory: android/app/build/outputs/apk
+        run: |
+          find . -name "*.apk" -exec sha256sum {} \; | tee SHA256SUMS
+
+      - name: Upload SHA256SUMS
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: SHA256SUMS
+          path: android/app/build/outputs/apk/SHA256SUMS
+          if-no-files-found: warn
