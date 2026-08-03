@@ -23,11 +23,24 @@ import { getDb } from "@/server/db/registry";
  */
 
 /** Valid tab keys, in UI order (matches the app's navigation). */
-export const AGENT_TABS = ["dashboard", "accounts", "activity", "budgets"] as const;
+export const AGENT_TABS = [
+  "dashboard",
+  "accounts",
+  "activity",
+  "budgets",
+  "reports",
+  "planning",
+  "agents",
+  "settings",
+] as const;
 export type AgentTab = (typeof AGENT_TABS)[number];
 
-/** Allowed categorization-backlog values (months). */
-export const CATEGORIZE_BACKLOGS = [1, 3, 6, 12] as const;
+/**
+ * Allowed categorization-backlog values (months). 0 = no backlog — the
+ * agent works on new/uncategorized transactions as they come in (moving
+ * forward) instead of reaching back into history. Default is 1 month.
+ */
+export const CATEGORIZE_BACKLOGS = [0, 1, 3, 6, 12] as const;
 export const DEFAULT_CATEGORIZE_BACKLOG = 1;
 
 /** Read scopes granted per tab. */
@@ -37,14 +50,24 @@ const TAB_SCOPES: Record<AgentTab, string[]> = {
   accounts: ["read:banking", "read:investments"],
   activity: ["read:banking"],
   budgets: ["read:budgets"],
+  reports: ["read:reports"],
+  planning: ["read:planning"],
+  // The Agents tab shows the agent its own tokens/audit — the meaningful
+  // grant for an agent is app-level read (dashboard summary).
+  agents: ["read:summary"],
+  settings: ["read:summary"],
 };
 
-/** Write scopes granted per tab. */
+/** Write scopes granted per tab. Tabs without write scopes are read-only. */
 const TAB_WRITE_SCOPES: Record<AgentTab, string[]> = {
   dashboard: ["settings:write"],
   accounts: ["sync:run"],
   activity: ["transactions:edit"],
   budgets: ["budgets:write"],
+  reports: [],
+  planning: ["planning:write"],
+  agents: [],
+  settings: ["settings:write"],
 };
 
 const ALL_READ_SCOPES = Array.from(new Set(Object.values(TAB_SCOPES).flat()));

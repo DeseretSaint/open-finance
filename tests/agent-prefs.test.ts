@@ -97,6 +97,34 @@ describe("agent prefs (per-tab access tiers)", () => {
     expect((await svc.get(user.id)).categorizeBacklogMonths).toBe(1);
   });
 
+  it("backlog 0 (moving-forward mode) is allowed (issue #18)", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const svc = createAgentPrefsService(db);
+    await svc.update(user.id, { categorizeBacklogMonths: 0 });
+    expect((await svc.get(user.id)).categorizeBacklogMonths).toBe(0);
+  });
+
+  it("new tabs (reports/planning/agents/settings) grant the right scopes (issue #17)", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const svc = createAgentPrefsService(db);
+    await svc.update(user.id, {
+      tabs: ["reports", "planning", "agents", "settings"],
+      tabsWrite: ["planning"],
+    });
+    const prefs = await svc.get(user.id);
+    const caps = capScopes(prefs);
+    expect(caps).toContain("read:reports");
+    expect(caps).toContain("read:planning");
+    expect(caps).toContain("planning:write");
+    // Reports + Agents have no write scopes — even if requested.
+    expect(caps).not.toContain("reports:write");
+    // tabsWrite is validated against AGENT_TABS (all 8 accepted).
+    expect(prefs.tabs).toEqual(["reports", "planning", "agents", "settings"]);
+    expect(prefs.tabsWrite).toEqual(["planning"]);
+  });
+
   it("global grants read AND write everywhere", async () => {
     const db = createTestDb();
     const user = await seedUser(db);

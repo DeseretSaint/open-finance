@@ -4,7 +4,7 @@
   "description": "Self-hosted, open-source personal finance app. Bring your own Plaid keys — or track manually. Bring your own agent.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#FAFAF9",
+  "background_color": "#0C0A09",
   "theme_color": "#10B981",
   "icons": [
     {

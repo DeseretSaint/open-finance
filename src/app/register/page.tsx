@@ -153,7 +153,7 @@ export default function RegisterPage() {
                   onChange={(e) => setPassword(e.target.value)}
                 />
                 <ul className="mt-1.5 list-inside list-disc space-y-0.5 text-xs text-text-muted">
-                  <li className={password.length >= 10 ? "text-success" : undefined}>At least 10 characters</li>
+                  <li>Anything you&apos;ll remember — no minimum length</li>
                   <li>Not your username or a common password</li>
                 </ul>
               </div>
@@ -166,7 +166,7 @@ export default function RegisterPage() {
           )}
           <Button
             type="submit"
-            disabled={busy || (!solo && (!username || password.length < 10))}
+            disabled={busy || (!solo && (!username || !password))}
             className="w-full"
             size="lg"
           >

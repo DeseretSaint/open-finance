@@ -186,8 +186,9 @@ const TOOLS: ToolDef[] = [
     description:
       "Transactions with no category yet, or with a generic/unclear name (for smart categorization). " +
       "When the user has enabled 'smart categorization', use set_transaction_category for the ones you are confident " +
-      "about and LEAVE the ambiguous ('gray area') ones alone. Only transactions within the user's categorization " +
-      "backlog window are returned (default 1 month back; see access.categorizeBacklogMonths). " +
+      "about and LEAVE the ambiguous ('gray area') ones alone. A categorization backlog window is optional: with " +
+      "access.categorizeBacklogMonths = 0 the user wants you to work on NEW transactions moving forward (no history " +
+      "reach-back); otherwise only transactions within that many months back are returned (default 1). " +
       "Params: limit (default 50), includeGeneric (default true).",
     inputSchema: jsonSchema({
       limit: z.number().int().min(1).max(200).optional(),
@@ -208,16 +209,27 @@ const TOOLS: ToolDef[] = [
         };
       }
       const txns = createTransactionsService(getDb());
-      // Restrict to the user's categorization backlog (default 1 month).
-      const since = new Date();
-      since.setMonth(since.getMonth() - prefs.categorizeBacklogMonths);
-      const { rows } = await txns.list(auth.userId, {
+      const filters: {
+        categoryId: null;
+        from?: string;
+        limit: number;
+        offset: number;
+        accountIds?: string[] | null;
+      } = {
         categoryId: null,
-        from: since.toISOString().slice(0, 10),
         limit: limit ?? 50,
         offset: 0,
         accountIds: auth.accountIds,
-      });
+      };
+      // backlogMonths 0 = moving-forward mode: no history window, list the
+      // newest uncategorized transactions so the agent can categorize as they
+      // come in. Otherwise restrict to the user's backlog window.
+      if (prefs.categorizeBacklogMonths > 0) {
+        const since = new Date();
+        since.setMonth(since.getMonth() - prefs.categorizeBacklogMonths);
+        filters.from = since.toISOString().slice(0, 10);
+      }
+      const { rows } = await txns.list(auth.userId, filters);
       const generic = includeGeneric === false ? [] : rows.filter((r) => /^(purchase|payment|pos|debit|card|withdrawal|transfer|misc|other|internet|online)\b/i.test(r.name));
       return { uncategorized: rows, generic: generic.map((r) => r.id), backlogMonths: prefs.categorizeBacklogMonths };
     },

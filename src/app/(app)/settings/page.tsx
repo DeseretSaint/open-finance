@@ -3,14 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlaidLink } from "react-plaid-link";
-import { Moon, Sun } from "lucide-react";
+import jsQR from "jsqr";
+import { Moon, Sun, ExternalLink } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input, Select } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { CustomTimePicker } from "@/components/ui/custom-time-picker";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useTheme } from "@/components/providers";
+import { isSoloCandidate } from "@/lib/mobile-mode";
+import { storeHubUrl } from "@/lib/mobile-storage";
 import { UpdatesCard } from "@/components/updates-card";
 
 interface Me {
@@ -19,7 +24,8 @@ interface Me {
 
 export default function SettingsPage() {
   const qc = useQueryClient();
-  const { accent, setAccent, accents, dark, setDark, compact, setCompact } = useTheme();
+  const { accent, setAccent, accents, dark, setDark, density, setDensity, densities } = useTheme();
+  const [solo, setSolo] = useState(false);
 
   const me = useQuery({ queryKey: ["me"], queryFn: () => api.get<Me>("/api/auth/me") });
   const sessions = useQuery({ queryKey: ["sessions"], queryFn: () => api.get<{ sessions: Array<{ id: string; device_label: string; created_at: string; current: boolean }> }>("/api/auth/sessions") });
@@ -28,6 +34,19 @@ export default function SettingsPage() {
 
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [confirmLogoutAll, setConfirmLogoutAll] = useState(false);
+  const [confirmRemoveItem, setConfirmRemoveItem] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") setSolo(isSoloCandidate(window.location.origin));
+  }, []);
+
+  // Issue #21: status messages auto-dismiss and never linger across visits.
+  useEffect(() => {
+    if (!msg) return;
+    const t = setTimeout(() => setMsg(null), 5000);
+    return () => clearTimeout(t);
+  }, [msg]);
 
   // display name
   const [displayName, setDisplayName] = useState("");
@@ -68,6 +87,7 @@ export default function SettingsPage() {
   const [environment, setEnvironment] = useState<"sandbox" | "production">("sandbox");
   const [linkToken, setLinkToken] = useState<string | null>(null);
   const [linking, setLinking] = useState(false);
+  const [showPlaidHelp, setShowPlaidHelp] = useState(false);
 
   const saveCreds = useMutation({
     mutationFn: () => api.put("/api/plaid/credentials", { clientId, secret, environment }),
@@ -117,20 +137,31 @@ export default function SettingsPage() {
           </Button>
         </form>
 
-        <h4 className="mt-6 text-sm font-semibold text-text">Change password</h4>
-        <form
-          className="mt-2 space-y-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            changePassword.mutate();
-          }}
-        >
-          <Input type="password" placeholder="Current password" value={cur} onChange={(e) => setCur(e.target.value)} />
-          <Input type="password" placeholder="New password (10+ chars)" value={next} onChange={(e) => setNext(e.target.value)} />
-          <Button type="submit" variant="secondary" disabled={changePassword.isPending || !cur || !next}>
-            Change password
-          </Button>
-        </form>
+        {solo ? (
+          <div className="mt-6 rounded-xl bg-surface-muted px-4 py-3 text-xs text-text-muted">
+            This phone is protected by your <strong className="text-text">device PIN</strong> (and optionally
+            fingerprint / face) instead of a password. To change it, use{" "}
+            <strong className="text-text">Reset PIN</strong> in Notifications &amp; security below — you&apos;ll need
+            your recovery code.
+          </div>
+        ) : (
+          <>
+            <h4 className="mt-6 text-sm font-semibold text-text">Change password</h4>
+            <form
+              className="mt-2 space-y-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                changePassword.mutate();
+              }}
+            >
+              <Input type="password" placeholder="Current password" value={cur} onChange={(e) => setCur(e.target.value)} />
+              <Input type="password" placeholder="New password" value={next} onChange={(e) => setNext(e.target.value)} />
+              <Button type="submit" variant="secondary" disabled={changePassword.isPending || !cur || !next}>
+                Change password
+              </Button>
+            </form>
+          </>
+        )}
       </Card>
 
       <NotificationsSecurityCard setMsg={setMsg} setErr={setErr} />
@@ -156,7 +187,7 @@ export default function SettingsPage() {
             </div>
           ))}
         </div>
-        <Button variant="ghost" size="sm" className="mt-3 text-danger" onClick={() => logoutAll.mutate()}>
+        <Button variant="ghost" size="sm" className="mt-3 text-danger" onClick={() => setConfirmLogoutAll(true)}>
           Sign out everywhere
         </Button>
       </Card>
@@ -164,8 +195,64 @@ export default function SettingsPage() {
       <Card className="lg:col-span-2">
         <CardTitle>Bank connections</CardTitle>
         <p className="mt-1 text-sm text-text-muted">
-          Open Finance connects to your bank through Plaid. Paste your free connection keys — they&apos;re encrypted on this device and only ever leave it to talk to your bank.
+          Open Finance connects to your bank through Plaid. Paste your free connection keys — they&apos;re encrypted on
+          this device and only ever leave it to talk to your bank. No keys? No problem — track everything manually and
+          add banks later.
         </p>
+
+        {/* Issue #19: optional guided setup with the correct links */}
+        <div className="mt-3">
+          {!showPlaidHelp ? (
+            <button
+              type="button"
+              onClick={() => setShowPlaidHelp(true)}
+              className="flex items-center gap-1.5 text-sm font-medium text-accent transition-colors hover:underline"
+            >
+              <ExternalLink size={14} aria-hidden /> Need keys? Walk me through getting them
+            </button>
+          ) : (
+            <div className="rounded-xl border border-border bg-surface-muted/50 p-4 text-sm">
+              <div className="flex items-start justify-between gap-3">
+                <p className="font-medium text-text">Getting free Plaid keys</p>
+                <button
+                  type="button"
+                  onClick={() => setShowPlaidHelp(false)}
+                  className="text-xs text-text-muted transition-colors hover:text-text"
+                >
+                  Hide
+                </button>
+              </div>
+              <ol className="mt-2 list-inside list-decimal space-y-1.5 text-text-muted">
+                <li>
+                  Create a free account at{" "}
+                  <a href="https://dashboard.plaid.com/signup" target="_blank" rel="noreferrer" className="font-medium text-accent">
+                    dashboard.plaid.com/signup
+                  </a>{" "}
+                  (Plaid is free for development; production keys need a quick approval).
+                </li>
+                <li>
+                  Open{" "}
+                  <a href="https://dashboard.plaid.com/developers/keys" target="_blank" rel="noreferrer" className="font-medium text-accent">
+                    Dashboard → Developers → Keys
+                  </a>{" "}
+                  (dashboard.plaid.com/developers/keys).
+                </li>
+                <li>
+                  Copy the <strong className="text-text">Client ID</strong> and the{" "}
+                  <strong className="text-text">Secret</strong> for the environment you want — the{" "}
+                  <strong className="text-text">Sandbox</strong> secret starts with &ldquo;sandbox_&rdquo;, the{" "}
+                  <strong className="text-text">Production</strong> secret starts with &ldquo;production_&rdquo;.
+                </li>
+                <li>Paste them below and pick the matching environment, then tap &ldquo;Save &amp; check keys&rdquo;.</li>
+              </ol>
+              <p className="mt-2 text-xs text-text-muted">
+                Don&apos;t want to link a bank at all? Skip this entirely — manual tracking works everywhere and you can
+                add keys any time.
+              </p>
+            </div>
+          )}
+        </div>
+
         <div className="mt-4 flex flex-wrap items-end gap-3">
           <div className="min-w-48 flex-1">
             <label className="mb-1 block text-xs text-text-muted">Client ID</label>
@@ -173,14 +260,21 @@ export default function SettingsPage() {
           </div>
           <div className="min-w-48 flex-1">
             <label className="mb-1 block text-xs text-text-muted">Secret</label>
-            <Input type="password" placeholder="a1b2c3…" value={secret} onChange={(e) => setSecret(e.target.value)} />
+            <Input type="password" placeholder="sandbox_… / production_…" value={secret} onChange={(e) => setSecret(e.target.value)} />
           </div>
           <div className="min-w-32">
-            <label className="mb-1 block text-xs text-text-muted">Environment</label>
-            <Select value={environment} onChange={(e) => setEnvironment(e.target.value as "sandbox" | "production")}>
-              <option value="sandbox">Sandbox</option>
-              <option value="production">Production</option>
-            </Select>
+            <label id="plaid-env-label" className="mb-1 block text-xs text-text-muted">
+              Environment
+            </label>
+            <CustomSelect
+              ariaLabel="Plaid environment"
+              value={environment}
+              onChange={(v) => setEnvironment(v as "sandbox" | "production")}
+              options={[
+                { value: "sandbox", label: "Sandbox", hint: "test data" },
+                { value: "production", label: "Production", hint: "real banks" },
+              ]}
+            />
           </div>
           <Button
             variant="secondary"
@@ -239,7 +333,7 @@ export default function SettingsPage() {
                 <Badge className={it.status === "active" ? "bg-success/10 text-success" : "bg-danger/10 text-danger"}>
                   {it.status}
                 </Badge>
-                <button onClick={() => removeItem.mutate(it.id)} className="text-xs text-text-muted hover:text-danger">
+                <button onClick={() => setConfirmRemoveItem(it.id)} className="text-xs text-text-muted hover:text-danger">
                   Remove
                 </button>
               </span>
@@ -291,26 +385,40 @@ export default function SettingsPage() {
                 {dark ? <Sun size={14} aria-hidden /> : <Moon size={14} aria-hidden />}
                 {dark ? "Light mode" : "Dark mode"}
               </button>
-              <button
-                onClick={() => setCompact(!compact)}
-                className="flex h-9 items-center gap-2 rounded-full border px-3 text-xs font-medium transition-colors"
-                style={
-                  compact
-                    ? { borderColor: "var(--accent)", color: "var(--accent)", background: "var(--accent-soft)" }
-                    : { borderColor: "var(--border)", color: "var(--text-muted)" }
-                }
-                aria-pressed={compact}
-              >
-                Compact density
-              </button>
+              {/* Density — slider with set intervals (issue #20) */}
+              <div className="mt-4">
+                <div className="flex items-center justify-between text-xs font-medium text-text-muted">
+                  {densities.map((d) => (
+                    <span key={d.value} className={density === d.value ? "text-accent" : undefined}>
+                      {d.label}
+                    </span>
+                  ))}
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={densities.length - 1}
+                  step={1}
+                  value={densities.findIndex((d) => d.value === density)}
+                  onChange={(e) => setDensity(densities[Number(e.target.value)].value)}
+                  aria-label="Interface density"
+                  className="mt-1 h-2 w-full cursor-pointer appearance-none rounded-full bg-surface-muted accent-[var(--accent)]"
+                />
+                <p className="mt-1 text-xs text-text-muted">
+                  Current: <strong className="text-text">{densities.find((d) => d.value === density)?.label}</strong> (
+                  {density === 1 ? "default" : `${Math.round((1 - density) * 100)}% more compact`}) — the whole app
+                  scales together, so nothing overlaps.
+                </p>
+              </div>
             </div>
           </div>
 
-          {/* Live preview */}
+          {/* Live preview — renders sample UI at the selected density */}
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-text-muted">Preview</p>
             <div className="mt-2 rounded-xl border border-border bg-background p-3">
-              <div className="rounded-lg border border-border bg-surface p-3 shadow-[var(--shadow-card)]">
+              <div style={{ zoom: density }}>
+                <div className="rounded-lg border border-border bg-surface p-3 shadow-[var(--shadow-card)]">
                 <div className="flex items-center gap-2">
                   <span
                     className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold"
@@ -336,6 +444,7 @@ export default function SettingsPage() {
                 >
                   Primary action
                 </button>
+                </div>
               </div>
             </div>
           </div>
@@ -359,6 +468,32 @@ export default function SettingsPage() {
           {err}
         </p>
       )}
+
+      {/* Custom confirmations */}
+      <ConfirmDialog
+        open={confirmLogoutAll}
+        title="Sign out everywhere?"
+        message="Every device and browser session will be signed out. You'll need your password (or recovery code on the phone) to get back in."
+        confirmLabel="Sign out everywhere"
+        busy={logoutAll.isPending}
+        onCancel={() => setConfirmLogoutAll(false)}
+        onConfirm={() => {
+          setConfirmLogoutAll(false);
+          logoutAll.mutate();
+        }}
+      />
+      <ConfirmDialog
+        open={confirmRemoveItem !== null}
+        title="Remove this bank connection?"
+        message="The link to this institution will be removed. Synced transactions stay in the app."
+        confirmLabel="Remove"
+        busy={removeItem.isPending}
+        onCancel={() => setConfirmRemoveItem(null)}
+        onConfirm={() => {
+          if (confirmRemoveItem) removeItem.mutate(confirmRemoveItem);
+          setConfirmRemoveItem(null);
+        }}
+      />
     </div>
   );
 }
@@ -497,23 +632,20 @@ function NotificationsSecurityCard({ setMsg, setErr }: { setMsg: (s: string | nu
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-sm text-text-muted">
               Frequency
-              <Select
+              <CustomSelect
+                ariaLabel="Notification frequency"
+                className="w-36"
                 value={p.notifFrequency}
-                onChange={(e) => save({ notifFrequency: e.target.value as "daily" | "weekly" })}
-                className="w-32"
-              >
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-              </Select>
+                onChange={(v) => save({ notifFrequency: v as "daily" | "weekly" })}
+                options={[
+                  { value: "daily", label: "Daily" },
+                  { value: "weekly", label: "Weekly" },
+                ]}
+              />
             </label>
             <label className="flex items-center gap-2 text-sm text-text-muted">
               Time
-              <Input
-                type="time"
-                value={p.notifTime}
-                onChange={(e) => save({ notifTime: e.target.value })}
-                className="w-32"
-              />
+              <CustomTimePicker ariaLabel="Notification time" className="w-36" value={p.notifTime} onChange={(v) => save({ notifTime: v })} />
             </label>
           </div>
         )}
@@ -546,14 +678,16 @@ function NotificationsSecurityCard({ setMsg, setErr }: { setMsg: (s: string | nu
             />
             <label className="flex items-center gap-2 text-sm text-text-muted">
               Frequency
-              <Select
+              <CustomSelect
+                ariaLabel="Email digest frequency"
+                className="w-36"
                 value={p.emailFrequency}
-                onChange={(e) => save({ emailFrequency: e.target.value as "daily" | "weekly" })}
-                className="w-32"
-              >
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-              </Select>
+                onChange={(v) => save({ emailFrequency: v as "daily" | "weekly" })}
+                options={[
+                  { value: "daily", label: "Daily" },
+                  { value: "weekly", label: "Weekly" },
+                ]}
+              />
             </label>
           </div>
         )}
@@ -689,13 +823,25 @@ function AgentWiringCard() {
     accounts: "Accounts",
     activity: "Activity",
     budgets: "Budgets",
+    reports: "Reports",
+    planning: "Plan",
+    agents: "Agents",
+    settings: "Settings",
   };
-  const TAB_ORDER = ["dashboard", "accounts", "activity", "budgets"];
+  const TAB_ORDER = ["dashboard", "accounts", "activity", "budgets", "reports", "planning", "agents", "settings"];
   const tabs = p?.tabs ?? ["activity"];
+  const tabsWrite = p?.tabsWrite ?? [];
 
   function toggleTab(tab: string) {
     const next = tabs.includes(tab) ? tabs.filter((t) => t !== tab) : [...tabs, tab];
     setPref.mutate({ tabs: next.length > 0 ? next : ["activity"] });
+  }
+
+  function toggleWrite(tab: string) {
+    // Reports + Agents are read-only tabs — no write scope exists for them.
+    if (tab === "reports" || tab === "agents") return;
+    const next = tabsWrite.includes(tab) ? tabsWrite.filter((t) => t !== tab) : [...tabsWrite, tab];
+    setPref.mutate({ tabsWrite: next });
   }
 
   return (
@@ -718,41 +864,60 @@ function AgentWiringCard() {
               </p>
             </div>
           </div>
-          <div className="mt-3 space-y-2">
-            {TAB_ORDER.map((tab) => (
-              <label
-                key={tab}
-                className={`flex cursor-pointer items-center gap-2 text-sm transition-colors ${
-                  p?.global ? "cursor-not-allowed opacity-50" : tabs.includes(tab) ? "text-text" : "text-text-muted"
-                }`}
-              >
-                <span
-                  aria-hidden="true"
-                  className={`flex h-5 w-5 items-center justify-center rounded border transition-colors ${
-                    p?.global || tabs.includes(tab) ? "border-accent bg-accent text-[var(--accent-foreground)]" : "border-border bg-surface"
+          <div className="mt-3 space-y-1.5">
+            {TAB_ORDER.map((tab) => {
+              const readOn = p?.global || tabs.includes(tab);
+              const writeOn = p?.global || tabsWrite.includes(tab);
+              const readOnly = tab === "reports" || tab === "agents";
+              return (
+                <div
+                  key={tab}
+                  className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 ${
+                    readOn ? "border-border bg-surface" : "border-border/60 bg-surface-muted/40 opacity-70"
                   }`}
                 >
-                  {(p?.global || tabs.includes(tab)) && (
-                    <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M2 6.5L4.5 9L10 3" />
-                    </svg>
-                  )}
-                </span>
-                <input
-                  type="checkbox"
-                  className="sr-only"
-                  checked={p?.global || tabs.includes(tab)}
-                  disabled={!!p?.global}
-                  onChange={() => toggleTab(tab)}
-                />
-                {TAB_LABELS[tab]}
-              </label>
-            ))}
+                  <span className={`min-w-0 truncate text-sm ${readOn ? "font-medium text-text" : "text-text-muted"}`}>
+                    {TAB_LABELS[tab]}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    <button
+                      type="button"
+                      disabled={!!p?.global}
+                      onClick={() => toggleTab(tab)}
+                      aria-pressed={readOn}
+                      className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed ${
+                        readOn
+                          ? "border-accent bg-accent/10 text-accent"
+                          : "border-border text-text-muted hover:text-text"
+                      }`}
+                    >
+                      Read
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!!p?.global || readOnly}
+                      onClick={() => toggleWrite(tab)}
+                      aria-pressed={writeOn}
+                      title={readOnly ? `${TAB_LABELS[tab]} is read-only` : "Allow the agent to write here (with approval)"}
+                      className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed ${
+                        writeOn
+                          ? "border-accent bg-accent text-[var(--accent-foreground)]"
+                          : readOnly
+                            ? "border-border/50 text-text-muted/50"
+                            : "border-border text-text-muted hover:text-text"
+                      }`}
+                    >
+                      Write
+                    </button>
+                  </span>
+                </div>
+              );
+            })}
           </div>
           <p className="mt-2 text-xs text-text-muted">
             {p?.global
-              ? "Full access is on — it can see everything."
-              : `It can see: ${tabs.map((t) => TAB_LABELS[t]).join(", ") || "nothing"}`}
+              ? "Full access is on — it can see and change everything."
+              : `Reads: ${tabs.map((t) => TAB_LABELS[t]).join(", ") || "none"} · Writes: ${tabsWrite.map((t) => TAB_LABELS[t]).join(", ") || "none (asks approval for each)"}`}
           </p>
         </div>
 
@@ -769,16 +934,21 @@ function AgentWiringCard() {
                 Categorize back:
                 <CustomSelect
                   ariaLabel="Categorization backlog"
-                  className="w-48"
+                  className="w-52"
                   value={String(p?.categorizeBacklogMonths ?? 1)}
                   onChange={(v) => setPref.mutate({ categorizeBacklogMonths: Number(v) })}
                   options={[
+                    { value: "0", label: "None — just new ones", hint: "moving forward" },
                     { value: "1", label: "1 month", hint: "recommended" },
                     { value: "3", label: "3 months" },
                     { value: "6", label: "6 months" },
                     { value: "12", label: "1 year" },
                   ]}
                 />
+                <span className="max-w-56">
+                  Backlog is optional — with &ldquo;None&rdquo; the agent only categorizes new transactions as they
+                  come in.
+                </span>
               </label>
             )}
           </div>
@@ -989,8 +1159,18 @@ function AgentWiringCard() {
 
 function HubPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; setErr: (s: string | null) => void }) {
   const qc = useQueryClient();
+  const [solo, setSolo] = useState(false);
   const [mode, setMode] = useState<"solo" | "hub">("solo");
   const [hubUrl, setHubUrl] = useState("");
+  // Phone → computer hub pairing (issue #16): camera QR scan.
+  const [scanning, setScanning] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [scanErr, setScanErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") setSolo(isSoloCandidate(window.location.origin));
+  }, []);
 
   const diagnostics = useQuery({
     queryKey: ["hub", "diagnostics"],
@@ -1031,8 +1211,153 @@ function HubPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; setE
     onError: (e) => setErr(e instanceof Error ? e.message : "Failed."),
   });
 
+  /** Connect this phone to a hub: remember its URL, then load its /pair page. */
+  function connectToHub(url: string) {
+    const trimmed = url.trim().replace(/\/+$/, "");
+    if (!/^https?:\/\/.+\..+/.test(trimmed)) {
+      setErr("That doesn't look like a hub URL — it should start with http:// and include the port, e.g. http://192.168.1.20:3000");
+      return;
+    }
+    setErr(null);
+    void storeHubUrl(trimmed);
+    // The hub serves its own /pair page; accept runs on the hub's origin, so
+    // the session cookie + stored hub URL wire the app into connected mode.
+    window.location.href = `${trimmed}/pair`;
+  }
+
+  // Camera QR scan loop (jsQR) — scans the QR shown on the computer hub.
+  useEffect(() => {
+    if (!scanning) return;
+    let stream: MediaStream | null = null;
+    let raf = 0;
+    let stopped = false;
+
+    async function start() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        if (stopped || !videoRef.current) return;
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+        tick();
+      } catch {
+        setScanErr("Camera unavailable — type the hub URL below instead.");
+        setScanning(false);
+      }
+    }
+
+    function tick() {
+      if (stopped) return;
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (video && canvas && video.readyState >= 2) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        if (ctx) {
+          ctx.drawImage(video, 0, 0);
+          const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const qr = jsQR(image.data, image.width, image.height);
+          if (qr && qr.data.includes("/pair")) {
+            const match = qr.data.match(/^(https?:\/\/[^/]+)\/pair/);
+            if (match) {
+              stopped = true;
+              setScanning(false);
+              connectToHub(match[1]);
+              return;
+            }
+          }
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    }
+
+    start();
+    return () => {
+      stopped = true;
+      cancelAnimationFrame(raf);
+      stream?.getTracks().forEach((t) => t.stop());
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanning]);
+
   const d = diagnostics.data;
   const preferred = detect.data?.preferredUrl ?? "";
+
+  /* Phone (solo) view: connect this standalone phone to a computer hub. */
+  if (solo) {
+    return (
+      <Card className="lg:col-span-2">
+        <CardTitle>Connect your phone to a computer hub</CardTitle>
+        <p className="mt-1 text-sm text-text-muted">
+          Right now this phone runs <strong className="text-text">fully standalone</strong> — everything lives on the
+          device. To pair with a hub (your computer running Open Finance), scan the QR code it shows under Settings →
+          Connect your phone &amp; computer:
+        </p>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Button onClick={() => setScanning(true)} disabled={scanning}>
+            {scanning ? "Scanning…" : "📷 Scan QR from your computer"}
+          </Button>
+          <span className="text-sm text-text-muted">or</span>
+          <div className="min-w-64 flex-1">
+            <Input
+              value={hubUrl}
+              onChange={(e) => setHubUrl(e.target.value)}
+              placeholder="http://192.168.x.x:3000"
+              inputMode="url"
+              aria-label="Hub URL"
+            />
+          </div>
+          <Button variant="secondary" onClick={() => connectToHub(hubUrl)} disabled={!hubUrl}>
+            Connect
+          </Button>
+        </div>
+        {scanErr && <p className="mt-2 text-sm text-danger">{scanErr}</p>}
+        {preferred && (
+          <p className="mt-2 text-xs text-text-muted">
+            Detected your computer at <strong className="text-text">{preferred}</strong> — you can paste that above.
+          </p>
+        )}
+
+        {/* Camera scanner modal */}
+        {scanning && (
+          <div
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4"
+            onClick={() => setScanning(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Scan hub QR code"
+          >
+            <div
+              className="w-full max-w-sm overflow-hidden rounded-3xl border border-border bg-surface p-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-sm font-semibold text-text">Scan the hub&apos;s QR code</p>
+                <button
+                  type="button"
+                  aria-label="Close scanner"
+                  onClick={() => setScanning(false)}
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-surface-muted hover:text-text"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-black">
+                <video ref={videoRef} className="h-full w-full object-cover" muted playsInline />
+                <canvas ref={canvasRef} className="hidden" />
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <div className="h-40 w-40 rounded-2xl border-2 border-[var(--accent)] opacity-80" />
+                </div>
+              </div>
+              <p className="mt-3 text-center text-xs text-text-muted">
+                Point the camera at the QR shown on your computer. It opens the hub&apos;s pairing page automatically.
+              </p>
+            </div>
+          </div>
+        )}
+      </Card>
+    );
+  }
 
   return (
     <Card className="lg:col-span-2">

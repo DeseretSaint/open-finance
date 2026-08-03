@@ -13,7 +13,8 @@ const WEAK_PASSWORDS = new Set([
 /** Returns an error message, or null if the password is acceptable. */
 export function validatePasswordPolicy(password: string, username?: string | null): string | null {
   const bytes = Buffer.byteLength(password, "utf8");
-  if (bytes < 10) return "Password must be at least 10 characters.";
+  // No minimum length requirement (Keaton 2026-08-03) — the username and
+  // common-password checks below still guard the worst cases.
   if (bytes > 72) return "Password must be at most 72 bytes.";
   if (username && password.toLowerCase() === username.toLowerCase()) {
     return "Password cannot be the same as your username.";

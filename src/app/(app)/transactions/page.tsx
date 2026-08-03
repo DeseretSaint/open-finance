@@ -2,13 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search, X, Trash2, ChevronDown, Plus } from "lucide-react";
+import { Search, X, Trash2, ChevronDown } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input, Select } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 import { CustomDatePicker } from "@/components/ui/custom-date-picker";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { Money } from "@/components/money";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 
@@ -57,6 +59,7 @@ export default function TransactionsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
 
   const params = useMemo(() => {
     const p = new URLSearchParams({ limit: "100" });
@@ -150,14 +153,13 @@ export default function TransactionsPage() {
             )}
           </div>
           <div className="min-w-40">
-            <Select aria-label="Filter by account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-              <option value="">All accounts</option>
-              {accounts.data?.accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </Select>
+            <CustomSelect
+              ariaLabel="Filter by account"
+              value={accountId}
+              onChange={setAccountId}
+              placeholder="All accounts"
+              options={(accounts.data?.accounts ?? []).map((a) => ({ value: a.id, label: a.name }))}
+            />
           </div>
           <span className="text-sm text-text-muted">{data ? `${data.total} transaction${data.total === 1 ? "" : "s"}` : "…"}</span>
         </div>
@@ -284,18 +286,21 @@ export default function TransactionsPage() {
 
       {/* Floating action button — bottom right, above the mobile tab bar.
           Hidden while the add modal is open; rises above the keyboard. */}
-      {!showAdd && (
-        <button
-          aria-label="Add transaction"
-          onClick={() => setShowAdd(true)}
-          className="fixed right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-foreground)] shadow-lg transition-transform hover:scale-105 active:scale-95"
-          style={{
-            bottom: `calc(${kbdHeight > 0 ? kbdHeight : 0}px + ${kbdHeight > 0 ? "1rem" : "6rem"} + env(safe-area-inset-bottom))`,
-          }}
-        >
-          <Plus size={26} strokeWidth={2.5} />
-        </button>
-      )}
+      <FloatingAddButton label="Add transaction" onClick={() => setShowAdd(true)} hidden={showAdd} />
+
+      {/* Custom delete confirmation (replaces the stock Android dialog) */}
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="Delete transaction?"
+        message={confirmDelete ? `"${confirmDelete.name}" will be permanently removed. This cannot be undone.` : undefined}
+        confirmLabel="Delete"
+        busy={remove.isPending}
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={() => {
+          if (confirmDelete) remove.mutate(confirmDelete.id);
+          setConfirmDelete(null);
+        }}
+      />
 
       {/* List */}
       <Card className="p-0">
@@ -391,7 +396,7 @@ export default function TransactionsPage() {
                           checked={t.exclude_from_budgets === 1}
                           onChange={(e) => toggleExclude.mutate({ id: t.id, exclude: e.target.checked })}
                         />
-                        {t.exclude_from_budgets === 1 ? "Excluded from budgets" : "Include in budgets"}
+                        Exclude from budgets
                       </label>
                       <CustomSelect
                         ariaLabel={`Category for ${t.name}`}
@@ -406,9 +411,7 @@ export default function TransactionsPage() {
                         <button
                           aria-label={`Delete ${t.name}`}
                           title="Delete transaction"
-                          onClick={() => {
-                            if (window.confirm(`Delete "${t.name}"? This cannot be undone.`)) remove.mutate(t.id);
-                          }}
+                          onClick={() => setConfirmDelete({ id: t.id, name: t.name })}
                           className="flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-text-muted transition-colors hover:bg-[var(--danger-soft)] hover:text-danger"
                         >
                           <Trash2 size={14} />

@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 
 const querySchema = z.object({
   days: z.coerce.number().int().min(1).max(365).default(30),
+  until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -21,7 +22,8 @@ export async function GET(req: NextRequest) {
     }
     const digest = await createPlanningService(getDb()).digest(
       auth.kind === "agent" ? auth.ctx.userId : auth.userId,
-      parsed.data.days
+      parsed.data.days,
+      parsed.data.until
     );
     return ok(digest);
   })(req, { params: Promise.resolve({}) });

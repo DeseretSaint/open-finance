@@ -71,14 +71,60 @@ export function createSoloBootstrapService(db: Db = getDb()) {
     /**
      * Bootstrap the device identity. Returns the recovery code ONCE — the
      * caller must show it to the user; it is stored only as a hash.
+     *
+     * If the device was only used for the DEMO (is_demo=1), "creating an
+     * account" upgrades that demo device into a real one: keeps the same
+     * device row (all domain services reference the device user id), mints a
+     * NEW recovery code, flips is_demo off, and resets onboarding so the
+     * setup wizard (PIN, Plaid, agent) runs again. Demo sample data stays —
+     * the user can delete it in the app. A REAL existing account is a
+     * conflict (the landing page should route to unlock instead).
      */
     async bootstrap(input: { displayName?: string; pin?: string; isDemo?: boolean }): Promise<{
       user: SoloDeviceRow;
       recoveryCode: string;
       hasPin: boolean;
     }> {
-      if (await this.isBootstrapped()) {
-        throw apiErrors.conflict("Solo device is already set up.");
+      const existing = await this.getDeviceUser();
+      if (existing) {
+        const row = await db.get<{ is_demo: number }>(
+          "SELECT is_demo FROM users WHERE id = ?",
+          existing.id
+        );
+        if (!row || row.is_demo !== 1) {
+          throw apiErrors.conflict("This device already has an account — unlock it instead.");
+        }
+        // Demo-only device → upgrade to a real account.
+        const recoveryCode = randomRecoveryCode();
+        const displayName = (input.displayName ?? "This phone").trim().slice(0, 50) || "This phone";
+        await db.transaction(async () => {
+          await db.run(
+            "UPDATE users SET display_name = ?, recovery_code_hash = ?, is_demo = 0, updated_at = ? WHERE id = ?",
+            displayName,
+            await hashSecret(recoveryCode),
+            now(),
+            existing.id
+          );
+          // Reset onboarding so the wizard walks through PIN / Plaid / agent.
+          await db.run(
+            "UPDATE user_settings SET onboarding_completed = 0, updated_at = ? WHERE user_id = ?",
+            now(),
+            existing.id
+          );
+          if (input.pin) {
+            await deviceLock.setPin(existing.id, input.pin);
+          }
+        });
+        return {
+          user: {
+            id: existing.id,
+            username: existing.username,
+            display_name: displayName,
+            created_at: existing.created_at,
+          },
+          recoveryCode,
+          hasPin: !!input.pin,
+        };
       }
 
       const id = crypto.randomUUID();

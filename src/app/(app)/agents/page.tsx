@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Bot, Copy, KeyRound, PlugZap, ShieldCheck, Trash2 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input, Select } from "@/components/ui/input";
-import { capabilitySentence } from "@/components/agent-capabilities";
+import { Input } from "@/components/ui/input";
+import { CustomSelect } from "@/components/ui/custom-select";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { isSoloCandidate } from "@/lib/mobile-mode";
 
 /* ── types ─────────────────────────────────────────────────────────────── */
 
@@ -46,12 +49,6 @@ interface AuditRow {
   created_at: string;
 }
 
-interface DetectionProbe {
-  agent: string;
-  present: boolean;
-  configured: boolean;
-}
-
 /* ── scope vocabulary ──────────────────────────────────────────────────── */
 
 const SCOPE_GROUPS: Array<{ group: string; scopes: string[] }> = [
@@ -67,25 +64,80 @@ const PRESET_CARDS: Array<{ id: string; name: string; blurb: string; recommended
   { id: "custom", name: "Custom", blurb: "Pick exact scopes below." },
 ];
 
+const PRESET_SCOPES: Record<string, string[]> = {
+  "read-only": ["read:summary", "read:banking", "read:budgets"],
+  "read-all": ["read:summary", "read:banking", "read:investments", "read:budgets", "read:planning", "read:reports"],
+  "read-write": [
+    "read:summary",
+    "read:banking",
+    "read:investments",
+    "read:budgets",
+    "read:planning",
+    "read:reports",
+    "transactions:edit",
+    "budgets:write",
+    "planning:write",
+    "categories:write",
+  ],
+  custom: [],
+};
+
+const PROVIDERS = [
+  { name: "Hermes", note: "MCP server → point at this app's endpoint" },
+  { name: "Claude", note: "Claude Desktop → MCP config" },
+  { name: "Cursor", note: "Cursor → MCP servers" },
+  { name: "Other", note: "Any MCP-capable agent" },
+];
+
 /* ── page ──────────────────────────────────────────────────────────────── */
 
 export default function AgentsPage() {
   const qc = useQueryClient();
+  const [solo, setSolo] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [endpoint, setEndpoint] = useState("");
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
 
-  const agents = useQuery({ queryKey: ["agent-tokens"], queryFn: () => api.get<{ agents: AgentToken[] }>("/api/agent/tokens") });
-  const requests = useQuery({ queryKey: ["agent-requests"], queryFn: () => api.get<{ requests: PermissionRequest[] }>("/api/agent/requests?status=pending") });
-  const audit = useQuery({ queryKey: ["agent-audit"], queryFn: () => api.get<{ rows: AuditRow[] }>("/api/agent/audit") });
-  const detect = useQuery({ queryKey: ["agents-detect"], queryFn: () => api.get<{ agents: DetectionProbe[] }>("/api/agents/detect") });
-  const accounts = useQuery({ queryKey: ["accounts"], queryFn: () => api.get<{ accounts: Array<{ id: string; name: string; type: string | null }> }>("/api/accounts") });
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setSolo(isSoloCandidate(window.location.origin));
+      setEndpoint(window.location.origin);
+    }
+  }, []);
+
+  const agents = useQuery({
+    queryKey: ["agent-tokens"],
+    queryFn: () => api.get<{ agents: AgentToken[] }>("/api/agent/tokens"),
+    retry: false,
+  });
+  const requests = useQuery({
+    queryKey: ["agent-requests"],
+    queryFn: () => api.get<{ requests: PermissionRequest[] }>("/api/agent/requests?status=pending"),
+    enabled: !solo,
+    retry: false,
+  });
+  const audit = useQuery({
+    queryKey: ["agent-audit"],
+    queryFn: () => api.get<{ rows: AuditRow[] }>("/api/agent/audit"),
+    enabled: !solo,
+    retry: false,
+  });
+  const accounts = useQuery({
+    queryKey: ["accounts"],
+    queryFn: () => api.get<{ accounts: Array<{ id: string; name: string; type: string | null }> }>("/api/accounts"),
+    enabled: !solo,
+  });
+
+  const tokensUnavailable = solo || agents.isError;
+  const hasAgent = !tokensUnavailable && (agents.data?.agents.length ?? 0) > 0;
 
   /* create form */
   const [name, setName] = useState("");
   const [preset, setPreset] = useState("read-only");
   const [scopes, setScopes] = useState<string[]>([]);
   const [accountIds, setAccountIds] = useState<string[] | null>(null);
-  const [expiresAt, setExpiresAt] = useState<string>("");
+  const [expiresAt, setExpiresAt] = useState("");
   const [created, setCreated] = useState<{ token: string; agent: AgentToken } | null>(null);
 
   const toggleScope = (s: string) => {
@@ -94,7 +146,6 @@ export default function AgentsPage() {
   };
 
   const effectiveScopes = preset === "custom" ? scopes : PRESET_SCOPES[preset] ?? [];
-  const sentence = capabilitySentence(effectiveScopes, accounts.data?.accounts ?? [], accountIds);
 
   const createToken = useMutation({
     mutationFn: () =>
@@ -103,9 +154,12 @@ export default function AgentsPage() {
         preset,
         scopes: preset === "custom" ? scopes : undefined,
         accountIds,
-        expiresAt: expiresAt === "30d" ? new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10)
-          : expiresAt === "90d" ? new Date(Date.now() + 90 * 86400_000).toISOString().slice(0, 10)
-          : null,
+        expiresAt:
+          expiresAt === "30d"
+            ? new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10)
+            : expiresAt === "90d"
+              ? new Date(Date.now() + 90 * 86400_000).toISOString().slice(0, 10)
+              : null,
       }),
     onSuccess: (data) => {
       setCreated(data);
@@ -126,6 +180,26 @@ export default function AgentsPage() {
     onError: (e) => setErr(e instanceof Error ? e.message : "Failed to revoke."),
   });
 
+  // Disconnect = revoke every token; the tab returns to the setup guide.
+  const disconnectAll = useMutation({
+    mutationFn: async () => {
+      const ids = (agents.data?.agents ?? []).map((t) => t.id);
+      for (const id of ids) {
+        await api.del(`/api/agent/tokens/${id}`);
+      }
+      return ids.length;
+    },
+    onSuccess: (n) => {
+      setMsg(`Disconnected — ${n} token${n === 1 ? "" : "s"} revoked.`);
+      setConfirmDisconnect(false);
+      qc.invalidateQueries({ queryKey: ["agent-tokens"] });
+      qc.invalidateQueries({ queryKey: ["agent-audit"] });
+      setCreated(null);
+      setName("");
+    },
+    onError: (e) => setErr(e instanceof Error ? e.message : "Failed to disconnect."),
+  });
+
   const resolveRequest = useMutation({
     mutationFn: ({ id, decision }: { id: string; decision: "granted" | "denied" }) =>
       api.post(`/api/agent/requests/${id}/resolve`, { decision }),
@@ -137,193 +211,256 @@ export default function AgentsPage() {
     onError: (e) => setErr(e instanceof Error ? e.message : "Failed."),
   });
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Agents</h1>
-        <p className="text-sm text-muted-foreground">
-          Bring your own agent. Tokens are read-only by default; your agent asks before it looks anywhere new.
-        </p>
-      </div>
+  const mcpEndpoint = `${endpoint}/api/mcp`;
 
-      {msg && <p className="text-sm text-emerald-600">{msg}</p>}
-      {err && <p className="text-sm text-red-600">{err}</p>}
+  /* ── render: NO agent → setup walkthrough only (issue #13) ── */
+  if (tokensUnavailable || !hasAgent) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-6">
+        <div>
+          <h1 className="flex items-center gap-2.5 text-2xl font-semibold text-text">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent" aria-hidden>
+              <Bot size={20} />
+            </span>
+            Connect your AI agent
+          </h1>
+          <p className="mt-1.5 text-sm text-text-muted">
+            Bring your own agent (Hermes, Claude, Cursor…) to answer money questions and — with your approval —
+            act on budgets. Agents start <strong className="text-text">read-only</strong> and ask before any write.
+          </p>
+        </div>
 
-      {/* ── finance prompt guide ── */}
-      <Card>
-        <CardTitle>Finance prompts you can try</CardTitle>
-        <p className="mt-1 text-sm text-text-muted">
-          Grant your token the matching scopes (Budget help needs <code className="rounded bg-surface-muted px-1">budgets:write</code> +{" "}
-          <code className="rounded bg-surface-muted px-1">categories:write</code>), then paste a prompt to your agent.
-        </p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          {[
-            { scope: "read:summary", help: "Needs none extra", prompt: "Summarize my finances this month and flag anything unusual." },
-            { scope: "budgets:write", help: "+ a read scope", prompt: "Create a $400/month Groceries budget on the Groceries category." },
-            { scope: "budgets:write", help: "+ a read scope", prompt: "Which of my budgets am I over this month, and by how much?" },
-            { scope: "budgets:write", help: "+ a read scope", prompt: "Propose three budgets that would help me save $200/month, and create them." },
-            { scope: "transactions:edit", help: "+ a read scope", prompt: "Categorize my uncategorized transactions from this month." },
-            { scope: "read:planning", help: "Read-only", prompt: "What does my 12-month projection look like? Any negative months?" },
-          ].map((e) => (
-            <div key={e.prompt} className="flex items-start justify-between gap-3 rounded-lg border border-border p-3">
-              <div className="min-w-0">
-                <p className="text-sm text-text">{e.prompt}</p>
-                <p className="mt-0.5 text-xs text-text-muted">
-                  requires {e.scope} · {e.help}
+        {solo ? (
+          <Card>
+            <CardTitle>On this phone, agents connect through a hub</CardTitle>
+            <ol className="mt-3 list-inside list-decimal space-y-2 text-sm text-text">
+              <li>
+                In <strong className="text-text">Settings → Hub &amp; phone pairing</strong>, scan the QR code from a
+                computer running Open Finance (or enter its URL). This pairs your phone to that hub.
+              </li>
+              <li>
+                On the hub (computer), open its <strong className="text-text">Agents</strong> tab and follow this
+                walkthrough there — tokens, permissions and the audit log live on the hub.
+              </li>
+              <li>Point your agent at the hub&apos;s MCP endpoint with the token you created.</li>
+            </ol>
+            <div className="mt-4 rounded-xl bg-surface-muted px-4 py-3 text-xs text-text-muted">
+              Everything stays on your machines — the hub never leaves your network.
+            </div>
+          </Card>
+        ) : (
+          <>
+            {/* Step 1 — pick your agent */}
+            <Card>
+              <CardTitle>
+                <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent">1</span>
+                Pick your agent
+              </CardTitle>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {PROVIDERS.map((p) => (
+                  <div key={p.name} className="rounded-lg border border-border px-3 py-2.5">
+                    <p className="text-sm font-medium text-text">{p.name}</p>
+                    <p className="text-xs text-text-muted">{p.note}</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            {/* Step 2 — create a token */}
+            <Card>
+              <CardTitle>
+                <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent">2</span>
+                Create a token
+              </CardTitle>
+              <p className="mt-1 text-sm text-text-muted">Tokens are the keys your agent presents to the app. Start read-only.</p>
+              {msg && <p className="mt-2 text-sm font-medium text-success">{msg}</p>}
+              {err && <p className="mt-2 text-sm text-danger">{err}</p>}
+
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {PRESET_CARDS.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setPreset(p.id);
+                      setScopes([]);
+                    }}
+                    className={`rounded-lg border p-3 text-left transition-colors ${
+                      preset === p.id ? "border-accent bg-accent/5" : "border-border hover:bg-surface-muted"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 text-sm font-medium text-text">
+                      {p.name} {p.recommended && <Badge>Recommended</Badge>}
+                    </div>
+                    <div className="mt-1 text-xs text-text-muted">{p.blurb}</div>
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-4 space-y-3">
+                <Input placeholder="Token name — e.g. trading-bot" value={name} onChange={(e) => setName(e.target.value)} />
+                <div>
+                  <p className="mb-1 text-xs font-medium text-text-muted">Scopes</p>
+                  {SCOPE_GROUPS.map((g) => (
+                    <div key={g.group} className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                      <span className="w-12 text-xs text-text-muted">{g.group}</span>
+                      {g.scopes.map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => toggleScope(s)}
+                          className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+                            effectiveScopes.includes(s)
+                              ? "border-accent bg-accent text-[var(--accent-foreground)]"
+                              : "border-border text-text-muted hover:border-accent/50 hover:text-text"
+                          }`}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <CustomSelect
+                    ariaLabel="Account scope"
+                    value={accountIds === null ? "all" : "custom"}
+                    onChange={(v) => setAccountIds(v === "all" ? null : [])}
+                    options={[
+                      { value: "all", label: "All accounts (default)" },
+                      { value: "custom", label: "Choose accounts…" },
+                    ]}
+                  />
+                  <CustomSelect
+                    ariaLabel="Token expiry"
+                    value={expiresAt}
+                    onChange={setExpiresAt}
+                    options={[
+                      { value: "", label: "Never expires" },
+                      { value: "30d", label: "30 days" },
+                      { value: "90d", label: "90 days" },
+                    ]}
+                  />
+                </div>
+                {accountIds !== null && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {(accounts.data?.accounts ?? []).map((a) => (
+                      <button
+                        key={a.id}
+                        type="button"
+                        onClick={() =>
+                          setAccountIds((prev) => (prev!.includes(a.id) ? prev!.filter((x) => x !== a.id) : [...prev!, a.id]))
+                        }
+                        className={`rounded-full border px-2.5 py-0.5 text-xs ${
+                          accountIds.includes(a.id) ? "border-accent bg-accent text-[var(--accent-foreground)]" : "border-border text-text-muted"
+                        }`}
+                      >
+                        {a.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <Button onClick={() => createToken.mutate()} disabled={!name.trim() || createToken.isPending}>
+                  {createToken.isPending ? "Creating…" : "Create token"}
+                </Button>
+              </div>
+
+              {created && (
+                <div className="mt-4 rounded-xl border border-success/30 bg-[var(--success-soft)] p-4">
+                  <p className="text-xs font-medium text-success">Copy your token now — it is shown only once:</p>
+                  <code className="mt-1 block break-all rounded-lg bg-background px-3 py-2 text-sm text-text">{created.token}</code>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => navigator.clipboard?.writeText(created.token).catch(() => {})}
+                    >
+                      <Copy size={13} className="mr-1.5" /> Copy
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </Card>
+
+            {/* Step 3 — wire it up */}
+            <Card>
+              <CardTitle>
+                <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent">3</span>
+                Point your agent at the endpoint
+              </CardTitle>
+              <div className="mt-3 space-y-3 text-sm">
+                <div>
+                  <p className="mb-1 text-xs text-text-muted">MCP endpoint (Streamable HTTP)</p>
+                  <div className="flex items-center gap-2">
+                    <code className="block flex-1 rounded-lg bg-surface-muted px-3 py-2 text-sm text-accent">{mcpEndpoint}</code>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      aria-label="Copy endpoint"
+                      onClick={() => navigator.clipboard?.writeText(mcpEndpoint).catch(() => {})}
+                    >
+                      <Copy size={13} />
+                    </Button>
+                  </div>
+                </div>
+                <div className="rounded-xl bg-surface-muted px-4 py-3 text-xs text-text-muted">
+                  <p className="font-medium text-text">Example (Hermes / Claude / Cursor):</p>
+                  <p className="mt-1">
+                    Add an MCP server to your agent with the endpoint above and the token. The agent can read
+                    budgets/summary immediately; writes prompt you for approval in the permission inbox.
+                  </p>
+                </div>
+                <p className="text-xs text-text-muted">
+                  Fine-tune what your agent can see and write in <strong className="text-text">Settings → AI agent connection</strong> —
+                  per-tab read and write toggles, global access, and smart categorization.
                 </p>
               </div>
-              <button
-                type="button"
-                aria-label={`Copy prompt`}
-                title="Copy to clipboard"
-                onClick={() => navigator.clipboard?.writeText(e.prompt)}
-                className="shrink-0 rounded-md border border-border px-2 py-1 text-xs text-text-muted transition-colors hover:text-text"
-              >
-                Copy
-              </button>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      {/* ── detection ── */}
-      <Card>
-        <CardTitle>Agent detection</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Agents found on this machine get a ready-made connection. Detection is read-only — we never run agent binaries or read config contents.
-        </p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          {(detect.data?.agents ?? []).map((p) => (
-            <div key={p.agent} className="flex items-center justify-between rounded-md border px-3 py-2">
-              <span className="text-sm font-medium">{p.agent}</span>
-              <span className="text-xs text-muted-foreground">
-                {p.present ? (p.configured ? "detected · already configured" : "detected") : "not detected"}
-              </span>
-            </div>
-          ))}
-          {detect.isLoading && <p className="text-sm text-muted-foreground">Scanning…</p>}
-        </div>
-        <p className="mt-3 text-xs text-muted-foreground">
-          Configure: point your agent at <code className="rounded bg-muted px-1">node /path/to/scripts/mcp-cli.mjs --url {typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"} --token of_…</code>
-        </p>
-      </Card>
-
-      {/* ── create token ── */}
-      <Card>
-        <CardTitle>Create an agent token</CardTitle>
-        <div className="mt-3 grid gap-2 sm:grid-cols-4">
-          {PRESET_CARDS.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => {
-                setPreset(p.id);
-                setScopes([]);
-              }}
-              className={`rounded-lg border p-3 text-left transition-colors ${
-                preset === p.id ? "border-primary bg-primary/5" : "hover:border-muted-foreground/40"
-              }`}
-            >
-              <div className="flex items-center gap-1.5 text-sm font-medium">
-                {p.name} {p.recommended && <Badge>Recommended</Badge>}
-              </div>
-              <div className="mt-1 text-xs text-muted-foreground">{p.blurb}</div>
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-4 space-y-3">
-          <Input placeholder="Token name — e.g. trading-bot" value={name} onChange={(e) => setName(e.target.value)} />
-          <div>
-            <p className="mb-1 text-xs font-medium text-muted-foreground">Scopes</p>
-            {SCOPE_GROUPS.map((g) => (
-              <div key={g.group} className="mb-1.5 flex flex-wrap items-center gap-1.5">
-                <span className="w-12 text-xs text-muted-foreground">{g.group}</span>
-                {g.scopes.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => toggleScope(s)}
-                    className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
-                      effectiveScopes.includes(s)
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:border-muted-foreground/50"
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            ))}
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Select
-              value={accountIds === null ? "all" : "custom"}
-              onChange={(e) => setAccountIds(e.target.value === "all" ? null : [])}
-            >
-              <option value="all">All accounts (default)</option>
-              <option value="custom">Choose accounts…</option>
-            </Select>
-            {accountIds !== null && (
-              <div className="flex flex-wrap gap-1.5">
-                {(accounts.data?.accounts ?? []).map((a) => (
-                  <button
-                    key={a.id}
-                    type="button"
-                    onClick={() =>
-                      setAccountIds((prev) =>
-                        prev!.includes(a.id) ? prev!.filter((x) => x !== a.id) : [...prev!, a.id]
-                      )
-                    }
-                    className={`rounded-full border px-2.5 py-0.5 text-xs ${
-                      accountIds.includes(a.id) ? "border-primary bg-primary text-primary-foreground" : "text-muted-foreground"
-                    }`}
-                  >
-                    {a.name}
-                  </button>
-                ))}
-              </div>
-            )}
-            <Select value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)}>
-              <option value="">Never expires</option>
-              <option value="30d">30 days</option>
-              <option value="90d">90 days</option>
-            </Select>
-          </div>
-          <p className="text-sm text-muted-foreground">{sentence}</p>
-          <Button onClick={() => createToken.mutate()} disabled={!name.trim() || createToken.isPending}>
-            {createToken.isPending ? "Creating…" : "Create token"}
-          </Button>
-        </div>
-
-        {created && (
-          <div className="mt-4 rounded-md border border-emerald-600/30 bg-emerald-50 p-3 dark:bg-emerald-950/30">
-            <p className="text-xs font-medium text-emerald-700">Copy your token now — it is shown only once:</p>
-            <code className="mt-1 block break-all rounded bg-background px-2 py-1 text-sm">{created.token}</code>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Connect your agent with:
-              <code className="ml-1 rounded bg-muted px-1">
-                node {typeof window !== "undefined" ? `${window.location.origin.replace(/^https?:\/\//, "")}` : ""}/scripts/mcp-cli.mjs --url {typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"} --token {created.token.slice(0, 8)}…
-              </code>
-            </p>
-          </div>
+            </Card>
+          </>
         )}
-      </Card>
+      </div>
+    );
+  }
 
-      {/* ── permission inbox ── */}
+  /* ── render: agent connected → settings, no wizard, with disconnect ── */
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="flex items-center gap-2.5 text-2xl font-semibold text-text">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-success/10 text-success" aria-hidden>
+              <PlugZap size={20} />
+            </span>
+            Your agent
+          </h1>
+          <p className="mt-1.5 text-sm text-text-muted">
+            {agents.data?.agents.length} token{agents.data?.agents.length === 1 ? "" : "s"} connected · endpoint{" "}
+            <code className="rounded bg-surface-muted px-1 text-xs">{mcpEndpoint}</code>
+          </p>
+        </div>
+        <Button variant="outline" className="text-danger" onClick={() => setConfirmDisconnect(true)}>
+          <Trash2 size={14} className="mr-1.5" /> Disconnect agent
+        </Button>
+      </div>
+
+      {msg && <p className="text-sm font-medium text-success">{msg}</p>}
+      {err && <p className="text-sm text-danger">{err}</p>}
+
+      {/* Permission inbox */}
       <Card>
         <CardTitle>Permission requests</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          When an agent tries something its token cannot do, it asks here. Granting appends the scope (the preset badge then reads “custom”).
+        <p className="text-sm text-text-muted">
+          When an agent tries something its token cannot do, it asks here. Granting appends the scope (the preset badge then reads
+          “custom”).
         </p>
         <div className="mt-3 space-y-2">
           {(requests.data?.requests ?? []).map((r) => (
-            <div key={r.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+            <div key={r.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2">
               <div>
-                <p className="text-sm">
+                <p className="text-sm text-text">
                   <span className="font-medium">{r.tokenName}</span> requested <Badge>{r.scope}</Badge>
                 </p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-text-muted">
                   {r.tool ?? "unknown tool"} · {new Date(r.created_at).toLocaleString()}
                 </p>
               </div>
@@ -337,73 +474,81 @@ export default function AgentsPage() {
               </div>
             </div>
           ))}
-          {(requests.data?.requests ?? []).length === 0 && (
-            <p className="text-sm text-muted-foreground">No pending requests.</p>
-          )}
+          {(requests.data?.requests ?? []).length === 0 && <p className="text-sm text-text-muted">No pending requests.</p>}
         </div>
       </Card>
 
-      {/* ── token list ── */}
+      {/* Token list */}
       <Card>
         <CardTitle>Tokens</CardTitle>
         <div className="mt-3 space-y-2">
           {(agents.data?.agents ?? []).map((t) => (
-            <div key={t.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+            <div key={t.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2">
               <div>
-                <p className="text-sm font-medium">
+                <p className="flex items-center gap-2 text-sm font-medium text-text">
+                  <KeyRound size={14} className="text-text-muted" aria-hidden />
                   {t.name} <Badge>{t.custom ? "custom (modified)" : t.preset}</Badge>
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  {t.tokenPrefix}… · {t.scopes.length} scope{t.scopes.length === 1 ? "" : "s"} · last used {t.lastUsedAt ? new Date(t.lastUsedAt).toLocaleString() : "never"} ·{" "}
+                <p className="text-xs text-text-muted">
+                  {t.tokenPrefix}… · {t.scopes.length} scope{t.scopes.length === 1 ? "" : "s"} · last used{" "}
+                  {t.lastUsedAt ? new Date(t.lastUsedAt).toLocaleString() : "never"} ·{" "}
                   {t.expiresAt ? `expires ${new Date(t.expiresAt).toLocaleDateString()}` : "no expiry"}
                 </p>
               </div>
-              <Button size="sm" variant="outline" className="text-red-600" onClick={() => revoke.mutate(t.id)}>
+              <Button size="sm" variant="outline" className="text-danger" onClick={() => revoke.mutate(t.id)}>
                 Revoke
               </Button>
             </div>
           ))}
-          {(agents.data?.agents ?? []).length === 0 && <p className="text-sm text-muted-foreground">No tokens yet.</p>}
+          {(agents.data?.agents ?? []).length === 0 && <p className="text-sm text-text-muted">No tokens yet.</p>}
         </div>
       </Card>
 
-      {/* ── audit ── */}
+      {/* Audit */}
       <Card>
         <CardTitle>Audit log</CardTitle>
-        <p className="text-sm text-muted-foreground">Every agent call, including denied ones (403 = scope missing).</p>
+        <p className="text-sm text-text-muted">Every agent call, including denied ones (403 = scope missing).</p>
         <div className="mt-3 space-y-1">
           {(audit.data?.rows ?? []).slice(0, 25).map((r) => (
-            <div key={r.id} className="flex items-center justify-between rounded border px-3 py-1.5 text-sm">
-              <span>
+            <div key={r.id} className="flex items-center justify-between rounded border border-border px-3 py-1.5 text-sm">
+              <span className="text-text">
                 <span className="font-medium">{r.tokenName}</span> · {r.tool} · {r.method}
                 {r.scope ? ` · ${r.scope}` : ""}
               </span>
-              <span className={`text-xs ${r.status >= 400 ? "text-red-600" : "text-emerald-600"}`}>
+              <span className={`text-xs ${r.status >= 400 ? "text-danger" : "text-success"}`}>
                 {r.status} · {new Date(r.created_at).toLocaleString()}
               </span>
             </div>
           ))}
-          {(audit.data?.rows ?? []).length === 0 && <p className="text-sm text-muted-foreground">No calls yet.</p>}
+          {(audit.data?.rows ?? []).length === 0 && <p className="text-sm text-text-muted">No calls yet.</p>}
         </div>
       </Card>
+
+      {/* Access summary */}
+      <Card>
+        <CardTitle>Access &amp; privacy</CardTitle>
+        <div className="mt-2 flex items-start gap-2.5 text-sm text-text-muted">
+          <ShieldCheck size={16} className="mt-0.5 shrink-0 text-success" aria-hidden />
+          <p>
+            Read-only by default; every write asks your approval here. Adjust per-tab read/write access anytime in{" "}
+            <strong className="text-text">Settings → AI agent connection</strong>. Everything is logged in the audit log above.
+          </p>
+        </div>
+        <p className="mt-3 text-xs text-text-muted">
+          To use a different agent later, create a new token and point it at the same endpoint — or disconnect below to start over.
+        </p>
+      </Card>
+
+      {/* Disconnect confirmation */}
+      <ConfirmDialog
+        open={confirmDisconnect}
+        title="Disconnect your agent?"
+        message={`All ${agents.data?.agents.length ?? 0} token(s) will be revoked and your agent will lose access immediately. You can set up a new connection anytime.`}
+        confirmLabel="Disconnect"
+        busy={disconnectAll.isPending}
+        onCancel={() => setConfirmDisconnect(false)}
+        onConfirm={() => disconnectAll.mutate()}
+      />
     </div>
   );
 }
-
-const PRESET_SCOPES: Record<string, string[]> = {
-  "read-only": ["read:summary", "read:banking", "read:budgets"],
-  "read-all": ["read:summary", "read:banking", "read:investments", "read:budgets", "read:planning", "read:reports"],
-  "read-write": [
-    "read:summary",
-    "read:banking",
-    "read:investments",
-    "read:budgets",
-    "read:planning",
-    "read:reports",
-    "transactions:edit",
-    "budgets:write",
-    "planning:write",
-    "categories:write",
-  ],
-  custom: [],
-};

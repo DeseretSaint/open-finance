@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
 import { isSoloCandidate } from "@/lib/mobile-mode";
 import { Button } from "@/components/ui/button";
-import { Input, Select } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { MotifHero } from "@/components/motif-hero";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
@@ -30,7 +30,7 @@ const STEPS = ["welcome", "security", "plaid", "bank", "agent", "done"] as const
 type Step = (typeof STEPS)[number];
 
 const PLAID_SIGNUP_URL = "https://dashboard.plaid.com/signup";
-const PLAID_KEYS_URL = "https://dashboard.plaid.com/keys";
+const PLAID_KEYS_URL = "https://dashboard.plaid.com/developers/keys";
 
 export function OnboardingWizard() {
   const kbdHeight = useKeyboardHeight();
@@ -192,9 +192,6 @@ export function OnboardingWizard() {
     await finish();
   }
 
-  const stepIndex = STEPS.indexOf(step);
-  const progress = `${stepIndex + 1} / ${STEPS.length}`;
-
   return (
     <div
       className="flex min-h-dvh items-center justify-center bg-background px-4 py-8"
@@ -204,19 +201,7 @@ export function OnboardingWizard() {
       }}
     >
       <div className="w-full max-w-md">
-        {/* progress */}
-        <div className="mb-4 flex items-center justify-between text-xs text-text-muted">
-          <span className="font-medium text-text">Set up Open Finance</span>
-          <span>{progress}</span>
-        </div>
-        <div className="mb-6 flex gap-1">
-          {STEPS.map((s, i) => (
-            <div
-              key={s}
-              className={`h-1 flex-1 rounded-full ${i <= stepIndex ? "bg-accent" : "bg-border"}`}
-            />
-          ))}
-        </div>
+        <div className="mb-4 text-center text-xs font-medium text-text">Set up Open Finance</div>
 
         <div className="rounded-2xl border border-border bg-surface p-6 shadow-[var(--shadow-card)]">
           {step === "welcome" && (
@@ -349,10 +334,15 @@ export function OnboardingWizard() {
                   value={secret}
                   onChange={(e) => setSecret(e.target.value)}
                 />
-                <Select value={environment} onChange={(e) => setEnvironment(e.target.value as "sandbox" | "production")}>
-                  <option value="sandbox">Sandbox (test data)</option>
-                  <option value="production">Production (real banks)</option>
-                </Select>
+                <CustomSelect
+                  ariaLabel="Plaid environment"
+                  value={environment}
+                  onChange={(v) => setEnvironment(v as "sandbox" | "production")}
+                  options={[
+                    { value: "sandbox", label: "Sandbox", hint: "test data" },
+                    { value: "production", label: "Production", hint: "real banks" },
+                  ]}
+                />
               </div>
               {err && <p className="mt-3 text-sm text-danger">{err}</p>}
               {msg && <p className="mt-3 text-sm text-success">{msg}</p>}
@@ -482,6 +472,10 @@ export function OnboardingWizard() {
                     ["accounts", "Accounts"],
                     ["activity", "Activity"],
                     ["budgets", "Budgets"],
+                    ["reports", "Reports"],
+                    ["planning", "Plan"],
+                    ["agents", "Agents"],
+                    ["settings", "Settings"],
                   ].map(([tab, label]) => (
                     <button
                       key={tab}
@@ -534,6 +528,7 @@ export function OnboardingWizard() {
                       value={String(agentBacklog)}
                       onChange={(v) => setAgentBacklog(Number(v))}
                       options={[
+                        { value: "0", label: "None — just new ones", hint: "moving forward" },
                         { value: "1", label: "1 month", hint: "recommended" },
                         { value: "3", label: "3 months" },
                         { value: "6", label: "6 months" },

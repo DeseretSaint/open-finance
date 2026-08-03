@@ -32,7 +32,7 @@ import { createPlanningService } from "@/server/domain/planning";
 import { createProjectionService } from "@/server/domain/projection";
 import { seedSoloDemo } from "@/lib/solo-demo-seed";
 import { createOnboardingService } from "@/server/domain/onboarding";
-import { createAgentPrefsService } from "@/server/domain/agent-prefs";
+import { createAgentPrefsService, type AgentTab } from "@/server/domain/agent-prefs";
 
 export interface SoloRequest {
   method: string;
@@ -360,24 +360,29 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       const userId = await h.deviceUserId();
       const today = new Date().toISOString().slice(0, 10);
       const firstOfMonth = today.slice(0, 8) + "01";
-      const result = await h.reports.spendingByCategory(
+      // Same envelope as the HTTP route: { rows: [...] } (issue #11 — the
+      // reports page was blank on-device because the raw array was returned).
+      const rows = await h.reports.spendingByCategory(
         userId,
         query.get("from") ?? firstOfMonth,
         query.get("to") ?? today
       );
-      return ok(result);
+      return ok({ rows });
     }
     if (method === "GET" && path === "/api/reports/cashflow") {
       const userId = await h.deviceUserId();
-      return ok(await h.reports.cashflow(userId, Number(query.get("months") ?? 6)));
+      const rows = await h.reports.cashflow(userId, Number(query.get("months") ?? 6));
+      return ok({ rows });
     }
     if (method === "GET" && path === "/api/reports/net-worth") {
       const userId = await h.deviceUserId();
-      return ok(await h.reports.netWorth(userId));
+      const netWorth = await h.reports.netWorth(userId);
+      return ok({ netWorth });
     }
     if (method === "GET" && path === "/api/reports/spending-trend") {
       const userId = await h.deviceUserId();
-      return ok(await h.reports.spendingTrend(userId, Number(query.get("months") ?? 6)));
+      const rows = await h.reports.spendingTrend(userId, Number(query.get("months") ?? 6));
+      return ok({ rows });
     }
 
     // ── Plaid (solo: native proxy + localStorage creds) ────────────────
@@ -424,7 +429,11 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       const { createNativePlaidClient } = await import("@/server/plaid/native");
       const userId = await h.deviceUserId();
       const creds = getSoloPlaidCreds();
-      if (!creds) throw apiErrors.badRequest("Save your Plaid keys first.");
+      if (!creds) {
+        throw apiErrors.badRequest(
+          "No Plaid keys saved yet — add them in Settings → Bank connections, or keep tracking manually (linking a bank is optional)."
+        );
+      }
       const env = query.get("environment") === "production" ? "production" : creds.environment;
       const client = createNativePlaidClient();
       const linkToken = await client.createLinkToken({ ...creds, environment: env }, userId);
@@ -587,8 +596,8 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       }
       if (method === "PUT") {
         const patch: Partial<{
-          tabs: Array<"dashboard" | "accounts" | "activity" | "budgets">;
-          tabsWrite: Array<"dashboard" | "accounts" | "activity" | "budgets">;
+          tabs: AgentTab[];
+          tabsWrite: AgentTab[];
           autoCategorize: boolean;
           categorizeBacklogMonths: number;
           global: boolean;
@@ -598,10 +607,10 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
           auditEnabled: boolean;
         }> = {};
         if (Array.isArray(B?.tabs)) {
-          patch.tabs = B.tabs.filter((t: unknown) => typeof t === "string") as typeof patch.tabs;
+          patch.tabs = B.tabs.filter((t: unknown) => typeof t === "string") as AgentTab[];
         }
         if (Array.isArray(B?.tabsWrite)) {
-          patch.tabsWrite = B.tabsWrite.filter((t: unknown) => typeof t === "string") as typeof patch.tabsWrite;
+          patch.tabsWrite = B.tabsWrite.filter((t: unknown) => typeof t === "string") as AgentTab[];
         }
         if (typeof B?.autoCategorize === "boolean") patch.autoCategorize = B.autoCategorize;
         if (typeof B?.categorizeBacklogMonths === "number") patch.categorizeBacklogMonths = B.categorizeBacklogMonths;
@@ -633,10 +642,27 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
     }
     if (method === "GET" && path === "/api/planning/digest") {
       const userId = await h.deviceUserId();
-      return ok(await h.planning.digest(userId));
+      const days = Number(query.get("days") ?? 30);
+      const until = query.get("until") ?? undefined;
+      return ok(await h.planning.digest(userId, days, until));
     }
 
     // ── Idempotent DELETE for transactions/[id] etc. ────────────────────
+    if (method === "PATCH" && path.startsWith("/api/transactions/")) {
+      const userId = await h.deviceUserId();
+      const id = parseId(path, "/api/transactions/");
+      const patch: {
+        userCategoryId?: string | null;
+        excludeFromBudgets?: boolean;
+        userNote?: string | null;
+      } = {};
+      if (B?.userCategoryId !== undefined) patch.userCategoryId = B.userCategoryId == null ? null : String(B.userCategoryId);
+      if (B?.excludeFromBudgets !== undefined) patch.excludeFromBudgets = B.excludeFromBudgets === true;
+      if (B?.userNote !== undefined) patch.userNote = B.userNote == null ? null : String(B.userNote);
+      if (Object.keys(patch).length === 0) throw apiErrors.badRequest("Nothing to update.");
+      const transaction = await h.transactions.update(userId, id, patch);
+      return ok({ transaction });
+    }
     if (method === "PATCH" && path.startsWith("/api/accounts/")) {
       const userId = await h.deviceUserId();
       const id = parseId(path, "/api/accounts/");

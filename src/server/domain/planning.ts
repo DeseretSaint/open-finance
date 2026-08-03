@@ -648,15 +648,20 @@ export function createPlanningService(db: Db = getDb()) {
     },
 
     // ── DIGEST ─────────────────────────────────────────────────────────────
-    /** Upcoming + overdue bills within `days` of today (the "upcoming bills digest"). */
-    async digest(userId: string, days = 30): Promise<{
+    /**
+     * Upcoming + overdue bills within the horizon (the "upcoming bills
+     * digest"). Horizon = `until` (an explicit YYYY-MM-DD end date, e.g. end
+     * of month or next paycheck) when given, otherwise `days` from today.
+     */
+    async digest(userId: string, days = 30, until?: string): Promise<{
       days: number;
+      until: string | null;
       upcomingBills: BillWithNames[];
       overdueBills: BillWithNames[];
       totalUpcomingCents: number;
     }> {
       const today = todayISO();
-      const horizon = addDaysISO(today, days);
+      const horizon = until && /^\d{4}-\d{2}-\d{2}$/.test(until) ? until : addDaysISO(today, days);
       const bills = await db.all<BillWithNames>(
         `SELECT b.*, c.name AS category_name, a.name AS account_name
            FROM bills b
@@ -672,7 +677,7 @@ export function createPlanningService(db: Db = getDb()) {
         .filter((b) => b.next_due_date! < today)
         .sort((a, b) => a.next_due_date!.localeCompare(b.next_due_date!));
       const totalUpcomingCents = upcoming.reduce((s, b) => s + b.amount_cents, 0);
-      return { days, upcomingBills: upcoming, overdueBills: overdue, totalUpcomingCents };
+      return { days, until: horizon, upcomingBills: upcoming, overdueBills: overdue, totalUpcomingCents };
     },
   };
 }

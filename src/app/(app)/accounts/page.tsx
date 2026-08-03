@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { CreditCard, Landmark, PiggyBank, TrendingUp, Wallet, CircleHelp, Plus, X } from "lucide-react";
+import { CreditCard, Landmark, PiggyBank, TrendingUp, Wallet, CircleHelp, X } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Money } from "@/components/money";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { FloatingAddButton } from "@/components/ui/floating-add-button";
 
 interface Account {
   id: string;
@@ -62,6 +64,7 @@ export default function AccountsPage() {
   const [balance, setBalance] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
 
 
   const create = useMutation({
@@ -135,9 +138,7 @@ export default function AccountsPage() {
                       size="sm"
                       className="text-danger"
                       disabled={remove.isPending}
-                      onClick={() => {
-                        if (window.confirm(`Remove "${a.name}"? This cannot be undone.`)) remove.mutate(a.id);
-                      }}
+                      onClick={() => setConfirmDelete({ id: a.id, name: a.name })}
                     >
                       Remove
                     </Button>
@@ -267,18 +268,21 @@ export default function AccountsPage() {
       )}
 
       {/* Floating action button — bottom right, above the mobile tab bar */}
-      {!showAdd && (
-        <button
-          aria-label="Add account"
-          onClick={() => setShowAdd(true)}
-          className="fixed right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-foreground)] shadow-lg transition-transform hover:scale-105 active:scale-95"
-          style={{
-            bottom: `calc(${kbdHeight > 0 ? kbdHeight : 0}px + ${kbdHeight > 0 ? "1rem" : "6rem"} + env(safe-area-inset-bottom))`,
-          }}
-        >
-          <Plus size={26} strokeWidth={2.5} />
-        </button>
-      )}
+      <FloatingAddButton label="Add account" onClick={() => setShowAdd(true)} hidden={showAdd} />
+
+      {/* Custom remove confirmation */}
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="Remove account?"
+        message={confirmDelete ? `"${confirmDelete.name}" and its transactions will be permanently removed. This cannot be undone.` : undefined}
+        confirmLabel="Remove"
+        busy={remove.isPending}
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={() => {
+          if (confirmDelete) remove.mutate(confirmDelete.id);
+          setConfirmDelete(null);
+        }}
+      />
     </div>
   );
 }

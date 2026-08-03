@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Trash2, Plus, X } from "lucide-react";
+import { CalendarRange, Trash2, X } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/badge";
@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CustomDatePicker } from "@/components/ui/custom-date-picker";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { Money } from "@/components/money";
 import { AgentWidgets } from "@/components/agent-widgets";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
@@ -41,6 +43,15 @@ const FRAME_LABELS: Record<FrameKind, string> = {
   year: "This year",
   custom: "Custom range",
 };
+
+/** Short labels for the segmented control (custom stays out of the pills). */
+const FRAME_PILLS: Array<{ kind: FrameKind; label: string }> = [
+  { kind: "period", label: "Period" },
+  { kind: "week", label: "Week" },
+  { kind: "month", label: "Month" },
+  { kind: "quarter", label: "Quarter" },
+  { kind: "year", label: "Year" },
+];
 
 function BudgetsSkeleton() {
   return (
@@ -84,6 +95,7 @@ export default function BudgetsPage() {
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
 
 
   const invalidate = () => {
@@ -126,28 +138,77 @@ export default function BudgetsPage() {
 
       {/* Time-frame selector */}
       <Card>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex flex-wrap gap-1 rounded-xl bg-surface-muted p-1">
-            {(Object.keys(FRAME_LABELS) as FrameKind[]).map((k) => (
-              <button
-                key={k}
-                onClick={() => setFrame(k)}
-                className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
-                  frame === k ? "bg-surface font-medium text-text shadow-sm" : "text-text-muted hover:text-text"
-                }`}
-              >
-                {FRAME_LABELS[k]}
-              </button>
-            ))}
-          </div>
-          {frame === "custom" && (
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <CustomDatePicker ariaLabel="From" value={customStart} onChange={setCustomStart} className="w-40" />
-              <span className="text-text-muted">→</span>
-              <CustomDatePicker ariaLabel="To" value={customEnd} onChange={setCustomEnd} className="w-40" />
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-muted text-text-muted" aria-hidden>
+              <CalendarRange size={16} />
+            </span>
+            <div>
+              <p className="text-sm font-medium text-text">Time frame</p>
+              <p className="text-xs text-text-muted">
+                {frame === "custom"
+                  ? customStart && customEnd
+                    ? `${customStart} → ${customEnd}`
+                    : "Pick a start and end date"
+                  : FRAME_LABELS[frame]}
+              </p>
             </div>
-          )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div
+              className="flex flex-wrap gap-1 rounded-xl bg-surface-muted p-1"
+              role="tablist"
+              aria-label="Budget time frame"
+            >
+              {FRAME_PILLS.map(({ kind, label }) => (
+                <button
+                  key={kind}
+                  role="tab"
+                  aria-selected={frame === kind}
+                  onClick={() => setFrame(kind)}
+                  className={`h-9 rounded-lg px-3.5 text-sm transition-colors ${
+                    frame === kind
+                      ? "bg-surface font-medium text-text shadow-sm"
+                      : "text-text-muted hover:text-text"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <button
+              role="tab"
+              aria-selected={frame === "custom"}
+              onClick={() => setFrame(frame === "custom" ? "month" : "custom")}
+              className={`h-9 rounded-xl border px-3.5 text-sm transition-colors ${
+                frame === "custom"
+                  ? "border-accent bg-accent/10 font-medium text-accent"
+                  : "border-border text-text-muted hover:text-text"
+              }`}
+            >
+              Custom
+            </button>
+          </div>
         </div>
+        {frame === "custom" && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3 text-sm">
+            <CustomDatePicker ariaLabel="From" value={customStart} onChange={setCustomStart} className="w-40" />
+            <span className="text-text-muted" aria-hidden>→</span>
+            <CustomDatePicker ariaLabel="To" value={customEnd} onChange={setCustomEnd} className="w-40" />
+            {(customStart || customEnd) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomStart("");
+                  setCustomEnd("");
+                }}
+                className="flex h-10 items-center gap-1.5 rounded-md px-2.5 text-xs text-text-muted transition-colors hover:text-text"
+              >
+                <X size={14} /> Clear
+              </button>
+            )}
+          </div>
+        )}
       </Card>
 
       {/* Monthly pool — this month's income, dwindling as you spend */}
@@ -223,9 +284,7 @@ export default function BudgetsPage() {
                   <button
                     aria-label={`Delete budget ${b.name}`}
                     title="Delete budget"
-                    onClick={() => {
-                      if (window.confirm(`Delete budget "${b.name}"?`)) remove.mutate(b.id);
-                    }}
+                    onClick={() => setConfirmDelete({ id: b.id, name: b.name })}
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-[var(--danger-soft)] hover:text-danger"
                   >
                     <Trash2 size={15} />
@@ -368,18 +427,21 @@ export default function BudgetsPage() {
       )}
 
       {/* Floating action button — bottom right, above the mobile tab bar */}
-      {!showAdd && (
-        <button
-          aria-label="Create budget"
-          onClick={() => setShowAdd(true)}
-          className="fixed right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-foreground)] shadow-lg transition-transform hover:scale-105 active:scale-95"
-          style={{
-            bottom: `calc(${kbdHeight > 0 ? kbdHeight : 0}px + ${kbdHeight > 0 ? "1rem" : "6rem"} + env(safe-area-inset-bottom))`,
-          }}
-        >
-          <Plus size={26} strokeWidth={2.5} />
-        </button>
-      )}
+      <FloatingAddButton label="Create budget" onClick={() => setShowAdd(true)} hidden={showAdd} />
+
+      {/* Custom delete confirmation */}
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="Delete budget?"
+        message={confirmDelete ? `Budget "${confirmDelete.name}" and its category links will be removed.` : undefined}
+        confirmLabel="Delete"
+        busy={remove.isPending}
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={() => {
+          if (confirmDelete) remove.mutate(confirmDelete.id);
+          setConfirmDelete(null);
+        }}
+      />
     </div>
   );
 }

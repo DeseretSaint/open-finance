@@ -27,11 +27,39 @@ describe("solo bootstrap (P8b)", () => {
     expect(row?.password_hash).toBeNull(); // device user never logs in over HTTP
   });
 
-  it("rejects a second bootstrap on the same device", async () => {
+  it("rejects a second bootstrap on the same device (real account exists)", async () => {
     const db = createTestDb();
     const solo = createSoloBootstrapService(db);
     await solo.bootstrap({});
-    await expect(solo.bootstrap({})).rejects.toThrow(/already set up/i);
+    await expect(solo.bootstrap({})).rejects.toThrow(/unlock it instead/i);
+  });
+
+  it("upgrades a demo-only device into a real account (issue #1)", async () => {
+    const db = createTestDb();
+    const solo = createSoloBootstrapService(db);
+    // Simulate the demo having run on this device.
+    await solo.bootstrap({ displayName: "Demo", isDemo: true });
+    expect(await solo.isBootstrapped()).toBe(true);
+
+    // Creating an account on the same device must NOT say "already set up".
+    const { user, recoveryCode } = await solo.bootstrap({ displayName: "My Phone", pin: "1234" });
+    expect(user.display_name).toBe("My Phone");
+    expect(recoveryCode).toMatch(/^[A-Z2-9]{4}(-[A-Z2-9]{4}){9}$/);
+
+    // Device no longer flagged as demo, recovery code re-hashed, PIN set.
+    const row = await db.get<{ is_demo: number; display_name: string; recovery_code_hash: string | null }>(
+      "SELECT is_demo, display_name, recovery_code_hash FROM users WHERE id = ?",
+      user.id
+    );
+    expect(row?.is_demo).toBe(0);
+    expect(row?.recovery_code_hash).toBeTruthy();
+    expect(row?.recovery_code_hash).not.toContain(recoveryCode);
+    // Onboarding was reset so the wizard runs again.
+    const settings = await db.get<{ onboarding_completed: number }>(
+      "SELECT onboarding_completed FROM user_settings WHERE user_id = ?",
+      user.id
+    );
+    expect(settings?.onboarding_completed).toBe(0);
   });
 
   it("verifies recovery codes case-insensitively and rejects wrong ones", async () => {

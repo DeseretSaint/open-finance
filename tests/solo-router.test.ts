@@ -103,4 +103,41 @@ describe("solo flow (P8b) — bootstrap → account → category → transaction
     expect(await solo.verifyRecoveryCode(recoveryCode)).toBe(true);
     await solo.unlock("2222");
   });
+
+  it("transactions.update handles category + exclude-from-budgets (issues #4/#5 — the solo PATCH route calls this)", async () => {
+    const solo = createSoloBootstrapService(db);
+    const { user } = await solo.bootstrap({});
+
+    const accounts = await import("@/server/domain/accounts");
+    const account = await accounts
+      .createAccountsService(db)
+      .createManual(user.id, { name: "Checking", type: "depository", currentBalanceCents: 0 });
+    const cats = await import("@/server/domain/categories");
+    const catSvc = cats.createCategoriesService(db);
+    const groceries = await catSvc.create(user.id, { name: "Groceries", color: "#10B981" });
+    const dining = await catSvc.create(user.id, { name: "Dining", color: "#F59E0B" });
+    const txns = await import("@/server/domain/transactions");
+    const txnSvc = txns.createTransactionsService(db);
+    const txn = await txnSvc.createManual(user.id, {
+      accountId: account.id,
+      amountCents: -5230,
+      date: new Date().toISOString().slice(0, 10),
+      name: "Whole Foods",
+      userCategoryId: groceries.id,
+    });
+
+    // Default: included in budgets (exclude_from_budgets = 0).
+    let got = (await txnSvc.list(user.id, { limit: 10, offset: 0 })).rows[0];
+    expect(got.exclude_from_budgets).toBe(0);
+
+    // Issue #4: toggling "exclude" actually persists.
+    await txnSvc.update(user.id, txn.id, { excludeFromBudgets: true });
+    got = (await txnSvc.list(user.id, { limit: 10, offset: 0 })).rows[0];
+    expect(got.exclude_from_budgets).toBe(1);
+
+    // Issue #5: changing the category actually updates it.
+    await txnSvc.update(user.id, txn.id, { userCategoryId: dining.id });
+    got = (await txnSvc.list(user.id, { limit: 10, offset: 0 })).rows[0];
+    expect(got.user_category_id).toBe(dining.id);
+  });
 });

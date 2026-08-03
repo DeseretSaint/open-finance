@@ -7,7 +7,8 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { isSoloCandidate } from "@/lib/mobile-mode";
 import { Button } from "@/components/ui/button";
-import { Input, Select } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { LogoMark } from "@/components/sidebar";
 import { MotifHero } from "@/components/motif-hero";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
@@ -166,16 +167,15 @@ export default function LoginPage() {
                 />
               </div>
               <div>
-                <label htmlFor="login-duration" className="mb-1 block text-xs font-medium text-text-muted">
+                <label id="login-duration-label" className="mb-1 block text-xs font-medium text-text-muted">
                   Stay signed in
                 </label>
-                <Select id="login-duration" value={duration} onChange={(e) => setDuration(e.target.value)}>
-                  {DURATIONS.map((d) => (
-                    <option key={d.value} value={d.value}>
-                      {d.label}
-                    </option>
-                  ))}
-                </Select>
+                <CustomSelect
+                  ariaLabel="Stay signed in"
+                  value={duration}
+                  onChange={setDuration}
+                  options={DURATIONS.map((d) => ({ value: d.value, label: d.label }))}
+                />
               </div>
               {error && (
                 <p role="alert" className="rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-sm text-danger">

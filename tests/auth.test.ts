@@ -50,12 +50,15 @@ describe("auth service", () => {
     ).rejects.toMatchObject({ code: "conflict" });
   });
 
-  it("enforces the password policy", async () => {
-    await expect(
-      auth().register({ username: "bob", display_name: "Bob", password: "short" })
-    ).rejects.toMatchObject({ code: "bad_request" });
+  it("enforces the password policy (no min length; blocks username/common passwords)", async () => {
+    // No minimum length anymore (2026-08-03) — a 5-char password is fine.
+    const { user } = await auth().register({ username: "bob", display_name: "Bob", password: "5char" });
+    expect(user.username).toBe("bob");
     await expect(
       auth().register({ username: "carol", display_name: "Carol", password: "password" })
+    ).rejects.toMatchObject({ code: "bad_request" });
+    await expect(
+      auth().register({ username: "dave", display_name: "Dave", password: "dave" })
     ).rejects.toMatchObject({ code: "bad_request" });
   });
 
