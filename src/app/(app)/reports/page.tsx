@@ -323,7 +323,7 @@ export default function ReportsPage() {
             </div>
             {(projection.data?.dangerMonths.length ?? 0) > 0 && (
               <p className="mt-3 rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-sm text-danger">
-                ⚠️ Balance is projected to go negative in: {projection.data?.dangerMonths.join(", ")}.
+                Balance is projected to go negative in: {projection.data?.dangerMonths.join(", ")}.
               </p>
             )}
           </>

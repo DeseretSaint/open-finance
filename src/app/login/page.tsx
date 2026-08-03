@@ -9,6 +9,7 @@ import { isSoloCandidate } from "@/lib/mobile-mode";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { LogoMark } from "@/components/sidebar";
+import { MotifHero } from "@/components/motif-hero";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 
 const DURATIONS = [
@@ -107,12 +108,15 @@ export default function LoginPage() {
             {solo ? "This phone is your wallet. Data stays on-device." : "Self-hosted. Your data, your machine."}
           </p>
         </div>
+        <div className="mb-4">
+          <MotifHero compact />
+        </div>
         <form onSubmit={submit} className="space-y-4 rounded-2xl border border-border bg-surface p-6 shadow-[var(--shadow-card)]">
           {solo ? (
             <>
               {lock.data?.biometricEnabled && (
                 <Button type="button" variant="secondary" onClick={unlockWithBiometric} disabled={bioBusy} className="w-full" size="lg">
-                  {bioBusy ? "Checking…" : "🔓 Unlock with biometrics"}
+                  {bioBusy ? "Checking…" : "Unlock with biometrics"}
                 </Button>
               )}
               <div>

@@ -19,7 +19,7 @@ interface Me {
 
 export default function SettingsPage() {
   const qc = useQueryClient();
-  const { accent, setAccent, accents, dark, setDark } = useTheme();
+  const { accent, setAccent, accents, dark, setDark, compact, setCompact } = useTheme();
 
   const me = useQuery({ queryKey: ["me"], queryFn: () => api.get<Me>("/api/auth/me") });
   const sessions = useQuery({ queryKey: ["sessions"], queryFn: () => api.get<{ sessions: Array<{ id: string; device_label: string; created_at: string; current: boolean }> }>("/api/auth/sessions") });
@@ -74,7 +74,7 @@ export default function SettingsPage() {
     onSuccess: () => {
       setClientId("");
       setSecret("");
-      setMsg("Plaid keys saved and validated.");
+      setMsg("Connection keys saved and checked.");
       qc.invalidateQueries({ queryKey: ["plaid-creds"] });
     },
     onError: (e) => setErr(e instanceof Error ? e.message : "Failed."),
@@ -162,17 +162,17 @@ export default function SettingsPage() {
       </Card>
 
       <Card className="lg:col-span-2">
-        <CardTitle>Bank connections (bring your own Plaid keys)</CardTitle>
+        <CardTitle>Bank connections</CardTitle>
         <p className="mt-1 text-sm text-text-muted">
-          Paste your free Plaid keys — they&apos;re encrypted at rest and only ever leave your machine to talk to Plaid.
+          Open Finance connects to your bank through Plaid. Paste your free connection keys — they&apos;re encrypted on this device and only ever leave it to talk to your bank.
         </p>
         <div className="mt-4 flex flex-wrap items-end gap-3">
           <div className="min-w-48 flex-1">
-            <label className="mb-1 block text-xs text-text-muted">Plaid client_id</label>
+            <label className="mb-1 block text-xs text-text-muted">Client ID</label>
             <Input placeholder="6543a1b2…" value={clientId} onChange={(e) => setClientId(e.target.value)} />
           </div>
           <div className="min-w-48 flex-1">
-            <label className="mb-1 block text-xs text-text-muted">Plaid secret</label>
+            <label className="mb-1 block text-xs text-text-muted">Secret</label>
             <Input type="password" placeholder="a1b2c3…" value={secret} onChange={(e) => setSecret(e.target.value)} />
           </div>
           <div className="min-w-32">
@@ -187,13 +187,13 @@ export default function SettingsPage() {
             disabled={saveCreds.isPending || !clientId || !secret}
             onClick={() => saveCreds.mutate()}
           >
-            {saveCreds.isPending ? "Validating…" : "Save & test keys"}
+            {saveCreds.isPending ? "Checking…" : "Save & check keys"}
           </Button>
         </div>
         <div className="mt-2 text-xs text-text-muted">
           {creds.data?.environments.map((e) => (
             <span key={e.environment} className="mr-3">
-              {e.environment}: {e.hasKeys ? "keys saved ✓" : "no keys"}
+              {e.environment}: {e.hasKeys ? "keys saved" : "no keys"}
             </span>
           ))}
         </div>
@@ -248,31 +248,97 @@ export default function SettingsPage() {
         </div>
       </Card>
 
-      <Card>
-        <CardTitle>Appearance</CardTitle>
-        <p className="mt-1 text-sm text-text-muted">Accent color — applied everywhere, charts included.</p>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {accents.map((c) => (
-            <button
-              key={c}
-              onClick={() => setAccent(c)}
-              className="h-9 w-9 rounded-full border-2 transition-transform hover:scale-110"
-              style={{
-                background: c,
-                borderColor: accent === c ? "var(--foreground)" : "transparent",
-              }}
-              aria-label={`Accent ${c}`}
-              aria-pressed={accent === c}
-            />
-          ))}
-          <button
-            onClick={() => setDark(!dark)}
-            className="ml-2 flex h-9 items-center gap-2 rounded-full border border-border px-3 text-xs font-medium text-text-muted transition-colors hover:text-text"
-            aria-pressed={dark}
-          >
-            {dark ? <Sun size={14} aria-hidden /> : <Moon size={14} aria-hidden />}
-            {dark ? "Light" : "Dark"}
-          </button>
+      <Card className="lg:col-span-2">
+        <CardTitle>Personalize</CardTitle>
+        <p className="mt-1 text-sm text-text-muted">Make it yours — applied instantly, everywhere.</p>
+
+        <div className="mt-4 grid gap-5 sm:grid-cols-2">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-text-muted">Accent color</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {accents.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setAccent(c)}
+                  className="h-9 w-9 rounded-full border-2 transition-transform hover:scale-110"
+                  style={{ background: c, borderColor: accent.toLowerCase() === c.toLowerCase() ? "var(--foreground)" : "transparent" }}
+                  aria-label={`Accent ${c}`}
+                  aria-pressed={accent.toLowerCase() === c.toLowerCase()}
+                />
+              ))}
+              <label
+                className="relative h-9 w-9 cursor-pointer overflow-hidden rounded-full border-2 border-dashed border-border"
+                title="Custom color"
+              >
+                <input
+                  type="color"
+                  value={accent}
+                  onChange={(e) => setAccent(e.target.value)}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                  aria-label="Custom accent color"
+                />
+                <span className="flex h-full w-full items-center justify-center text-xs text-text-muted">+</span>
+              </label>
+            </div>
+            <p className="mt-1.5 text-xs text-text-muted">Charts harmonize with your accent automatically.</p>
+
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setDark(!dark)}
+                className="flex h-9 items-center gap-2 rounded-full border border-border px-3 text-xs font-medium text-text-muted transition-colors hover:text-text"
+                aria-pressed={dark}
+              >
+                {dark ? <Sun size={14} aria-hidden /> : <Moon size={14} aria-hidden />}
+                {dark ? "Light mode" : "Dark mode"}
+              </button>
+              <button
+                onClick={() => setCompact(!compact)}
+                className="flex h-9 items-center gap-2 rounded-full border px-3 text-xs font-medium transition-colors"
+                style={
+                  compact
+                    ? { borderColor: "var(--accent)", color: "var(--accent)", background: "var(--accent-soft)" }
+                    : { borderColor: "var(--border)", color: "var(--text-muted)" }
+                }
+                aria-pressed={compact}
+              >
+                Compact density
+              </button>
+            </div>
+          </div>
+
+          {/* Live preview */}
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-text-muted">Preview</p>
+            <div className="mt-2 rounded-xl border border-border bg-background p-3">
+              <div className="rounded-lg border border-border bg-surface p-3 shadow-[var(--shadow-card)]">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold"
+                    style={{ background: "var(--accent)", color: "var(--accent-foreground)" }}
+                  >
+                    {(me.data?.user.display_name || "Y").trim().charAt(0).toUpperCase()}
+                  </span>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-text-muted">Total balance</p>
+                    <p className="money text-sm font-bold text-text">$2,570.36</p>
+                  </div>
+                </div>
+                <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-surface-muted">
+                  <div className="h-full w-2/3 rounded-full" style={{ background: "var(--accent)" }} />
+                </div>
+                <div className="mt-1.5 flex justify-between text-[11px]">
+                  <span className="text-text-muted">Groceries</span>
+                  <span className="money text-text">$268 / $400</span>
+                </div>
+                <button
+                  className="mt-2.5 w-full rounded-lg py-1.5 text-xs font-semibold"
+                  style={{ background: "var(--accent)", color: "var(--accent-foreground)" }}
+                >
+                  Primary action
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </Card>
 
@@ -634,11 +700,10 @@ function AgentWiringCard() {
 
   return (
     <Card className="lg:col-span-2">
-      <CardTitle>AI agent connection</CardTitle>
+      <CardTitle>Your AI assistant</CardTitle>
       <p className="mt-1 text-sm text-text-muted">
-        Point your finance agent (Hermes, Claude, Cursor…) at Open Finance to answer money questions and — with
-        your approval — adjust budgets. Agents get a token with read-only access by default and ask permission
-        before any write.
+        Connect an AI assistant (Hermes, Claude, Cursor…) to answer money questions and — with your approval —
+        help with budgets. It can look, but can&apos;t touch, by default, and it always asks before changing anything.
       </p>
 
       {/* Access tiers — per-tab read selection + global master + write */}
@@ -646,10 +711,10 @@ function AgentWiringCard() {
         <div className="rounded-xl border border-border p-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-text">Tabs the agent can read</p>
+              <p className="text-sm font-medium text-text">What your AI can see</p>
               <p className="mt-0.5 text-xs text-text-muted">
-                Pick what the agent may see — e.g. Activity + Budgets and nothing else. It never touches the tabs you
-                leave off.
+                Choose the parts it may look at — e.g. Activity + Budgets and nothing else. It can never see the ones
+                you leave off.
               </p>
             </div>
           </div>
@@ -686,14 +751,14 @@ function AgentWiringCard() {
           </div>
           <p className="mt-2 text-xs text-text-muted">
             {p?.global
-              ? "Global access is on — everything is readable."
-              : `Agent can read: ${tabs.map((t) => TAB_LABELS[t]).join(", ") || "nothing"}`}
+              ? "Full access is on — it can see everything."
+              : `It can see: ${tabs.map((t) => TAB_LABELS[t]).join(", ") || "nothing"}`}
           </p>
         </div>
 
         <div className="flex items-start justify-between gap-4 rounded-xl border border-border p-4">
           <div className="min-w-0">
-            <p className="text-sm font-medium text-text">Smart categorization (write)</p>
+            <p className="text-sm font-medium text-text">Smart categorization</p>
             <p className="mt-0.5 text-xs text-text-muted">
               Let your agent categorize unclear expenses — a purchase labeled &ldquo;POS DEBIT&rdquo; or an unnamed
               charge. It categorizes the ones it&apos;s confident about and leaves the gray-area ones for you. You can
@@ -737,10 +802,10 @@ function AgentWiringCard() {
         <div className={`rounded-xl border p-4 ${p?.global ? "border-accent/40" : "border-border"}`}>
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-text">Global access (whole app)</p>
+              <p className="text-sm font-medium text-text">Full access (everything)</p>
               <p className="mt-0.5 text-xs text-text-muted">
-                One switch for everything — read <strong className="text-text">and write</strong> access across the
-                whole app: balances, budgets, categories, syncs. Each write still asks your approval.
+                One switch for everything — your AI can see <strong className="text-text">and change</strong> the whole
+                app: balances, budgets, categories. Each change still asks your approval.
               </p>
             </div>
             <button
@@ -858,7 +923,7 @@ function AgentWiringCard() {
 
           <div className="mt-4 border-t border-border pt-3">
             <Button variant="secondary" size="sm" onClick={copyGuide}>
-              {guideCopied ? "Copied ✓" : "Give your AI its bearings"}
+              {guideCopied ? "Copied" : "Give your AI its bearings"}
             </Button>
             <p className="mt-1.5 text-xs text-text-muted">
               Copies a short brief to paste into your agent — what Open Finance is, the money rules, and where its
@@ -870,39 +935,50 @@ function AgentWiringCard() {
 
       {soloUnsupported ? (
         <div className="mt-4 rounded-lg bg-surface-muted px-4 py-3 text-sm text-text-muted">
-          On this phone, agent connections are served by a hub. Use the{" "}
-          <strong className="text-text">Hub &amp; phone pairing</strong> card above to set one up on a computer,
+          On this phone, your AI connects through your computer (your base). Use the{" "}
+          <strong className="text-text">Connect your phone &amp; computer</strong> card above to set one up on a computer,
           then connect your agent here — or on the hub itself.
         </div>
       ) : (
         <>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs text-text-muted">MCP endpoint (Streamable HTTP)</label>
+              <label className="mb-1 block text-xs text-text-muted">Connection address</label>
               <code className="block rounded-md bg-surface-muted px-3 py-2 text-sm text-accent">
                 {endpoint}/api/mcp
               </code>
             </div>
             <div>
-              <label className="mb-1 block text-xs text-text-muted">Agents &amp; tokens</label>
+              <label className="mb-1 block text-xs text-text-muted">AI access keys</label>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-text">
-                  {agents.data?.agents.length ?? 0} token{agents.data?.agents.length === 1 ? "" : "s"}
+                  {agents.data?.agents.length ?? 0} key{agents.data?.agents.length === 1 ? "" : "s"}
                 </span>
                 <Button size="sm" variant="secondary" onClick={() => (window.location.href = "/agents")}>
-                  Manage in Agents
+                  Manage
                 </Button>
               </div>
             </div>
           </div>
           <div className="mt-4 rounded-lg bg-surface-muted px-4 py-3 text-xs text-text-muted">
-            <p className="font-medium text-text">Example (Hermes / Claude / Cursor):</p>
+            <p className="font-medium text-text">Getting started (Hermes / Claude / Cursor):</p>
             <p className="mt-1">
-              Create a token on the Agents page (read-only preset), then add an MCP server to your agent with the
-              endpoint above and the token. The agent can read budgets/summary immediately; budget edits prompt you
-              for approval.
+              Create an access key on the Agents page (start with &ldquo;can look, can&apos;t touch&rdquo;), then connect your AI
+              with the address above and that key. It can read right away; changes always ask you first.
             </p>
           </div>
+          <details className="mt-3 rounded-lg border border-border px-4 py-3 text-xs text-text-muted">
+            <summary className="cursor-pointer font-medium text-text">Technical details</summary>
+            <div className="mt-2 space-y-1.5 font-mono">
+              <p>MCP (Streamable HTTP): <span className="text-accent">{endpoint}/api/mcp</span></p>
+              <p>MCP (stdio): <span className="text-accent">node dist/mcp-cli.mjs --url {endpoint} --token &lt;key&gt;</span></p>
+              <p>REST: <span className="text-accent">GET {endpoint}/api/agent/summary</span> (Bearer)</p>
+              <p>OpenAPI: <span className="text-accent">{endpoint}/api/openapi.json</span></p>
+              <p>Agent handbook: <span className="text-accent">GET /api/agent/guide</span></p>
+              <p>Key format: <span className="text-accent">of_…</span> (shown once at creation)</p>
+              <p>curl: <span className="text-accent">curl -H &quot;Authorization: Bearer of_…&quot; {endpoint}/api/agent/capabilities</span></p>
+            </div>
+          </details>
         </>
       )}
     </Card>
@@ -940,7 +1016,7 @@ function HubPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; setE
   const apply = useMutation({
     mutationFn: () => api.post("/api/hub/apply", { mode, url: mode === "hub" ? hubUrl : "" }),
     onSuccess: () => {
-      setMsg("Hub mode saved — restart the app for the new bind address to take effect.");
+      setMsg("Saved — restart the app for the change to take effect.");
       qc.invalidateQueries({ queryKey: ["hub"] });
     },
     onError: (e) => setErr(e instanceof Error ? e.message : "Failed."),
@@ -949,7 +1025,7 @@ function HubPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; setE
   const startPairing = useMutation({
     mutationFn: () => api.post<{ code: string; url: string; ttlSeconds: number }>("/api/pairing/start"),
     onSuccess: (d) => {
-      setMsg(`Pairing code: ${d.code} — scan the QR or open ${d.url} on your phone (valid ${d.ttlSeconds / 60} min).`);
+      setMsg(`Connection code: ${d.code} — scan the QR or open ${d.url} on your phone (good for ${d.ttlSeconds / 60} min).`);
       qc.invalidateQueries({ queryKey: ["hub"] });
     },
     onError: (e) => setErr(e instanceof Error ? e.message : "Failed."),
@@ -960,9 +1036,9 @@ function HubPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; setE
 
   return (
     <Card className="lg:col-span-2">
-      <CardTitle>Hub &amp; phone pairing (Connection Assistant)</CardTitle>
+      <CardTitle>Connect your phone &amp; computer</CardTitle>
       <p className="mt-1 text-sm text-text-muted">
-        Run as a solo desktop app, or host for your phone. No env-file editing — it&apos;s a Settings action.
+        Use Open Finance just on this computer, or let it be the base your phone talks to. Pick one — no technical setup needed.
       </p>
 
       <div className="mt-4 flex flex-wrap gap-3">
@@ -972,8 +1048,8 @@ function HubPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; setE
             mode === "solo" ? "border-accent bg-accent/5" : "border-border hover:bg-surface-muted"
           }`}
         >
-          <p className="font-medium text-text">☝ Solo</p>
-          <p className="mt-0.5 text-xs text-text-muted">This machine only — localhost, no network exposure.</p>
+          <p className="font-medium text-text">This computer only</p>
+          <p className="mt-0.5 text-xs text-text-muted">Just here — nothing leaves this computer.</p>
         </button>
         <button
           onClick={() => {
@@ -984,8 +1060,8 @@ function HubPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; setE
             mode === "hub" ? "border-accent bg-accent/5" : "border-border hover:bg-surface-muted"
           }`}
         >
-          <p className="font-medium text-text">📱 Host for my phone</p>
-          <p className="mt-0.5 text-xs text-text-muted">LAN or Tailscale — pair by QR, sync anywhere.</p>
+          <p className="font-medium text-text">Share with my phone</p>
+          <p className="mt-0.5 text-xs text-text-muted">Your phone connects over your Wi-Fi or from anywhere — scan a code to link them.</p>
         </button>
       </div>
 
@@ -993,14 +1069,14 @@ function HubPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; setE
         <div className="mt-4 space-y-3">
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-64 flex-1">
-              <label className="mb-1 block text-xs text-text-muted">Hub URL (detected automatically)</label>
+              <label className="mb-1 block text-xs text-text-muted">This computer&apos;s address (found automatically)</label>
               <Input value={hubUrl} onChange={(e) => setHubUrl(e.target.value)} placeholder="http://192.168.x.x:3000" />
             </div>
             <Button onClick={() => apply.mutate()} disabled={apply.isPending || !hubUrl}>
-              {apply.isPending ? "Saving…" : "Apply hub mode"}
+              {apply.isPending ? "Saving…" : "Save"}
             </Button>
             <Button variant="secondary" onClick={() => startPairing.mutate()} disabled={startPairing.isPending}>
-              {startPairing.isPending ? "Creating…" : "Generate pairing QR"}
+              {startPairing.isPending ? "Creating…" : "Show connection code"}
             </Button>
           </div>
           {detect.data && (
@@ -1104,7 +1180,7 @@ function BackupPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; s
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <Button variant="secondary" onClick={download}>
-          ⬇ Download backup (.ofbak)
+          Download backup (.ofbak)
         </Button>
       </div>
       <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-border pt-4">
@@ -1149,7 +1225,7 @@ function BackupPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; s
             }
           }}
         >
-          ↻ Restart setup tour
+          Restart setup tour
         </Button>
       </div>
     </Card>
@@ -1275,7 +1351,7 @@ function SoloBackupPanel({ setMsg, setErr }: { setMsg: (s: string | null) => voi
             }
           }}
         >
-          ↻ Restart setup tour
+          Restart setup tour
         </Button>
       </div>
     </Card>

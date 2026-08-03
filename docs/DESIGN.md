@@ -81,8 +81,13 @@ Nothing flashy; everything considered.
 
 ## Motion
 
-- 150ms ease-out micro-interactions; 300ms page transitions; 400ms number tweens;
-  skeleton shimmer 1.2s. Honor `prefers-reduced-motion`.
+- Micro-interactions 120–180ms ease-out; page/tab transitions 280–320ms;
+  number tweens 400ms ease-out; skeleton shimmer 1.2s loop.
+- Login/landing motif carousel: 6s per slide, 700ms crossfade, gentle 8–12px
+  float; a random start slide per visit. Sheets ~260ms with a slight (≤4%)
+  overshoot. Animate `transform`/`opacity` only — never layout properties.
+- Honor `prefers-reduced-motion` everywhere: everything collapses to instant
+  or a minimal fade (the carousel becomes a static accent panel).
 
 ## Components
 

@@ -24,6 +24,10 @@ export function useTheme() {
     // Dark is the default; only a stored "0" opts out.
     return localStorage.getItem("of-dark") !== "0";
   });
+  const [compact, setCompact] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("of-compact") === "1";
+  });
 
   useEffect(() => {
     document.documentElement.style.setProperty("--accent", accent);
@@ -36,7 +40,12 @@ export function useTheme() {
     localStorage.setItem("of-dark", dark ? "1" : "0");
   }, [dark]);
 
-  return { accent, setAccent, dark, setDark, accents: ACCENTS };
+  useEffect(() => {
+    document.documentElement.classList.toggle("compact", compact);
+    localStorage.setItem("of-compact", compact ? "1" : "0");
+  }, [compact]);
+
+  return { accent, setAccent, dark, setDark, compact, setCompact, accents: ACCENTS };
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {

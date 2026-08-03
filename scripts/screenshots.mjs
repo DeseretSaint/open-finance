@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 "use strict";
-// Screenshot suite — SEED_DATE-pinned demo captures for docs/CI.
+// Screenshot suite (D12) — SEED_DATE-pinned demo captures for docs/CI.
+// Covers landing, login, wizard, all 8 tabs, settings sections — desktop +
+// phone viewports, light + dark.
 // Usage: node scripts/screenshots.mjs [--seed-date 2026-01-01] [--port 3100]
 import { chromium } from "playwright";
 import { spawn } from "node:child_process";
@@ -21,23 +23,22 @@ const OUT = path.join(root, "public", "screenshots");
 const dbPath = path.join(os.tmpdir(), `of-screenshots-${Date.now()}.db`);
 const log = (...m) => console.log("[screenshots]", ...m);
 
+const DESKTOP = { width: 1440, height: 900 };
+const PHONE = { width: 375, height: 812 };
+
 async function main() {
   fs.mkdirSync(OUT, { recursive: true });
   log(`seed date ${SEED_DATE}, port ${PORT}, db ${dbPath}`);
 
-  // migrate + seed
   await run("node", ["migrations/up.js"], { env: { ...process.env, DATABASE_PATH: dbPath } });
   await run("node", ["scripts/seed.js", "--seed-date", SEED_DATE], { env: { ...process.env, DATABASE_PATH: dbPath } });
 
-  // The standalone server needs its static assets beside it (the Dockerfile
-  // copies them; a bare local run does not). Mirror them so screenshots work.
   const standaloneStatic = path.join(root, ".next", "standalone", ".next", "static");
   fs.mkdirSync(standaloneStatic, { recursive: true });
   fs.cpSync(path.join(root, ".next", "static"), standaloneStatic, { recursive: true });
   fs.mkdirSync(path.join(root, ".next", "standalone", "public"), { recursive: true });
   fs.cpSync(path.join(root, "public"), path.join(root, ".next", "standalone", "public"), { recursive: true });
 
-  // start the server (standalone build must exist — run `pnpm build` first)
   const server = spawn("node", [path.join(root, ".next", "standalone", "server.js")], {
     cwd: root,
     env: {
@@ -55,9 +56,38 @@ async function main() {
   await waitFor(base + "/api/health", server);
 
   const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 
-  // demo login
+  async function shoot(page, name, route, { settle = 1100 } = {}) {
+    await page.goto(base + route, { waitUntil: "networkidle" });
+    await page.waitForTimeout(settle);
+    await page.screenshot({ path: path.join(OUT, `${name}.png`), fullPage: false });
+    log(`captured ${name}.png`);
+  }
+
+  async function setDark(page, dark) {
+    // Navigate first so localStorage is accessible (about:blank denies it).
+    if (page.url() === "about:blank") await page.goto(base + "/", { waitUntil: "domcontentloaded" });
+    await page.evaluate((d) => {
+      localStorage.setItem("of-dark", d ? "1" : "0");
+      document.documentElement.classList.toggle("dark", d);
+    }, dark);
+  }
+
+  // ── Public surfaces (no auth) ──────────────────────────────────────────
+  const pub = await browser.newPage({ viewport: DESKTOP });
+  await setDark(pub, true);
+  await shoot(pub, "landing", "/");
+  await shoot(pub, "login", "/login");
+  await pub.waitForTimeout(6500); // one carousel slide later — a second motif frame
+  await pub.screenshot({ path: path.join(OUT, "login-2.png") });
+  log("captured login-2.png");
+  await shoot(pub, "register", "/register");
+  await setDark(pub, false);
+  await shoot(pub, "landing-light", "/");
+  await pub.close();
+
+  // ── Authed app (demo), desktop dark + light ────────────────────────────
+  const page = await browser.newPage({ viewport: DESKTOP });
   await page.goto(base + "/demo", { waitUntil: "networkidle" });
   await page.waitForSelector("button:has-text('Enter the demo')", { timeout: 15000 });
   await page.click("text=Enter the demo");
@@ -68,28 +98,41 @@ async function main() {
     throw new Error(`demo login failed. page says: ${body}\n${e instanceof Error ? e.message : e}`);
   }
 
-  const shots = [
+  const tabs = [
     ["dashboard", "/dashboard"],
+    ["accounts", "/accounts"],
     ["transactions", "/transactions"],
     ["budgets", "/budgets"],
     ["plan", "/plan"],
     ["reports", "/reports"],
+    ["agents", "/agents"],
     ["settings", "/settings"],
   ];
-  for (const [name, route] of shots) {
-    await page.goto(base + route, { waitUntil: "networkidle" });
-    await page.waitForTimeout(1200); // let charts/skeletons settle
-    const out = path.join(OUT, `${name}.png`);
-    await page.screenshot({ path: out, fullPage: false });
-    log(`captured ${out}`);
-  }
+  await setDark(page, true);
+  for (const [name, route] of tabs) await shoot(page, name, route);
 
-  // dark mode shot of dashboard
-  await page.goto(base + "/dashboard", { waitUntil: "networkidle" });
-  await page.click("text=Dark mode");
-  await page.waitForTimeout(800);
-  await page.screenshot({ path: path.join(OUT, "dashboard-dark.png") });
-  log("captured dashboard-dark.png");
+  await setDark(page, false);
+  await shoot(page, "dashboard-light", "/dashboard");
+  await shoot(page, "reports-light", "/reports");
+  await page.close();
+
+  // ── Phone viewport (dark) ──────────────────────────────────────────────
+  const mob = await browser.newPage({ viewport: PHONE, isMobile: true, hasTouch: true });
+  await mob.goto(base + "/demo", { waitUntil: "networkidle" });
+  await mob.waitForSelector("button:has-text('Enter the demo')", { timeout: 15000 });
+  await mob.click("text=Enter the demo");
+  await mob.waitForURL("**/dashboard", { timeout: 15000 });
+  await setDark(mob, true);
+  await shoot(mob, "phone-dashboard", "/dashboard");
+  await shoot(mob, "phone-transactions", "/transactions");
+  await shoot(mob, "phone-reports", "/reports");
+  // The mobile "More" sheet
+  await mob.goto(base + "/dashboard", { waitUntil: "networkidle" });
+  await mob.click("text=More");
+  await mob.waitForTimeout(500);
+  await mob.screenshot({ path: path.join(OUT, "phone-more.png") });
+  log("captured phone-more.png");
+  await mob.close();
 
   await browser.close();
   server.kill("SIGTERM");
@@ -122,12 +165,12 @@ function waitFor(url, server) {
       } catch {
         /* not up yet */
       }
-      if (server.exitCode !== null) {
-        clearInterval(interval);
-        clearTimeout(timer);
-        reject(new Error("server exited early"));
-      }
-    }, 1000);
+    }, 500);
+    server.on("exit", () => {
+      clearInterval(interval);
+      clearTimeout(timer);
+      reject(new Error("server exited before health check"));
+    });
   });
 }
 

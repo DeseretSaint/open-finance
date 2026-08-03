@@ -7,6 +7,7 @@ import { isSoloCandidate } from "@/lib/mobile-mode";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { MotifHero } from "@/components/motif-hero";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 
 /**
@@ -96,7 +97,7 @@ export function OnboardingWizard() {
       }
       await api.post("/api/device-lock/pin", { pin });
       setPinSaved(true);
-      setMsg("Device PIN set ✓");
+      setMsg("Device PIN set.");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not set PIN.");
     } finally {
@@ -125,7 +126,7 @@ export function OnboardingWizard() {
     try {
       await api.put("/api/plaid/credentials", { clientId, secret, environment });
       setKeysSaved(true);
-      setMsg("Plaid keys saved and validated ✓");
+      setMsg("Bank connection keys saved and validated.");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not save Plaid keys.");
     } finally {
@@ -158,7 +159,7 @@ export function OnboardingWizard() {
           institutionName: institutionName ?? null,
         });
         setLinkedCount((c) => c + 1);
-        setMsg(institutionName ? `${institutionName} linked ✓` : "Bank linked ✓");
+        setMsg(institutionName ? `${institutionName} connected.` : "Bank connected.");
         setLinkToken(null);
       } catch (e) {
         setErr(e instanceof Error ? e.message : "Could not link bank.");
@@ -220,15 +221,18 @@ export function OnboardingWizard() {
         <div className="rounded-2xl border border-border bg-surface p-6 shadow-[var(--shadow-card)]">
           {step === "welcome" && (
             <>
-              <h1 className="text-2xl font-bold text-text">Welcome 👋</h1>
+              <div className="mb-5">
+                <MotifHero compact />
+              </div>
+              <h1 className="text-2xl font-bold text-text">Welcome</h1>
               <p className="mt-2 text-sm text-text-muted">
                 Open Finance runs entirely on your {solo ? "phone" : "machine"} — your data stays yours. In the
                 next couple of minutes you&apos;ll set up:
               </p>
               <ul className="mt-4 space-y-2 text-sm text-text">
-                <li>🔑 Your own Plaid keys (free — optional)</li>
-                <li>🏦 Link your bank accounts (optional)</li>
-                <li>🤖 Connect your AI agent (optional — do it later if you want)</li>
+                <li>Your own bank connection (Plaid — free, optional)</li>
+                <li>Link your bank accounts (optional)</li>
+                <li>Connect your AI assistant (optional — do it later if you want)</li>
               </ul>
               <p className="mt-4 text-xs text-text-muted">
                 Every step can be skipped — you can always add these later in Settings.
@@ -314,10 +318,10 @@ export function OnboardingWizard() {
 
           {step === "plaid" && (
             <>
-              <h1 className="text-2xl font-bold text-text">Bring your own Plaid keys</h1>
+              <h1 className="text-2xl font-bold text-text">Connect your bank (optional)</h1>
               <p className="mt-2 text-sm text-text-muted">
-                Plaid connects your bank to the app. It&apos;s free for developers, and{" "}
-                <strong className="text-text">your keys stay on this {solo ? "phone" : "machine"}</strong> — we
+                Open Finance uses Plaid to talk to your bank safely. It&apos;s free for personal use, and{" "}
+                <strong className="text-text">your connection keys stay on this {solo ? "phone" : "machine"}</strong> — we
                 never see them.
               </p>
               <ol className="mt-4 space-y-2 text-sm text-text">
@@ -335,13 +339,13 @@ export function OnboardingWizard() {
                   </a>
                   .
                 </li>
-                <li>3. Copy your Client ID and Secret, then paste them below.</li>
+                <li>3. Copy your Client ID and Secret (your connection keys), then paste them below.</li>
               </ol>
               <div className="mt-4 space-y-3">
-                <Input placeholder="Plaid Client ID (e.g. 5f2a…)" value={clientId} onChange={(e) => setClientId(e.target.value)} />
+                <Input placeholder="Client ID (starts with 5f…)" value={clientId} onChange={(e) => setClientId(e.target.value)} />
                 <Input
                   type="password"
-                  placeholder="Plaid Secret"
+                  placeholder="Secret"
                   value={secret}
                   onChange={(e) => setSecret(e.target.value)}
                 />
@@ -352,13 +356,13 @@ export function OnboardingWizard() {
               </div>
               {err && <p className="mt-3 text-sm text-danger">{err}</p>}
               {msg && <p className="mt-3 text-sm text-success">{msg}</p>}
-              {keysSaved && !msg && <p className="mt-3 text-sm text-success">Keys saved ✓</p>}
+              {keysSaved && !msg && <p className="mt-3 text-sm text-success">Keys saved.</p>}
               <div className="mt-6 flex gap-3">
                 <Button variant="secondary" onClick={() => setStep("bank")} className="flex-1">
                   Skip
                 </Button>
                 <Button onClick={saveKeys} disabled={busy || !clientId || !secret} className="flex-1">
-                  {busy ? "Validating…" : "Save & validate"}
+                  {busy ? "Checking…" : "Save & check"}
                 </Button>
               </div>
             </>
@@ -381,7 +385,7 @@ export function OnboardingWizard() {
 
               {keysSaved && linkToken && <NativeOrWebLink token={linkToken} solo={solo} onSuccess={onLinkSuccess} />}
 
-              {linkedCount > 0 && <p className="mt-3 text-sm text-success">{linkedCount} connected ✓</p>}
+              {linkedCount > 0 && <p className="mt-3 text-sm text-success">{linkedCount} connected.</p>}
               {msg && !linkToken && <p className="mt-3 text-sm text-success">{msg}</p>}
               {err && <p className="mt-3 text-sm text-danger">{err}</p>}
 
@@ -405,7 +409,7 @@ export function OnboardingWizard() {
 
           {step === "agent" && (
             <>
-              <h1 className="text-2xl font-bold text-text">Connect your AI agent</h1>
+              <h1 className="text-2xl font-bold text-text">Your AI assistant (optional)</h1>
               <p className="mt-2 text-sm text-text-muted">
                 {solo ? (
                   <>
@@ -415,8 +419,8 @@ export function OnboardingWizard() {
                   </>
                 ) : (
                   <>
-                    Open Finance exposes a read-only-by-default API your agent can use to answer money questions
-                    and — with permission — adjust budgets. Pick your agent:
+                    Everything works without one. An AI assistant can answer money questions and — only when you
+                    allow it — help with budgets. It can look, but can&apos;t touch, until you say so. Pick yours:
                   </>
                 )}
               </p>
@@ -467,10 +471,10 @@ export function OnboardingWizard() {
 
               {/* Agent access tiers — set on first entry (P20–P23) */}
               <div className="mt-4 space-y-3 rounded-xl border border-border p-4">
-                <p className="text-sm font-medium text-text">What can your agent access?</p>
+                <p className="text-sm font-medium text-text">What can your AI see and do?</p>
                 <p className="text-xs text-text-muted">
-                  Pick the tabs it may read — and optionally write. E.g. Activity + Budgets and nothing else. It never
-                  sees overall financial status unless you allow global access. Change anytime in Settings.
+                  Choose the parts it may look at — Activity only is a good start. It never sees the rest unless you
+                  turn them on here or later in Settings.
                 </p>
                 <div className="space-y-1.5">
                   {[
@@ -511,7 +515,7 @@ export function OnboardingWizard() {
                 <div className="flex items-center justify-between gap-3">
                   <label htmlFor="wiz-categorize" className="text-sm text-text">
                     Smart categorization{" "}
-                    <span className="text-xs text-text-muted">(lets it write categories on activity)</span>
+                    <span className="text-xs text-text-muted">(lets it tidy up transaction categories)</span>
                   </label>
                   <input
                     id="wiz-categorize"
@@ -540,7 +544,7 @@ export function OnboardingWizard() {
                 )}
                 <div className="flex items-center justify-between gap-3">
                   <label htmlFor="wiz-global" className="text-sm text-text">
-                    Global access <span className="text-xs text-text-muted">(read + write across the whole app)</span>
+                    Full access <span className="text-xs text-text-muted">(see and change everything — most people don&apos;t need this)</span>
                   </label>
                   <input
                     id="wiz-global"
@@ -554,7 +558,7 @@ export function OnboardingWizard() {
 
               <div className="mt-6 flex gap-3">
                 <Button variant="secondary" onClick={() => setStep("done")} className="flex-1">
-                  Do this later
+                  No thanks
                 </Button>
                 {solo ? (
                   <Button
@@ -574,7 +578,7 @@ export function OnboardingWizard() {
                     }}
                     className="flex-1"
                   >
-                    Open Agents page
+                    Set it up now
                   </Button>
                 )}
               </div>
@@ -583,15 +587,15 @@ export function OnboardingWizard() {
 
           {step === "done" && (
             <>
-              <h1 className="text-2xl font-bold text-text">You&apos;re all set 🎉</h1>
+              <h1 className="text-2xl font-bold text-text">You&apos;re all set</h1>
               <p className="mt-2 text-sm text-text-muted">
                 Your {solo ? "phone" : "instance"} is ready. Here&apos;s what you configured:
               </p>
               <ul className="mt-4 space-y-2 text-sm text-text">
-                <li>🔑 Plaid keys: {keysSaved ? "saved ✓" : "skipped (manual tracking)"}</li>
-                <li>🏦 Banks linked: {linkedCount}</li>
-                <li>🔒 Device PIN: {solo ? (pinSaved ? "set ✓" : "skipped") : "password-protected"}</li>
-                <li>🤖 Agent: {agentPrefsSaved ? `access configured (${agentGlobal ? "global read + write" : agentTabs.join(" + ")}${agentAutoCategorize ? " + smart categorization" : ""})` : "set up later in Agents (whenever you're ready)"}</li>
+                <li>Bank connection: {keysSaved ? "keys saved" : "skipped (manual tracking)"}</li>
+                <li>Banks linked: {linkedCount}</li>
+                <li>Device PIN: {solo ? (pinSaved ? "set" : "skipped") : "password-protected"}</li>
+                <li>AI assistant: {agentPrefsSaved ? `access configured (${agentGlobal ? "global read + write" : agentTabs.join(" + ")}${agentAutoCategorize ? " + smart categorization" : ""})` : "set up later in Agents (whenever you're ready)"}</li>
               </ul>
               <p className="mt-4 text-xs text-text-muted">
                 You can replay this tour anytime from Settings → &quot;Restart setup tour&quot;.

@@ -197,7 +197,7 @@ export default function AgentsPage() {
             <div key={p.agent} className="flex items-center justify-between rounded-md border px-3 py-2">
               <span className="text-sm font-medium">{p.agent}</span>
               <span className="text-xs text-muted-foreground">
-                {p.present ? (p.configured ? "present ✓ · already configured" : "present ✓") : "not detected"}
+                {p.present ? (p.configured ? "detected · already configured" : "detected") : "not detected"}
               </span>
             </div>
           ))}

@@ -93,3 +93,58 @@ Example asks that work with a budget-enabled token (grant `budgets:write` +
 - Read-only default; every call is logged (scope, tool, status) under Settings → Agents.
 - Your agent can see your finances — treat its context and output accordingly.
 - Revoke anytime; tokens expire on schedule.
+
+## The agent handbook — `GET /api/agent/guide`
+
+Fetch it once at connect time (Bearer token, always available). It returns the
+app map (every tab, its data, the endpoints + scopes), the money conventions,
+per-task how-tos (summarize, budget, categorize, planning), the widget recipe,
+the guardrail list, and when to refuse. `get_capabilities` points at it.
+
+## Guardrails
+
+You run under user-controlled rails (Settings → AI agent → guardrails):
+
+| Rail | Default | You should know |
+|---|---|---|
+| Read-only by default | on | Writes are opt-in per tab. |
+| Permission requests | ask | Out-of-scope calls create a Grant/Deny request. |
+| Auto-approve reads within caps | off | When on, read requests the user already allows skip the inbox. |
+| Confirm before destructive writes | on | Deletes may need the user's explicit OK first. |
+| Audit log | on | Every call is recorded with tool, scope, status. |
+| No account deletion | always | No scope exists — not removable. |
+| No money movement | always | The app has no payment rails — never claim to move money. |
+
+## Widgets (dev:ui)
+
+With the `dev:ui` scope you can add native-looking cards to the user's
+dashboard, budgets, and reports tabs. JSON only — no HTML/JS — the app renders
+it with its own design tokens. Tools: `list_custom_views`,
+`create_custom_view`, `update_custom_view`, `delete_custom_view`.
+
+Kinds: `stat` (a figure + label) · `progress` (spent/limit bar) · `list`
+(label/value rows) · `line` (a trend) · `donut` (a category breakdown). Fetch
+the numbers with the read tools first — a widget only displays real data.
+Names are unique per tab (update, don't recreate), and the user can remove
+any widget inline — never re-add one they removed.
+
+Example — a "spending this month" donut on the dashboard:
+
+```json
+{
+  "tab": "dashboard",
+  "name": "spending-this-month",
+  "widget": {
+    "kind": "donut",
+    "title": "Spending by category — this month",
+    "slices": [
+      { "label": "Groceries", "valueCents": 41205 },
+      { "label": "Dining", "valueCents": 18840 }
+    ]
+  }
+}
+```
+
+UI changes happen as widgets only — never attempt to edit the app's code
+through MCP. If the user wants a whole new feature, say so and offer a widget
+meanwhile.

@@ -59,10 +59,14 @@ Then pair phones from Settings → Hub & phone pairing (LAN IP or Tailscale).
 - **Budgets** — weekly, monthly, or yearly per category, with custom date ranges.
 - **Reports** — spending by category, cashflow, net worth, and a 12-month projection.
 - **Planning** — bills, debts, savings and investment goals.
-- **AI agent** — connect any MCP-capable agent (Hermes, Claude, Cursor, custom
-  scripts). Read-only by default; you choose exactly which tabs it can read,
-  whether it can auto-categorize, and whether it gets global access. Every
-  write asks your approval. See [docs/AGENTS.md](docs/AGENTS.md).
+- **AI agent** — connect any MCP-capable agent. **Recommended:
+  [Hermes](https://github.com/NousResearch/hermes-agent)** — open source, and
+  works with even a free model. Claude, Cursor, and custom scripts connect
+  too. Read-only by default; you choose exactly what it can see and do, every
+  change asks your approval, and it can add native-looking widgets to your
+  dashboard. See [docs/AGENTS.md](docs/AGENTS.md).
+- **AI guardrails** — auto-approve reads, confirm-before-destructive, and the
+  audit log are yours to tune; agents can never delete accounts or move money.
 - **Security** — device PIN + biometric unlock, encrypted at rest, recovery
   code for PIN resets, full audit log for agent actions.
 
@@ -81,7 +85,11 @@ plan). Without them you can still use the whole app with manual entry.
 
 ## Do I need an AI agent?
 
-No. Everything works without one. The agent is an optional extra.
+No. Everything works without one — the agent is an optional extra, and the app
+never nags you about it. When you do want one, we recommend
+[Hermes](https://github.com/NousResearch/hermes-agent): it's open source like
+Open Finance, self-hosted, and runs great on a free model. The wizard and the
+Agents page produce the exact wiring for it in a couple of taps.
 
 ## Development
 

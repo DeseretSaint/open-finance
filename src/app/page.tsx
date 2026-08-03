@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
 import { isSoloCandidate } from "@/lib/mobile-mode";
 import { LogoMark } from "@/components/sidebar";
+import { MotifHero } from "@/components/motif-hero";
 
 /**
  * Landing: either you're creating a new account, or you already have one on
@@ -50,6 +51,9 @@ export default function Home() {
           The finance app that lets you <strong className="text-text">bring your own agent</strong> — and asks
           permission before it looks anywhere. Self-hosted, open source, MIT.
         </p>
+        <div className="mt-5">
+          <MotifHero />
+        </div>
         <div className="mt-6 flex flex-col gap-2.5">
           {hasAccount ? (
             <Link

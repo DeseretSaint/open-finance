@@ -88,9 +88,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       >
         <Sidebar />
         <main className="flex-1 overflow-y-auto px-4 pb-24 pt-4 md:p-8">
-          <header className="mb-4 md:mb-6">
-            <h2 className="text-sm text-text-muted">Welcome back,</h2>
-            <h1 className="text-2xl font-bold">{data.user.display_name}</h1>
+          <header className="mb-4 flex items-center gap-3 md:mb-6">
+            <span
+              aria-hidden
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold"
+              style={{ background: "var(--accent)", color: "var(--accent-foreground)" }}
+            >
+              {(data.user.display_name || "?").trim().charAt(0).toUpperCase()}
+            </span>
+            <div>
+              <h2 className="text-sm text-text-muted">Welcome back,</h2>
+              <h1 className="text-2xl font-bold leading-tight">{data.user.display_name}</h1>
+            </div>
           </header>
           {children}
           <OfflineToast />

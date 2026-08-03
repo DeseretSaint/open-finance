@@ -119,3 +119,42 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Motif system (D7/D14) — login/landing/wizard hero ─────────────────── */
+@keyframes motif-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes motif-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Gentle card hover lift (150ms ease-out, transform/shadow only) */
+.card-lift {
+  transition: transform 150ms ease-out, box-shadow 150ms ease-out;
+}
+.card-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.05), 0 12px 32px rgb(0 0 0 / 0.08);
+}
+
+/* ── Compact density (D8) — tighter rhythm when the user asks for it ────── */
+.compact main {
+  font-size: 0.9375rem;
+}
+.compact .rounded-xl,
+.compact .rounded-2xl {
+  padding: 0.875rem;
+}

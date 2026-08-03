@@ -7,6 +7,7 @@ import { api } from "@/lib/api-client";
 import { isSoloCandidate } from "@/lib/mobile-mode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MotifHero } from "@/components/motif-hero";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 
 export default function RegisterPage() {
@@ -107,6 +108,9 @@ export default function RegisterPage() {
               ? "Runs fully on this device — no server, no hub. You can connect a hub later."
               : "Runs entirely on your machine."}
           </p>
+        </div>
+        <div className="mb-4">
+          <MotifHero compact />
         </div>
         <form onSubmit={submit} className="space-y-4 rounded-2xl border border-border bg-surface p-6 shadow-[var(--shadow-card)]">
           <div>

@@ -91,7 +91,7 @@ export function DeviceLockGate({ children }: { children: React.ReactNode }) {
         <p className="text-sm text-muted-foreground">Enter your PIN to unlock.</p>
         {lock.data.biometricEnabled && (
           <Button variant="secondary" onClick={unlockWithBiometric} disabled={bioBusy} className="w-48">
-            {bioBusy ? "Checking…" : "🔓 Unlock with biometrics"}
+            {bioBusy ? "Checking…" : "Unlock with biometrics"}
           </Button>
         )}
         <Input

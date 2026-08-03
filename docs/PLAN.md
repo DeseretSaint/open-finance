@@ -23,13 +23,13 @@ AI agent (or none).
 | Path | Responsibility |
 |---|---|
 | `src/server/db/` | `Db` interface + two implementations: `adapter.ts` (better-sqlite3, server) and `cap-sqlite.ts` (phone). Identical SQL runs on both. |
-| `src/server/domain/` | Business logic: accounts, categories, transactions, budgets, summary, reports, planning, projection, notifications, device lock, agent prefs. |
+| `src/server/domain/` | Business logic: accounts, categories, transactions, budgets, summary, reports, planning, projection, notifications, device lock, agent prefs, agent guide, custom views, backup (hub) + solo backup (phone). |
 | `src/lib/solo-router.ts` | In-process API router for the standalone phone build — serves the same `/api/*` routes the server does, backed by cap-sqlite. |
-| `src/server/authz/` | Agent tokens, scopes, permission requests, audit log. |
-| `src/server/mcp/` | MCP server exposing finance tools to your agent (read-only by default). |
+| `src/server/authz/` | Agent tokens, scopes, permission requests, audit log, route registry. |
+| `src/server/mcp/` | The MCP server (`server.ts`) exposing finance tools + widget tools to your agent (read-only by default). |
 | `src/server/plaid/` | Plaid client adapters: `real.ts` (server REST), `native.ts` (phone proxy plugin). |
-| `src/app/(app)/` | The app UI: dashboard, accounts, transactions, budgets, settings. |
-| `src/components/` | Shared UI, onboarding wizard, device-lock gate. |
+| `src/app/(app)/` | The app UI: dashboard, accounts, transactions, budgets, plan, reports, agents, settings. |
+| `src/components/` | Shared UI, onboarding wizard, device-lock gate, motif hero, agent-widgets renderer. |
 | `migrations/` | Versioned SQL migrations (001+, applied on both runtimes). |
 
 ## Data model
@@ -65,6 +65,10 @@ follow: income `> 0`, expense `< 0`.
   auto-categorize expenses, even with write access (enforced in the MCP tool).
 - **Global access** — one switch for read **and** write everywhere; each
   write still asks for approval.
+- **AI guardrails** (Settings → AI agent → guardrails) — auto-approve reads
+  within caps, confirm-before-destructive-write, and the audit log are each
+  user-toggleable; every change is itself audited. Two rails can't be turned
+  off: agents can never delete accounts and can never move money.
 - Permission walls create Grant/Deny requests in the inbox; everything is
   audited.
 

@@ -170,7 +170,7 @@ export default function PlanPage() {
       <Card>
         <CardTitle>Upcoming bills</CardTitle>
         {digest.data && digest.data.upcomingBills.length === 0 && digest.data.overdueBills.length === 0 && (
-          <p className="mt-2 text-sm text-text-muted">Nothing due in the next {digest.data?.days ?? 30} days. 🎉</p>
+          <p className="mt-2 text-sm text-text-muted">Nothing due in the next {digest.data?.days ?? 30} days.</p>
         )}
         {digest.data && digest.data.overdueBills.length > 0 && (
           <div className="mt-3 space-y-1.5">
@@ -223,12 +223,12 @@ export default function PlanPage() {
         </div>
         {projection.data && projection.data.dangerMonths.length > 0 && (
           <p className="mt-2 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
-            ⚠ Balance is projected to go negative in: {projection.data.dangerMonths.join(", ")}.
+            Balance is projected to go negative in: {projection.data.dangerMonths.join(", ")}.
           </p>
         )}
         {projection.data && projection.data.dangerMonths.length === 0 && projection.data.warningMonths.length > 0 && (
           <p className="mt-2 rounded-md bg-warning/10 px-3 py-2 text-sm text-warning">
-            ⚠ Balance dips below one month of expenses in: {projection.data.warningMonths.join(", ")}.
+            Balance dips below one month of expenses in: {projection.data.warningMonths.join(", ")}.
           </p>
         )}
         {projection.data && (
