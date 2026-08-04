@@ -72,13 +72,45 @@ interface PlaidProxy {
 
 function proxy(): PlaidProxy | null {
   if (typeof globalThis === "undefined") return null;
-  return (globalThis as unknown as { PlaidProxy?: PlaidProxy }).PlaidProxy ?? null;
+  const g = globalThis as unknown as { PlaidProxy?: PlaidProxy };
+  if (g.PlaidProxy) return g.PlaidProxy;
+  // Self-heal: bridge the native plugin lazily at the moment it's needed.
+  // The eager bridge (providers → ensureNativePlugins) runs at mount, but
+  // this covers any path that calls Plaid before that (or in a context where
+  // window isn't the global). Capacitor exposes native plugins via
+  // Capacitor.registerPlugin(name); we assign the proxy to the same handle.
+  try {
+    const w = globalThis as unknown as {
+      window?: { Capacitor?: { registerPlugin?: (name: string) => PlaidProxy } };
+      Capacitor?: { registerPlugin?: (name: string) => PlaidProxy };
+    };
+    const cap = w.window?.Capacitor ?? w.Capacitor;
+    if (cap?.registerPlugin) {
+      const p = cap.registerPlugin("PlaidProxy");
+      g.PlaidProxy = p;
+      return p;
+    }
+  } catch {
+    /* fall through to the diagnostic error below */
+  }
+  return null;
 }
 
 export function createNativePlaidClient(): PlaidClient {
   const p = proxy();
   if (!p) {
-    throw new Error("PlaidProxy plugin unavailable — solo mode requires the native APK.");
+    const g = globalThis as unknown as {
+      Capacitor?: unknown;
+      window?: { Capacitor?: unknown };
+      PlaidProxy?: unknown;
+    };
+    const cap = (g.window?.Capacitor ?? g.Capacitor) as { registerPlugin?: unknown } | undefined;
+    throw new Error(
+      "PlaidProxy plugin unavailable (solo mode requires the native APK). " +
+        `Diagnostics: Capacitor=${cap ? "yes" : "no"}, registerPlugin=${cap?.registerPlugin ? "yes" : "no"}, ` +
+        `PlaidProxy handle=${g.PlaidProxy ? "set" : "missing"}. ` +
+        "If Capacitor=yes but PlaidProxy=missing, the native plugin may not be registered in this build."
+    );
   }
 
   return {
@@ -161,7 +193,7 @@ export async function launchNativeLink(linkToken: string): Promise<{
   exit?: { code?: string; message?: string } | null;
 }> {
   const p = proxy();
-  if (!p) throw new Error("PlaidProxy plugin unavailable — solo mode requires the native APK.");
+  if (!p) throw new Error("PlaidProxy plugin unavailable (solo mode requires the native APK) — launchLink needs the native bridge.");
   const r = await p.launchLink({ linkToken });
   return { cancelled: r.cancelled, publicToken: r.publicToken, exit: r.exit };
 }
