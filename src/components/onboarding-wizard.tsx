@@ -31,6 +31,7 @@ type Step = (typeof STEPS)[number];
 
 const PLAID_SIGNUP_URL = "https://dashboard.plaid.com/signup";
 const PLAID_KEYS_URL = "https://dashboard.plaid.com/developers/keys";
+const PLAID_TRIAL_URL = "https://dashboard.plaid.com/trial-plan";
 
 export function OnboardingWizard() {
   const kbdHeight = useKeyboardHeight();
@@ -44,7 +45,7 @@ export function OnboardingWizard() {
   // plaid keys
   const [clientId, setClientId] = useState("");
   const [secret, setSecret] = useState("");
-  const [environment, setEnvironment] = useState<"sandbox" | "production">("sandbox");
+  const [environment, setEnvironment] = useState<"sandbox" | "production">("production");
   // Manual payday schedule (012) — optional, for accurate projections.
   const [payMode, setPayMode] = useState<"auto" | "interval" | "days_of_month">("auto");
   const [payInterval, setPayInterval] = useState<"weekly" | "biweekly" | "monthly">("monthly");
@@ -429,14 +430,21 @@ export function OnboardingWizard() {
                   and create a free account (or sign in).
                 </li>
                 <li>
-                  2. Go to{" "}
-                  <a href={PLAID_KEYS_URL} target="_blank" rel="noreferrer" className="font-medium text-accent">
-                    Dashboard → Keys
-                  </a>
-                  .
+                  2. Get your production keys from{" "}
+                  <a href={PLAID_TRIAL_URL} target="_blank" rel="noreferrer" className="font-medium text-accent">
+                    Dashboard → Trial plan
+                  </a>{" "}
+                  (production keys live there — use these, since real banks need the production environment).
                 </li>
                 <li>3. Copy your Client ID and Secret (your connection keys), then paste them below.</li>
               </ol>
+              <p className="mt-2 text-xs text-text-muted">
+                Only using test data? Sandbox keys are at{" "}
+                <a href={PLAID_KEYS_URL} target="_blank" rel="noreferrer" className="font-medium text-accent">
+                  Dashboard → Developers → Keys
+                </a>{" "}
+                — pick &ldquo;Sandbox&rdquo; below for those.
+              </p>
               <div className="mt-4 space-y-3">
                 <Input placeholder="Client ID (starts with 5f…)" value={clientId} onChange={(e) => setClientId(e.target.value)} />
                 <Input
@@ -450,8 +458,8 @@ export function OnboardingWizard() {
                   value={environment}
                   onChange={(v) => setEnvironment(v as "sandbox" | "production")}
                   options={[
-                    { value: "sandbox", label: "Sandbox", hint: "test data" },
-                    { value: "production", label: "Production", hint: "real banks" },
+                    { value: "production", label: "Production", hint: "real banks — recommended" },
+                    { value: "sandbox", label: "Sandbox", hint: "test data only" },
                   ]}
                 />
               </div>

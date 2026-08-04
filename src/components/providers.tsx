@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
+import { ensureNativePlugins } from "@/lib/native-plugins";
 
 const ACCENTS = [
   "#10B981", // emerald (default)
@@ -25,9 +26,10 @@ export function useTheme() {
     if (typeof window === "undefined") return "#10B981";
     return localStorage.getItem("of-accent") ?? "#10B981";
   });
+  // One-time migration (2026-08-03): pre-dark-default builds (v1.2.0 era)
   const [dark, setDark] = useState<boolean>(() => {
     if (typeof window === "undefined") return true;
-    // One-time migration (2026-08-03): pre-dark-default builds (v1.2.0 era)
+    ensureNativePlugins();
     // stored of-dark="0" on this device; the "dark by default" releases since
     // respected that stale flag. If we've never migrated this install, a
     // stored "0" is treated as legacy → reset to dark. Future light-mode
