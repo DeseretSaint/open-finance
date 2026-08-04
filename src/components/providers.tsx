@@ -42,6 +42,16 @@ export function useTheme() {
       }
       localStorage.setItem("of-dark-v2", "1");
     }
+    // v3 (2026-08-04): Keaton's device ended up light — a stray Light-mode
+    // tap after the v2 marker, so the migration no longer applied. Once more,
+    // any pre-v3 "0" is treated as legacy → reset to dark.
+    if (localStorage.getItem("of-dark-v3") === null) {
+      if (localStorage.getItem("of-dark") === "0") {
+        v = "1";
+        localStorage.setItem("of-dark", "1");
+      }
+      localStorage.setItem("of-dark-v3", "1");
+    }
     // Dark is the default; only a stored "0" opts out.
     return v !== "0";
   });
