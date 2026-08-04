@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { Building2 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Sidebar } from "@/components/sidebar";
 import { OfflineToast } from "@/components/offline-toast";
@@ -60,8 +61,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (isLoading || !data) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-background text-text-muted">
-        Loading…
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-background text-text-muted">
+        <span
+          aria-hidden
+          className="flex h-12 w-12 items-center justify-center rounded-xl"
+          style={{ background: "var(--accent)", color: "var(--accent-foreground)" }}
+        >
+          <Building2 size={24} />
+        </span>
+        <p className="text-sm">Loading your finances…</p>
       </div>
     );
   }
@@ -70,8 +78,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // skip it (the demo route marks onboarding complete + is_demo flag).
   if (onboarding.isLoading) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-background text-text-muted">
-        Loading…
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-background text-text-muted">
+        <span
+          aria-hidden
+          className="flex h-12 w-12 items-center justify-center rounded-xl"
+          style={{ background: "var(--accent)", color: "var(--accent-foreground)" }}
+        >
+          <Building2 size={24} />
+        </span>
+        <p className="text-sm">Loading your finances…</p>
       </div>
     );
   }

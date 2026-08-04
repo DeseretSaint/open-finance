@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
+import { PairingSection } from "@/components/pairing-section";
 import { isSoloCandidate } from "@/lib/mobile-mode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -74,12 +75,21 @@ export function OnboardingWizard() {
 
   // agent wiring (P12): provider selection in the wizard (web only).
   const [agentProvider, setAgentProvider] = useState<string | null>(null);
-  // agent access tiers (P20–P25): per-tab read selection + global + backlog.
+  // agent access tiers (P20–P25): per-tab read + write selection, global,
+  // backlog, and guardrails — mirrors Settings → AI agent connection.
   const [agentTabs, setAgentTabs] = useState<string[]>(["activity"]);
+  const [agentTabsWrite, setAgentTabsWrite] = useState<string[]>([]);
   const [agentAutoCategorize, setAgentAutoCategorize] = useState(false);
   const [agentBacklog, setAgentBacklog] = useState(1);
   const [agentGlobal, setAgentGlobal] = useState(false);
+  const [agentGlobalWrite, setAgentGlobalWrite] = useState(true);
+  const [agentAutoApproveReads, setAgentAutoApproveReads] = useState(true);
+  const [agentRequireWriteConfirm, setAgentRequireWriteConfirm] = useState(true);
   const [agentPrefsSaved, setAgentPrefsSaved] = useState(false);
+  // In-wizard token creation (web): no detour to the Agents tab.
+  const [agentTokenName, setAgentTokenName] = useState("");
+  const [agentTokenBusy, setAgentTokenBusy] = useState(false);
+  const [agentToken, setAgentToken] = useState<{ token: string } | null>(null);
 
 
   async function saveAgentPrefs() {
@@ -87,9 +97,13 @@ export function OnboardingWizard() {
     try {
       await api.put("/api/agent/prefs", {
         tabs: agentTabs,
+        tabsWrite: agentTabsWrite,
         autoCategorize: agentAutoCategorize,
         categorizeBacklogMonths: agentBacklog,
         global: agentGlobal,
+        globalWrite: agentGlobalWrite,
+        autoApproveReads: agentAutoApproveReads,
+        requireWriteConfirm: agentRequireWriteConfirm,
       });
       setAgentPrefsSaved(true);
     } catch {
@@ -145,6 +159,9 @@ export function OnboardingWizard() {
       await api.put("/api/plaid/credentials", { clientId, secret, environment });
       setKeysSaved(true);
       setMsg("Bank connection keys saved and validated.");
+      // Advance straight to the link step — "Skip" was the only way forward
+      // before, which made the save feel pointless.
+      setStep("bank");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not save Plaid keys.");
     } finally {
@@ -192,6 +209,14 @@ export function OnboardingWizard() {
     setBusy(true);
     try {
       await api.post("/api/onboarding", { action: "complete" });
+      // Warm the solo DB (open + migrate) WHILE the transition happens so the
+      // dashboard's first queries hit a ready database instead of paying the
+      // cold-open cost (first entry after the wizard was slow).
+      if (typeof window !== "undefined") {
+        void import("@/lib/solo-router")
+          .then((m) => m.getSoloDb())
+          .catch(() => {});
+      }
       router.push("/dashboard");
       router.refresh();
     } catch (e) {
@@ -552,38 +577,86 @@ export function OnboardingWizard() {
                 </div>
               )}
 
-              {!solo && agentProvider && (
-                <div className="mt-4 rounded-lg bg-surface-muted px-3 py-3 text-xs text-text-muted">
-                  <p className="font-medium text-text">Wiring it up</p>
-                  <ol className="mt-1 list-inside list-decimal space-y-1">
-                    <li>Open the Agents page (Agents tab in the sidebar).</li>
-                    <li>Create a token — start with the read-only preset.</li>
-                    <li>
-                      Copy the token into your agent&apos;s MCP config pointing at this app&apos;s endpoint:
-                      <code className="mt-1 block rounded bg-background px-2 py-1 font-mono text-accent">
-                        {typeof window !== "undefined" ? window.location.origin : ""}/api/mcp
-                      </code>
-                    </li>
-                    <li>Your agent can then read budgets and — when you approve — adjust them.</li>
-                  </ol>
+              {/* In-wizard wiring: create the token right here (web) or pair
+                  with a hub (solo) — no detour to another tab. */}
+              {!solo && agentProvider && !agentToken && (
+                <div className="mt-4 space-y-3 rounded-xl border border-border p-4">
+                  <p className="text-sm font-medium text-text">Create your agent&apos;s token</p>
+                  <p className="text-xs text-text-muted">
+                    A token is how your agent authenticates. Read-only by default — you just picked what it may see
+                    below.
+                  </p>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Token name — e.g. my-agent"
+                      value={agentTokenName}
+                      onChange={(e) => setAgentTokenName(e.target.value)}
+                      aria-label="Token name"
+                    />
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={agentTokenBusy || !agentTokenName.trim()}
+                      onClick={async () => {
+                        setAgentTokenBusy(true);
+                        try {
+                          const res = await api.post<{ token: string }>("/api/agent/tokens", {
+                            name: agentTokenName.trim(),
+                            preset: "custom",
+                            scopes: [],
+                          });
+                          setAgentToken(res);
+                        } catch (e) {
+                          setErr(e instanceof Error ? e.message : "Could not create token.");
+                        } finally {
+                          setAgentTokenBusy(false);
+                        }
+                      }}
+                    >
+                      {agentTokenBusy ? "Creating…" : "Create token"}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-text-muted">
+                    Endpoint:{" "}
+                    <code className="rounded bg-surface-muted px-1.5 py-0.5 font-mono text-accent">
+                      {typeof window !== "undefined" ? window.location.origin : ""}/api/mcp
+                    </code>
+                  </p>
                 </div>
               )}
-
-              {solo && (
-                <div className="mt-4 rounded-lg bg-surface-muted px-3 py-3 text-xs text-text-muted">
-                  <p>
-                    When you pair a hub, your agent connects to the hub&apos;s Agents page — same read-only default,
-                    same permission prompts. Nothing to do right now.
+              {!solo && agentProvider && agentToken && (
+                <div className="mt-4 rounded-xl border border-success/30 bg-[var(--success-soft)] p-4">
+                  <p className="text-xs font-medium text-success">Copy your token now — shown only once:</p>
+                  <code className="mt-1 block break-all rounded-lg bg-background px-3 py-2 text-sm text-text">
+                    {agentToken.token}
+                  </code>
+                  <p className="mt-2 text-xs text-text-muted">
+                    Point your agent at{" "}
+                    <code className="rounded bg-surface-muted px-1 py-0.5 font-mono text-accent">
+                      {typeof window !== "undefined" ? window.location.origin : ""}/api/mcp
+                    </code>{" "}
+                    with this token. You can fine-tune permissions anytime in Settings → AI agent connection.
                   </p>
                 </div>
               )}
 
-              {/* Agent access tiers — set on first entry (P20–P23) */}
+              {solo && (
+                <div className="mt-4 space-y-3 rounded-xl border border-border p-4">
+                  <p className="text-sm font-medium text-text">Connect your hub</p>
+                  <p className="text-xs text-text-muted">
+                    Agents connect through your hub. Pair now (or later in Settings → Hub &amp; phone pairing) — the
+                    hub&apos;s Agents page then has the full token walkthrough.
+                  </p>
+                  <PairingSection compact />
+                </div>
+              )}
+
+              {/* Agent access tiers — mirrors Settings → AI agent connection */}
               <div className="mt-4 space-y-3 rounded-xl border border-border p-4">
                 <p className="text-sm font-medium text-text">What can your AI see and do?</p>
                 <p className="text-xs text-text-muted">
-                  Choose the parts it may look at — Activity only is a good start. It never sees the rest unless you
-                  turn them on here or later in Settings.
+                  Read = it may look. Write = it may change (each change still asks your approval). Activity read-only
+                  is a good start.
                 </p>
                 <div className="space-y-1.5">
                   {[
@@ -595,35 +668,52 @@ export function OnboardingWizard() {
                     ["planning", "Plan"],
                     ["agents", "Agents"],
                     ["settings", "Settings"],
-                  ].map(([tab, label]) => (
-                    <button
-                      key={tab}
-                      type="button"
-                      disabled={agentGlobal}
-                      onClick={() =>
-                        setAgentTabs((prev) => (prev.includes(tab) ? prev.filter((t) => t !== tab) : [...prev, tab]))
-                      }
-                      className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs transition-colors ${
-                        agentGlobal || agentTabs.includes(tab)
-                          ? "border-accent bg-accent/5 font-medium text-accent"
-                          : "border-border text-text-muted hover:bg-surface-muted"
-                      } ${agentGlobal ? "opacity-60" : ""}`}
-                    >
-                      <span
-                        aria-hidden="true"
-                        className={`flex h-4 w-4 items-center justify-center rounded border ${
-                          agentGlobal || agentTabs.includes(tab) ? "border-accent bg-accent text-[var(--accent-foreground)]" : "border-border bg-surface"
+                  ].map(([tab, label]) => {
+                    const readOn = agentGlobal || agentTabs.includes(tab);
+                    const writeOn = agentGlobal || agentTabsWrite.includes(tab);
+                    return (
+                      <div
+                        key={tab}
+                        className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-1.5 ${
+                          agentGlobal ? "border-accent/30 bg-accent/5" : "border-border"
                         }`}
                       >
-                        {(agentGlobal || agentTabs.includes(tab)) && (
-                          <svg viewBox="0 0 12 12" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M2 6.5L4.5 9L10 3" />
-                          </svg>
-                        )}
-                      </span>
-                      {label}
-                    </button>
-                  ))}
+                        <span className={`text-xs ${agentGlobal ? "text-text" : "text-text"}`}>{label}</span>
+                        <div className="flex gap-1.5">
+                          <button
+                            type="button"
+                            disabled={agentGlobal}
+                            onClick={() =>
+                              setAgentTabs((prev) => (prev.includes(tab) ? prev.filter((t) => t !== tab) : [...prev, tab]))
+                            }
+                            className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+                              readOn
+                                ? "border-accent bg-accent/10 font-medium text-accent"
+                                : "border-border text-text-muted hover:text-text"
+                            } ${agentGlobal ? "opacity-60" : ""}`}
+                          >
+                            Read
+                          </button>
+                          <button
+                            type="button"
+                            disabled={agentGlobal || !readOn}
+                            onClick={() =>
+                              setAgentTabsWrite((prev) =>
+                                prev.includes(tab) ? prev.filter((t) => t !== tab) : [...prev, tab]
+                              )
+                            }
+                            className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+                              writeOn
+                                ? "border-accent bg-accent text-[var(--accent-foreground)]"
+                                : "border-border text-text-muted hover:text-text"
+                            } ${agentGlobal || !readOn ? "opacity-60" : ""}`}
+                          >
+                            Write
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <label htmlFor="wiz-categorize" className="text-sm text-text">
@@ -658,15 +748,51 @@ export function OnboardingWizard() {
                 )}
                 <div className="flex items-center justify-between gap-3">
                   <label htmlFor="wiz-global" className="text-sm text-text">
-                    Full access <span className="text-xs text-text-muted">(see and change everything — most people don&apos;t need this)</span>
+                    Full access{" "}
+                    <span className="text-xs text-text-muted">(see and change everything — most people don&apos;t need this)</span>
                   </label>
                   <input
                     id="wiz-global"
                     type="checkbox"
                     checked={agentGlobal}
-                    onChange={(e) => setAgentGlobal(e.target.checked)}
+                    onChange={(e) => {
+                      setAgentGlobal(e.target.checked);
+                      setAgentGlobalWrite(e.target.checked);
+                    }}
                     className="h-5 w-5 accent-[var(--accent)]"
                   />
+                </div>
+
+                {/* Guardrails — same toggles as Settings → AI agent connection */}
+                <div className="rounded-lg bg-surface-muted px-3 py-2.5">
+                  <p className="text-xs font-medium text-text">AI guardrails</p>
+                  <p className="mt-0.5 text-[11px] text-text-muted">
+                    Two can&apos;t be turned off: it can never delete accounts and can never move money (no payment rails).
+                  </p>
+                  <label className="mt-2 flex items-center justify-between gap-3">
+                    <span className="text-xs text-text">
+                      Auto-approve read requests{" "}
+                      <span className="text-text-muted">(reads inside your caps skip the inbox)</span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={agentAutoApproveReads}
+                      onChange={(e) => setAgentAutoApproveReads(e.target.checked)}
+                      className="h-5 w-5 accent-[var(--accent)]"
+                    />
+                  </label>
+                  <label className="mt-2 flex items-center justify-between gap-3">
+                    <span className="text-xs text-text">
+                      Confirm before destructive writes{" "}
+                      <span className="text-text-muted">(deleting a category, bill, debt or goal)</span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={agentRequireWriteConfirm}
+                      onChange={(e) => setAgentRequireWriteConfirm(e.target.checked)}
+                      className="h-5 w-5 accent-[var(--accent)]"
+                    />
+                  </label>
                 </div>
               </div>
 
@@ -674,27 +800,15 @@ export function OnboardingWizard() {
                 <Button variant="secondary" onClick={() => setStep("done")} className="flex-1">
                   No thanks
                 </Button>
-                {solo ? (
-                  <Button
-                    onClick={async () => {
-                      await saveAgentPrefs();
-                      setStep("done");
-                    }}
-                    className="flex-1"
-                  >
-                    Continue
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={async () => {
-                      await saveAgentPrefs();
-                      router.push("/agents");
-                    }}
-                    className="flex-1"
-                  >
-                    Set it up now
-                  </Button>
-                )}
+                <Button
+                  onClick={async () => {
+                    await saveAgentPrefs();
+                    setStep("done");
+                  }}
+                  className="flex-1"
+                >
+                  Continue
+                </Button>
               </div>
             </>
           )}

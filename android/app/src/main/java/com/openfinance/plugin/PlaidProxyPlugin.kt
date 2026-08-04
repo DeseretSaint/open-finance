@@ -203,8 +203,15 @@ class PlaidProxyPlugin : Plugin() {
 
     private var pendingCall: PluginCall? = null
 
-    private val linkLauncher: ActivityResultLauncher<PlaidHandler> by lazy {
-        activity.registerForActivityResult(FastOpenPlaidLink()) { result ->
+    // MUST be registered before the activity is STARTED — a lazy
+    // registerForActivityResult throws "attempting to register while current
+    // state is RESUMED". Capacitor calls load() during Bridge onCreate, so the
+    // activity is still in CREATED state here and registration is legal.
+    private lateinit var linkLauncher: ActivityResultLauncher<PlaidHandler>
+
+    override fun load() {
+        super.load()
+        linkLauncher = activity.registerForActivityResult(FastOpenPlaidLink()) { result ->
             val call = pendingCall ?: return@registerForActivityResult
             pendingCall = null
             when (result) {
