@@ -64,11 +64,19 @@ class PlaidProxyPlugin : Plugin() {
         val secret = call.getString("secret") ?: return call.reject("missing secret")
         val env = call.getString("environment") ?: "sandbox"
         try {
+            // Cheapest real call that only needs client_id + secret (no access
+            // token): create a link token. A 2xx with a link_token means the
+            // credentials are valid. (Probing /accounts/balance/get with a
+            // dummy token used to return "access token is in an invalid
+            // format", making every valid key look broken.)
             val body = params(clientId, secret)
-                .put("access_token", "probe")
-                .put("options", JSONObject())
-            post(env, "/accounts/balance/get", body)
-            call.resolve(JSObject().put("valid", true))
+                .put("client_name", "Open Finance")
+                .put("language", "en")
+                .put("country_codes", JSONArray().put("US"))
+                .put("user", JSONObject().put("client_user_id", "open-finance-key-test"))
+                .put("products", JSONArray().put("auth"))
+            val resp = post(env, "/link/token/create", body)
+            call.resolve(JSObject().put("valid", resp.has("link_token")))
         } catch (e: Exception) {
             // invalid credentials come back as a 400 with an error code — that's
             // the "invalid" answer, not a plugin failure

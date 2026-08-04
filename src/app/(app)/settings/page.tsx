@@ -125,6 +125,7 @@ export default function SettingsPage() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
+      <p className="text-xs text-text-muted lg:col-span-2">Build 0.3.7</p>
       <Card>
         <CardTitle>Profile</CardTitle>
         <form
