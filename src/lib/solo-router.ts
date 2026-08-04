@@ -455,6 +455,7 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       );
       // Fetch accounts so the item has display data.
       let accounts: Array<{ id: string; name: string; type: string | null; mask: string | null }> = [];
+      let accountDetails: Array<{ id: string; currentBalanceCents: number | null; availableBalanceCents: number | null; currency: string }> = [];
       try {
         const res = await client.getAccounts({ ...creds, environment: env }, accessToken);
         accounts = res.map((a) => ({
@@ -462,6 +463,12 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
           name: a.name,
           type: a.type ?? null,
           mask: a.mask ?? null,
+        }));
+        accountDetails = res.map((a) => ({
+          id: a.id,
+          currentBalanceCents: a.currentBalanceCents,
+          availableBalanceCents: a.availableBalanceCents,
+          currency: a.currency,
         }));
       } catch {
         // accounts fetch is best-effort; the item is still linked
@@ -487,6 +494,7 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
           institutionName: typeof B?.institutionName === "string" ? B.institutionName : null,
           environment: env,
           creds: { ...creds, environment: env },
+          accountDetails,
           accessToken,
           accounts,
           client: createNativePlaidClient() as never,
@@ -514,9 +522,11 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
     // ── Phone backup & restore (solo: encrypted JSON dump, PIN-confirmed) ──
     if (method === "POST" && path === "/api/backup") {
       const { createSoloBackupService } = await import("@/server/domain/solo-backup");
+      const { getSoloPlaidCreds, getSoloPlaidItems } = await import("@/lib/solo-plaid-store");
       const userId = await h.deviceUserId();
       const pin = typeof B?.pin === "string" ? B.pin : "";
-      const result = await createSoloBackupService(db).exportBackup(userId, pin);
+      const transfer = B?.includePlaid === true ? { creds: getSoloPlaidCreds(), items: getSoloPlaidItems().map((item) => ({ ...item, plaidItemId: item.plaidItemId ?? item.id })) } : undefined;
+      const result = await createSoloBackupService(db).exportBackup(userId, pin, transfer);
       return ok(result);
     }
     if (method === "POST" && path === "/api/backup/restore") {
@@ -803,14 +813,21 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       const userId = await h.deviceUserId();
       const id = parseId(path, "/api/accounts/");
       const account =
-        typeof B?.includeInNetWorth === "boolean"
-          ? await h.accounts.setNetWorthInclusion(userId, id, B.includeInNetWorth)
-          : typeof B?.name === "string"
-            ? await h.accounts.rename(userId, id, B.name)
-            : (() => {
-                throw apiErrors.badRequest("Nothing to update.");
-              })();
+        typeof B?.type === "string"
+          ? await h.accounts.setType(userId, id, B.type)
+          : typeof B?.includeInNetWorth === "boolean"
+            ? await h.accounts.setNetWorthInclusion(userId, id, B.includeInNetWorth)
+            : typeof B?.name === "string"
+              ? await h.accounts.rename(userId, id, B.name)
+              : (() => {
+                  throw apiErrors.badRequest("Nothing to update.");
+                })();
       return ok({ account });
+    }
+    if (method === "DELETE" && path.startsWith("/api/accounts/")) {
+      const userId = await h.deviceUserId();
+      await h.accounts.remove(userId, parseId(path, "/api/accounts/"));
+      return { status: 204, data: null };
     }
     if (method === "DELETE" && path.startsWith("/api/transactions/")) {
       const userId = await h.deviceUserId();

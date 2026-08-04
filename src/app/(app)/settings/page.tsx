@@ -481,6 +481,7 @@ export default function SettingsPage() {
       </Card>
 
       <BackupPanel setMsg={setMsg} setErr={setErr} />
+      <PhoneImportPanel setMsg={setMsg} setErr={setErr} />
       <UpdatesCard />
 
       <p className="pb-2 text-center text-xs text-text-muted lg:col-span-2">
@@ -1386,7 +1387,10 @@ function HubPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; setE
   });
 
   const startPairing = useMutation({
-    mutationFn: () => api.post<{ code: string; url: string; ttlSeconds: number }>("/api/pairing/start"),
+    mutationFn: () =>
+      api.post<{ code: string; url: string; ttlSeconds: number }>("/api/pairing/start", {
+        baseUrl: hubUrl.trim() || preferred || undefined,
+      }),
     onSuccess: (d) => {
       setMsg(`Connection code: ${d.code} — scan the QR or open ${d.url} on your phone (good for ${d.ttlSeconds / 60} min).`);
       qc.invalidateQueries({ queryKey: ["hub"] });
@@ -1683,7 +1687,7 @@ function BackupPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; s
     <Card className="lg:col-span-2">
       <CardTitle>Backup &amp; restore</CardTitle>
       <p className="mt-1 text-sm text-text-muted">
-        Download an encrypted snapshot of your whole database. Restoring replaces everything — a safety backup is
+        Download an encrypted snapshot of your whole database. To move standalone phone data to a new hub, export the encrypted phone backup and use the hub’s “Pair an existing standalone phone” option. Restoring replaces everything — a safety backup is
         written first, and your password is required. Restore only on a machine with the same ENCRYPTION_KEY.
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -1741,6 +1745,38 @@ function BackupPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; s
   );
 }
 
+// ── Import from standalone phone (hub — additive, no relink) ─────────────────
+
+function PhoneImportPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; setErr: (s: string | null) => void }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [pin, setPin] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function importPhone() {
+    const file = fileRef.current?.files?.[0];
+    if (!file || !pin) { setErr("Choose the encrypted phone backup and enter the phone PIN."); return; }
+    setBusy(true); setErr(null);
+    try {
+      const contents = await file.text();
+      const res = await api.post<{ imported: Record<string, number>; plaidItems: number; additive: boolean }>("/api/phone-import", { pin, contents });
+      const counts = Object.entries(res.imported).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k}`).join(", ");
+      setMsg(`Phone data added: ${counts || "nothing new"}; ${res.plaidItems} Plaid connection(s) preserved. The phone was not changed.`);
+      setPin("");
+    } catch (e) { setErr(e instanceof Error ? e.message : "Phone import failed."); }
+    finally { setBusy(false); }
+  }
+  return (
+    <Card className="lg:col-span-2 border-accent/30">
+      <CardTitle>Import an existing standalone phone</CardTitle>
+      <p className="mt-1 text-sm text-text-muted">Already linked your banks on your phone? Export the encrypted phone backup from its Settings, then import it here. This is additive and deduplicates Plaid accounts and transactions. It does not clear the phone, disconnect Plaid, or replace hub data.</p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-3 sm:items-end">
+        <div className="sm:col-span-1"><label className="mb-1 block text-xs text-text-muted">Phone backup (.ofbak.json)</label><input ref={fileRef} type="file" accept=".json,.ofbak.json" className="w-full text-sm text-text-muted" /></div>
+        <div><label className="mb-1 block text-xs text-text-muted">Phone device PIN</label><Input type="password" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ""))} placeholder="PIN used on phone" /></div>
+        <Button onClick={importPhone} disabled={busy || !pin}>{busy ? "Importing…" : "Add phone data"}</Button>
+      </div>
+    </Card>
+  );
+}
+
 // ── Phone backup & restore (solo — encrypted JSON dump, PIN-confirmed) ──────
 
 function SoloBackupPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; setErr: (s: string | null) => void }) {
@@ -1757,7 +1793,7 @@ function SoloBackupPanel({ setMsg, setErr }: { setMsg: (s: string | null) => voi
     setBusy(true);
     setErr(null);
     try {
-      const res = await api.post<{ filename: string; contents: string }>("/api/backup", { pin });
+      const res = await api.post<{ filename: string; contents: string }>("/api/backup", { pin, includePlaid: true });
       const blob = new Blob([res.contents], { type: "application/json" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);

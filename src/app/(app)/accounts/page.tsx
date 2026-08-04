@@ -20,6 +20,7 @@ interface Account {
   item_id: string | null;
   name: string;
   type: string | null;
+  subtype: string | null;
   mask: string | null;
   current_balance_cents: number | null;
   currency: string;
@@ -28,6 +29,17 @@ interface Account {
 }
 
 const TYPES = ["depository", "credit", "investment", "loan", "other"];
+const TYPE_LABELS: Record<string, string> = {
+  depository: "Cash / checking",
+  credit: "Credit card",
+  investment: "Investment",
+  loan: "Loan / debt",
+  other: "Other",
+};
+
+function isLiability(a: Pick<Account, "type" | "subtype">): boolean {
+  return a.type === "credit" || a.type === "loan" || a.subtype === "credit card" || a.subtype === "auto loan";
+}
 
 const TYPE_ICONS: Record<string, typeof Landmark> = {
   depository: Landmark,
@@ -102,9 +114,21 @@ export default function AccountsPage() {
     },
   });
 
+  const setTypeOverride = useMutation({
+    mutationFn: ({ id, type }: { id: string; type: string }) => api.patch(`/api/accounts/${id}`, { type }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      qc.invalidateQueries({ queryKey: ["summary"] });
+    },
+  });
+
+  function removeAccount(a: Account) {
+    setConfirmDelete({ id: a.id, name: a.name });
+  }
+
   return (
-    <div className="space-y-6">
-      {isLoading || !data ? (
+    <div className="min-w-0 space-y-6 overflow-x-hidden">
+    {isLoading || !data ? (
         <AccountsSkeleton />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -129,20 +153,29 @@ export default function AccountsPage() {
                   </Badge>
                 </div>
                 <div className="mt-4 flex items-end justify-between gap-2">
-                  <p className="money text-2xl font-bold">
-                    <Money cents={a.current_balance_cents ?? 0} currency={a.currency} />
+                  <p className={`money text-2xl font-bold ${isLiability(a) ? "text-danger" : "text-text"}`}>
+                    <Money cents={isLiability(a) ? -(a.current_balance_cents ?? 0) : a.current_balance_cents ?? 0} currency={a.currency} signed={isLiability(a)} />
                   </p>
-                  {!a.item_id && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-danger"
-                      disabled={remove.isPending}
-                      onClick={() => setConfirmDelete({ id: a.id, name: a.name })}
-                    >
-                      Remove
-                    </Button>
-                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-danger"
+                    disabled={remove.isPending}
+                    onClick={() => removeAccount(a)}
+                  >
+                    Remove
+                  </Button>
+                </div>
+                <div className="mt-3 grid gap-2 border-t border-border pt-3 sm:grid-cols-2">
+                  <CustomSelect
+                    ariaLabel={`Type for ${a.name}`}
+                    value={a.type ?? "other"}
+                    onChange={(value) => setTypeOverride.mutate({ id: a.id, type: value })}
+                    options={TYPES.map((t) => ({ value: t, label: TYPE_LABELS[t] }))}
+                  />
+                  <span className="self-center text-xs text-text-muted">
+                    {isLiability(a) ? "Debt / liability — reduces net worth" : "Asset — increases net worth"}
+                  </span>
                 </div>
                 <label
                   className={`mt-3 flex cursor-pointer items-center gap-2 border-t border-border pt-3 text-xs transition-colors ${

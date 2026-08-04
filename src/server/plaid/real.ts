@@ -7,8 +7,9 @@ import {
   type LinkTokenCreateRequest,
   type TransactionsSyncRequest,
 } from "plaid";
-import type {
-  PlaidAccount,
+import {
+  normalizePlaidAccountType,
+  type PlaidAccount,
   PlaidClient,
   PlaidCreds,
   PlaidSyncResult,
@@ -78,7 +79,7 @@ export const realPlaidClient: PlaidClient = {
       id: a.account_id,
       name: a.name,
       officialName: a.official_name ?? null,
-      type: a.type,
+      type: normalizePlaidAccountType(a.type, a.subtype),
       subtype: a.subtype ?? null,
       mask: a.mask ?? null,
       currentBalanceCents: a.balances.current !== null && a.balances.current !== undefined ? cents(a.balances.current) : null,

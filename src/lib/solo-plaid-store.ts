@@ -21,6 +21,7 @@ export interface SoloPlaidCreds {
 
 export interface SoloPlaidItem {
   id: string;
+  plaidItemId?: string;
   institutionName: string | null;
   environment: string;
   accessToken: string;

@@ -60,13 +60,17 @@ export function createSyncService(db: Db = getDb(), clientFactory: (creds: Plaid
     const client = clientFactory(creds);
     const accessToken = decrypt(item.access_token_enc, aad(userId, item.id));
 
-    const accountRows = await db.all<{ id: string; plaid_account_id: string | null }>(
-      "SELECT id, plaid_account_id FROM accounts WHERE item_id = ?",
+    const accountRows = await db.all<{ id: string; plaid_account_id: string | null; type: string | null; type_override: number; hidden: number }>(
+      "SELECT id, plaid_account_id, type, type_override, hidden FROM accounts WHERE item_id = ?",
       itemRowId
     );
     const plaidToRow = new Map<string, string>();
+    const plaidMeta = new Map<string, { type: string | null; typeOverride: number }>();
     for (const a of accountRows) {
-      if (a.plaid_account_id) plaidToRow.set(a.plaid_account_id, a.id);
+      if (a.plaid_account_id && a.hidden === 0) {
+        plaidToRow.set(a.plaid_account_id, a.id);
+        plaidMeta.set(a.plaid_account_id, { type: a.type, typeOverride: a.type_override });
+      }
     }
 
     const ingest = createIngestService(db);
@@ -143,10 +147,11 @@ export function createSyncService(db: Db = getDb(), clientFactory: (creds: Plaid
       if (!rowId) continue;
       const balance = a.currentBalanceCents ?? a.availableBalanceCents ?? 0;
       await db.run(
-        "UPDATE accounts SET current_balance_cents = ?, available_balance_cents = ? WHERE id = ?",
-        a.currentBalanceCents,
-        a.availableBalanceCents,
-        rowId
+      "UPDATE accounts SET current_balance_cents = ?, available_balance_cents = ?, currency = ? WHERE id = ?",
+      a.currentBalanceCents,
+      a.availableBalanceCents,
+      a.currency,
+      rowId
       );
       await db.run(
         `INSERT INTO balance_history (id, account_id, date, balance_cents) VALUES (?, ?, ?, ?)

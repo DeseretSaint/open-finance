@@ -237,10 +237,12 @@ export function OnboardingWizard() {
 
   return (
     <div
-      className="flex min-h-dvh items-center justify-center bg-background px-4 py-8"
+      className="forced-dark flex min-h-dvh items-center justify-center bg-background px-4 py-8"
       style={{
         paddingTop: "env(safe-area-inset-top)",
         paddingBottom: `calc(env(safe-area-inset-bottom) + ${kbdHeight}px)`,
+        backgroundColor: "#0c0a09",
+        color: "#fafaf9",
       }}
     >
       <div className="w-full max-w-md">
@@ -547,9 +549,7 @@ export function OnboardingWizard() {
               <p className="mt-2 text-sm text-text-muted">
                 {solo ? (
                   <>
-                    This phone runs fully standalone, so agents connect through{" "}
-                    <strong className="text-text">your hub</strong> (the same machine that holds your data when you
-                    pair one). You can pair a hub later in Settings → Hub &amp; phone pairing.
+                    This phone can hold your banks and finances by itself. Your AI agent is a separate connection: it runs through an Open Finance hub, so you must install Open Finance on the computer you want the agent to use. You can pair this phone to that hub over Tailscale later — no second hub account is needed.
                   </>
                 ) : (
                   <>
@@ -642,10 +642,11 @@ export function OnboardingWizard() {
 
               {solo && (
                 <div className="mt-4 space-y-3 rounded-xl border border-border p-4">
-                  <p className="text-sm font-medium text-text">Connect your hub</p>
+                  <p className="text-sm font-medium text-text">Connect this phone to your agent hub</p>
                   <p className="text-xs text-text-muted">
-                    Agents connect through your hub. Pair now (or later in Settings → Hub &amp; phone pairing) — the
-                    hub&apos;s Agents page then has the full token walkthrough.
+                    This is optional. Install Open Finance on the computer that will host your agent, start its Hub mode,
+                    and install Tailscale on both devices. Then pair this phone with the hub below. Pairing uses the hub&apos;s
+                    existing account; it does not create a second account or merge phone data automatically.
                   </p>
                   <PairingSection compact />
                 </div>

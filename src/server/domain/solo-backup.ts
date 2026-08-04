@@ -69,7 +69,14 @@ interface SoloBackupEnvelope {
   tables: string; // base64(iv || tag || ct) of the JSON dump
 }
 
-type Dump = Record<string, Array<Record<string, unknown>>>;
+type Dump = Record<string, Array<Record<string, unknown>>> & {
+  __phonePlaid?: { creds: Record<string, unknown> | null; items: Array<Record<string, unknown>> };
+};
+
+export interface SoloPlaidTransfer {
+  creds: { clientId: string; secret: string; environment: string; updatedAt: string } | null;
+  items: Array<Record<string, unknown>>;
+}
 
 function b64encode(bytes: Uint8Array): string {
   let bin = "";
@@ -133,18 +140,33 @@ export function createSoloBackupService(db: Db) {
   }
 
   /** Export every user-data table as an encrypted JSON envelope (returned as a string for download/share). */
-  async function exportBackup(userId: string, pin: string): Promise<{ filename: string; contents: string }> {
+  async function exportBackup(
+    userId: string,
+    pin: string,
+    transfer?: SoloPlaidTransfer
+  ): Promise<{ filename: string; contents: string }> {
     await requirePin(userId, pin);
 
     const dump: Dump = {};
     for (const table of DATA_TABLES) {
       try {
-        dump[table] = await db.all<Record<string, unknown>>(`SELECT * FROM ${table}`);
+        if (table === "budget_categories" || table === "balance_history" || table === "transactions") {
+          const query = table === "budget_categories"
+            ? "SELECT bc.* FROM budget_categories bc JOIN budgets b ON b.id = bc.budget_id WHERE b.user_id = ?"
+            : table === "balance_history"
+              ? "SELECT bh.* FROM balance_history bh JOIN accounts a ON a.id = bh.account_id WHERE a.user_id = ?"
+              : "SELECT t.* FROM transactions t JOIN accounts a ON a.id = t.account_id WHERE a.user_id = ?";
+          dump[table] = await db.all<Record<string, unknown>>(query, userId);
+        } else {
+          dump[table] = await db.all<Record<string, unknown>>(`SELECT * FROM ${table} WHERE user_id = ?`, userId);
+        }
       } catch {
         // Table may not exist yet on an older schema — skip rather than fail.
         dump[table] = [];
       }
     }
+
+    if (transfer) dump.__phonePlaid = transfer;
 
     const salt = randomBytes(16);
     const key = await deriveKey(pin, salt, KDF_ITERATIONS);

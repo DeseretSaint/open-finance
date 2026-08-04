@@ -233,22 +233,23 @@ export default function AgentsPage() {
 
         {solo ? (
           <Card>
-            <CardTitle>On this phone, agents connect through a hub</CardTitle>
+            <CardTitle>This phone’s agent connection uses a hub (optional)</CardTitle>
             <ol className="mt-3 list-inside list-decimal space-y-2 text-sm text-text">
               <li>
                 <div className="inline">
-                  <strong className="text-text">Pair with a hub</strong> — scan the QR code a computer running Open
-                  Finance shows on its pair page (or type its URL) right here:
+                  <strong className="text-text">Install Open Finance on your hub computer</strong> and choose Hub mode.
+                  Install Tailscale on both devices if you want access away from home. Then scan the QR code the hub
+                  shows on its pair page (or type its URL) right here:
                 </div>
                 <div className="mt-2">
                   <PairingSection compact />
                 </div>
               </li>
               <li>
-                On the hub (computer), open its <strong className="text-text">Agents</strong> tab and follow this
-                walkthrough there — tokens, permissions and the audit log live on the hub.
+                On the hub computer, open its <strong className="text-text">Agents</strong> tab. Create the agent token
+                there; the hub hosts the MCP endpoint, permissions, and audit log.
               </li>
-              <li>Point your agent at the hub&apos;s MCP endpoint with the token you created.</li>
+              <li>Point your agent at the hub&apos;s MCP endpoint with the token you created. Tailscale provides the private route; it does not replace the token.</li>
             </ol>
             <div className="mt-4 rounded-xl bg-surface-muted px-4 py-3 text-xs text-text-muted">
               Everything stays on your machines — the hub never leaves your network.

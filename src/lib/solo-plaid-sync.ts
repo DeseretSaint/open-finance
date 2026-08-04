@@ -40,7 +40,7 @@ export interface SoloNativeClient {
     environment: string;
     accessToken: string;
     cursor: string | null;
-  }): Promise<{ added: SoloPlaidTxn[]; modified: SoloPlaidTxn[]; removed: string[]; nextCursor: string | null }>;
+  }): Promise<{ added: SoloPlaidTxn[]; modified: SoloPlaidTxn[]; removed: Array<string | { transactionId: string }>; nextCursor: string | null }>;
 }
 
 export interface SoloSyncInput {
@@ -50,6 +50,7 @@ export interface SoloSyncInput {
   institutionName: string | null;
   environment: string;
   creds: { clientId: string; secret: string; environment: string };
+  accountDetails?: Array<{ id: string; currentBalanceCents: number | null; availableBalanceCents: number | null; currency: string }>;
   accessToken: string;
   accounts: SoloSyncAccount[];
   client: SoloNativeClient;
@@ -70,7 +71,7 @@ export interface SoloSyncResult {
  * caller decides how to surface failures.
  */
 export async function syncSoloItem(input: SoloSyncInput): Promise<SoloSyncResult> {
-  const { db, userId, itemId, environment, creds, accessToken, accounts, client } = input;
+  const { db, userId, itemId, environment, creds, accessToken, accounts, accountDetails, client } = input;
   try {
     // 1. Upsert accounts (keyed on plaid_account_id).
     for (const a of accounts) {
@@ -80,18 +81,27 @@ export async function syncSoloItem(input: SoloSyncInput): Promise<SoloSyncResult
         userId
       );
       if (existing) {
+        const existingMeta = await db.get<{ hidden: number; type_override: number; type: string | null }>(
+          "SELECT hidden, type_override FROM accounts WHERE id = ?",
+          existing.id
+        );
+        if (existingMeta?.hidden === 1) continue;
+        const details = accountDetails?.find((d) => d.id === a.id);
         await db.run(
-          "UPDATE accounts SET name = ?, type = ?, mask = ?, item_id = ? WHERE id = ?",
+          "UPDATE accounts SET name = ?, type = ?, mask = ?, item_id = ?, current_balance_cents = ?, available_balance_cents = ?, currency = ? WHERE id = ? AND hidden = 0",
           a.name,
-          a.type,
+          existingMeta?.type_override === 1 ? existingMeta.type : a.type,
           a.mask,
           itemId,
+          details?.currentBalanceCents ?? null,
+          details?.availableBalanceCents ?? null,
+          details?.currency ?? "USD",
           existing.id
         );
       } else {
         await db.run(
-          `INSERT INTO accounts (id, user_id, item_id, plaid_account_id, name, type, mask, currency, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'USD', ?)`,
+          `INSERT INTO accounts (id, user_id, item_id, plaid_account_id, name, type, mask, current_balance_cents, available_balance_cents, currency, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           randomUUID(),
           userId,
           itemId,
@@ -99,19 +109,22 @@ export async function syncSoloItem(input: SoloSyncInput): Promise<SoloSyncResult
           a.name,
           a.type,
           a.mask,
+          accountDetails?.find((d) => d.id === a.id)?.currentBalanceCents ?? null,
+          accountDetails?.find((d) => d.id === a.id)?.availableBalanceCents ?? null,
+          accountDetails?.find((d) => d.id === a.id)?.currency ?? "USD",
           new Date().toISOString()
         );
       }
     }
 
     // 2. Map plaid account id → row id for ingest.
-    const rows = await db.all<{ id: string; plaid_account_id: string | null }>(
-      "SELECT id, plaid_account_id FROM accounts WHERE item_id = ?",
+    const rows = await db.all<{ id: string; plaid_account_id: string | null; hidden: number }>(
+      "SELECT id, plaid_account_id, hidden FROM accounts WHERE item_id = ?",
       itemId
     );
     const plaidToRow = new Map<string, string>();
     for (const r of rows) {
-      if (r.plaid_account_id) plaidToRow.set(r.plaid_account_id, r.id);
+      if (r.plaid_account_id && r.hidden === 0) plaidToRow.set(r.plaid_account_id, r.id);
     }
 
     const categories = createCategoriesService(db);
@@ -138,7 +151,8 @@ export async function syncSoloItem(input: SoloSyncInput): Promise<SoloSyncResult
       const cat = await categories.match(userId, t.categoryPath, t.personalFinanceCategory);
       await upsertTxn(db, rowId, { ...t, amountCents: -t.amountCents }, cat?.id ?? null);
     }
-    for (const plaidId of res.removed) {
+    for (const removed of res.removed) {
+      const plaidId = typeof removed === "string" ? removed : removed.transactionId;
       await db.run("DELETE FROM transactions WHERE plaid_transaction_id = ?", plaidId);
     }
 

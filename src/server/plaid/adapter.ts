@@ -6,6 +6,15 @@ export interface PlaidCreds {
   environment: PlaidEnvironment;
 }
 
+export function normalizePlaidAccountType(type: string | null | undefined, subtype: string | null | undefined): string {
+  const t = (type ?? "").toLowerCase();
+  const s = (subtype ?? "").toLowerCase();
+  if (s.includes("credit card") || t === "credit") return "credit";
+  if (s.includes("auto loan") || s.includes("mortgage") || t === "loan") return "loan";
+  if (t === "investment" || t === "depository") return t;
+  return "other";
+}
+
 export interface PlaidAccount {
   id: string;
   name: string;

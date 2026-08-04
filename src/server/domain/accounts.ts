@@ -17,6 +17,8 @@ export interface AccountRow {
   currency: string;
   institution_name: string | null;
   include_in_net_worth: number;
+  hidden: number;
+  type_override: number;
   created_at: string;
 }
 
@@ -33,8 +35,8 @@ export function createAccountsService(db: Db = getDb()) {
         `SELECT a.*, i.institution_name
            FROM accounts a
            LEFT JOIN plaid_items i ON i.id = a.item_id
-          WHERE a.user_id = ?
-          ORDER BY a.type, a.name COLLATE NOCASE`,
+          WHERE a.user_id = ? AND a.hidden = 0
+           ORDER BY a.type, a.name COLLATE NOCASE`,
         userId
       );
     },
@@ -44,7 +46,7 @@ export function createAccountsService(db: Db = getDb()) {
      * investment accounts unless read:banking is also held) AND account allowlist.
      */
     async listForAgent(userId: string, scopes: string[], accountIds: string[] | null): Promise<AccountRow[]> {
-      const conditions: string[] = ["a.user_id = ?"];
+      const conditions: string[] = ["a.user_id = ?", "a.hidden = 0"];
       const params: unknown[] = [userId];
       const seeBanking = scopes.includes("read:banking");
       const seeInvestments = scopes.includes("read:investments");
@@ -78,7 +80,7 @@ export function createAccountsService(db: Db = getDb()) {
         `SELECT a.*, i.institution_name
            FROM accounts a
            LEFT JOIN plaid_items i ON i.id = a.item_id
-          WHERE a.id = ? AND a.user_id = ?`,
+          WHERE a.id = ? AND a.user_id = ? AND a.hidden = 0`,
         id,
         userId
       );
@@ -138,15 +140,35 @@ export function createAccountsService(db: Db = getDb()) {
       return this.get(userId, id);
     },
 
-    /** Only manual accounts (no Plaid item) can be deleted. */
+    /** Remove one account and its local history. For Plaid accounts this
+     * disconnects the account locally; the institution remains linked so a
+     * later sync will continue importing the other accounts. */
     async remove(userId: string, id: string): Promise<void> {
-      const row = await this.get(userId, id);
-      if (row.item_id) throw apiErrors.forbidden("Remove the institution to delete its accounts.");
+      const row = await db.get<{ id: string; item_id: string | null }>(
+        "SELECT id, item_id FROM accounts WHERE id = ? AND user_id = ? AND hidden = 0",
+        id,
+        userId
+      );
+      if (!row) throw apiErrors.notFound("Account");
       await db.transaction(async () => {
         await db.run("DELETE FROM transactions WHERE account_id = ?", id);
         await db.run("DELETE FROM balance_history WHERE account_id = ?", id);
-        await db.run("DELETE FROM accounts WHERE id = ?", id);
+        if (row.item_id) {
+          await db.run("UPDATE accounts SET hidden = 1 WHERE id = ?", id);
+        } else {
+          await db.run("DELETE FROM accounts WHERE id = ?", id);
+        }
       });
+    },
+
+    /** User override for Plaid's inferred account type. */
+    async setType(userId: string, id: string, type: string): Promise<AccountRow> {
+      await this.get(userId, id);
+      if (!(ACCOUNT_TYPES as readonly string[]).includes(type)) {
+        throw apiErrors.badRequest(`Account type must be one of: ${ACCOUNT_TYPES.join(", ")}.`);
+      }
+      await db.run("UPDATE accounts SET type = ?, type_override = 1 WHERE id = ?", type, id);
+      return this.get(userId, id);
     },
 
     /** Include/exclude an account from the day-to-day net worth (P24). */

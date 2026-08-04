@@ -92,7 +92,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
   const isDemo = data.user.is_demo === true;
   if (!isDemo && !onboarding.data?.completed) {
-    return <OnboardingWizard />;
+    // The wizard is rendered inside /dashboard, which is normally part of the
+    // user-configurable app shell. First-run is an exception: force its entire
+    // route dark here so the wizard cannot inherit a stored Light-mode choice.
+    return (
+      <div className="forced-dark min-h-dvh" style={{ backgroundColor: "#0c0a09", color: "#fafaf9" }}>
+        <OnboardingWizard />
+      </div>
+    );
   }
 
   return (
@@ -102,7 +109,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
         <Sidebar />
-        <main className="flex-1 overflow-y-auto px-4 pb-24 pt-4 md:p-8">
+        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-24 pt-4 md:p-8">
           <header className="mb-4 flex items-center gap-3 md:mb-6">
             <span
               aria-hidden

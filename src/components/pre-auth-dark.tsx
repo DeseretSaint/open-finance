@@ -23,8 +23,14 @@ const APP_SHELL_PATHS = [
 export function PreAuthDark({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "";
   const preAuth = !APP_SHELL_PATHS.some((p) => pathname.startsWith(p));
-  // Neutral on first SSR paint (pathname unknown) — the pre-hydration script
-  // already paints dark for the default; this wrapper only needs to hold the
-  // line for light-preference users on pre-auth pages.
-  return <div className={preAuth ? "forced-dark min-h-screen" : undefined}>{children}</div>;
+  // Structural dark scope for every route outside the app shell.
+  return (
+    <div
+      className={preAuth ? "forced-dark min-h-screen" : undefined}
+      style={preAuth ? { backgroundColor: "#0c0a09", color: "#fafaf9" } : undefined}
+      data-preauth={preAuth ? "dark" : undefined}
+    >
+      {children}
+    </div>
+  );
 }

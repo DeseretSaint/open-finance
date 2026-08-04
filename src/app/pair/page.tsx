@@ -24,6 +24,12 @@ function PairPage() {
   const busyRef = useRef(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const importMode = params.get("import") === "1";
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPin, setImportPin] = useState("");
+  const [importUsername, setImportUsername] = useState("");
+  const [importDisplayName, setImportDisplayName] = useState("");
+  const [importPassword, setImportPassword] = useState("");
 
   const urlCode = params.get("code");
 
@@ -116,21 +122,57 @@ function PairPage() {
     }
   }
 
+  async function importPhoneBackup() {
+    if (!importFile || !importPin) {
+      setErr("Choose the phone backup and enter the phone PIN.");
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      const contents = await importFile.text();
+      const res = await api.post<{ imported: Record<string, number>; plaidItems: number }>("/api/phone-import/bootstrap", { username: importUsername, displayName: importDisplayName, password: importPassword, pin: importPin, contents });
+      const counts = Object.entries(res.imported).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k}`).join(", ");
+      setMsg(`Imported ${counts || "no new rows"}; preserved ${res.plaidItems} Plaid connection(s). The phone was not changed.`);
+      setImportPin("");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Phone import failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col items-center justify-center gap-4 p-6">
-      <h1 className="text-2xl font-semibold">Pair your phone</h1>
+      <h1 className="text-2xl font-semibold">{importMode ? "Bring in your phone data" : "Pair your phone"}</h1>
       <p className="text-center text-sm text-muted-foreground">
-        Scan the QR code shown in the hub&apos;s Settings → Hub &amp; phone pairing, or type the code.
+        {importMode ? "Import an encrypted backup exported from your standalone phone. Your phone stays unchanged." : "Scan the QR code shown in the hub&apos;s Settings → Hub &amp; phone pairing, or type the code."}
       </p>
+      {importMode && (
+        <div className="w-full space-y-3 rounded-2xl border border-border bg-surface p-5">
+          <label className="block text-xs font-medium text-text-muted">Hub username</label>
+          <Input value={importUsername} onChange={(e) => setImportUsername(e.target.value)} placeholder="Choose a hub login" />
+          <label className="block text-xs font-medium text-text-muted">Hub display name</label>
+          <Input value={importDisplayName} onChange={(e) => setImportDisplayName(e.target.value)} placeholder="Your name" />
+          <label className="block text-xs font-medium text-text-muted">Hub password</label>
+          <Input type="password" value={importPassword} onChange={(e) => setImportPassword(e.target.value)} placeholder="Choose a hub password" />
+          <label className="block text-xs font-medium text-text-muted">Phone backup (.ofbak.json)</label>
+          <Input type="file" accept=".json,.ofbak.json" onChange={(e) => setImportFile(e.target.files?.[0] ?? null)} />
+          <label className="block text-xs font-medium text-text-muted">Phone device PIN</label>
+          <Input type="password" inputMode="numeric" value={importPin} onChange={(e) => setImportPin(e.target.value.replace(/[^0-9]/g, ""))} placeholder="PIN used on the phone" />
+          <p className="text-xs text-text-muted">No duplicate hub account is created. Plaid account IDs and transaction IDs are deduplicated; new data is added alongside existing hub data.</p>
+          <Button className="w-full" onClick={importPhoneBackup} disabled={busy || !importFile || !importPin || !importUsername.trim() || !importDisplayName.trim() || !importPassword}>{busy ? "Importing…" : "Create hub profile and import phone data"}</Button>
+        </div>
+      )}
 
-      {mode === "scan" && (
+      {!importMode && mode === "scan" && (
         <div className="relative aspect-square w-full max-w-xs overflow-hidden rounded-xl border bg-black">
           <video ref={videoRef} className="h-full w-full object-cover" muted playsInline />
           <canvas ref={canvasRef} className="hidden" />
         </div>
       )}
 
-      {mode === "type" && (
+      {!importMode && mode === "type" && (
         <div className="w-full space-y-3">
           <Input
             placeholder="Pairing code"

@@ -56,5 +56,9 @@ export const SOLO_MIGRATIONS: { version: number; sql: string }[] = [
   {
     version: 12,
     sql: "-- 012: manual payday schedule + one-off expenses with contribution plans\n--\n-- payday_mode: 'auto' (default — detect from income transactions) |\n--              'interval' (every payday_interval) | 'days_of_month' (payday_days)\n-- payday_interval: 'weekly' | 'biweekly' | 'monthly'\n-- payday_days: JSON array of day-of-month ints, e.g. [1, 15]\nALTER TABLE user_settings ADD COLUMN payday_mode TEXT NOT NULL DEFAULT 'auto';\nALTER TABLE user_settings ADD COLUMN payday_interval TEXT;\nALTER TABLE user_settings ADD COLUMN payday_days TEXT;\n\n-- goals.type: 'savings' (default) | 'expense' (one-off upcoming expense).\n-- contribution_mode: 'none' (no set-aside) | 'interval' (regular intervals) |\n--                    'days_of_month' (specific days) | 'agent' (agent schedules)\n-- contribution_interval: 'weekly' | 'biweekly' | 'monthly'\n-- contribution_days: JSON array of day-of-month ints, e.g. [5, 20]\nALTER TABLE goals ADD COLUMN contribution_mode TEXT NOT NULL DEFAULT 'interval';\nALTER TABLE goals ADD COLUMN contribution_interval TEXT;\nALTER TABLE goals ADD COLUMN contribution_days TEXT;\n",
+  },
+  {
+    version: 13,
+    sql: "-- 013: per-account user override / soft-delete for Plaid accounts\n-- hidden accounts are not recreated by subsequent syncs\nALTER TABLE accounts ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0;\nALTER TABLE accounts ADD COLUMN type_override INTEGER NOT NULL DEFAULT 0;\nCREATE INDEX IF NOT EXISTS idx_accounts_visible ON accounts(user_id, hidden);\nCREATE INDEX IF NOT EXISTS idx_accounts_plaid_visible ON accounts(user_id, plaid_account_id, hidden);\n\n-- Existing Plaid types are provider classifications, not user overrides.\n-- Only a later Accounts-page edit sets type_override = 1.\n",
   }
 ];
