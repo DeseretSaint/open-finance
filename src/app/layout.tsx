@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { PreAuthDark } from "@/components/pre-auth-dark";
 import { Providers } from "@/components/providers";
 import { SwRegistration } from "@/components/sw-registration";
 
@@ -38,7 +39,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className={inter.variable}>
-        <Providers>{children}</Providers>
+        <PreAuthDark>
+          <Providers>{children}</Providers>
+        </PreAuthDark>
         <SwRegistration />
       </body>
     </html>

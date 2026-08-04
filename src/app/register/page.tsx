@@ -57,7 +57,7 @@ export default function RegisterPage() {
   if (solo && recoveryCode) {
     return (
       <main
-        className="flex min-h-screen items-center justify-center bg-background p-6"
+        className="forced-dark flex min-h-screen items-center justify-center bg-background p-6"
         style={{
           paddingTop: "env(safe-area-inset-top)",
           paddingBottom: `calc(env(safe-area-inset-bottom) + ${kbdHeight}px)`,
