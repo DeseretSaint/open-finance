@@ -16,6 +16,10 @@ import { MotifHero } from "@/components/motif-hero";
 export default function Home() {
   const router = useRouter();
   const [hasAccount, setHasAccount] = useState<boolean | null>(null);
+
+  function safeLocalGet(key: string): string | null {
+    try { return localStorage.getItem(key); } catch { return null; }
+  }
   const [showPair, setShowPair] = useState(false);
   const [hubUrl, setHubUrl] = useState("");
   const [pairBusy, setPairBusy] = useState(false);
@@ -31,13 +35,19 @@ export default function Home() {
         .catch(() => setHasAccount(false));
     } else {
       // Web: if a session already exists, go straight in (401 → not signed in).
+      // If this browser has completed sign-up before but the session expired,
+      // route straight to /login instead of showing "Create an account" again.
       api
         .get<{ user: { id: string } }>("/api/auth/me")
         .then((r) => {
           if (r.user?.id) router.replace("/dashboard");
+          else if (safeLocalGet("of-has-account") === "1") router.replace("/login");
           else setHasAccount(false);
         })
-        .catch(() => setHasAccount(false));
+        .catch(() => {
+          if (safeLocalGet("of-has-account") === "1") router.replace("/login");
+          else setHasAccount(false);
+        });
     }
   }, [router]);
 

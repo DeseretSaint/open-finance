@@ -123,6 +123,28 @@ export default function SettingsPage() {
     },
   });
 
+  // Pull new/changed transactions (and fresh balances) from Plaid now.
+  const syncNow = useMutation({
+    mutationFn: () =>
+      api.post<{ results: Array<{ institution_name: string | null; added: number; modified: number; removed: number; ok: boolean; error?: string }> }>(
+        "/api/transactions/sync"
+      ),
+    onSuccess: (d) => {
+      const changed = d.results.reduce((n, r) => n + r.added + r.modified, 0);
+      const failed = d.results.filter((r) => !r.ok);
+      if (failed.length > 0) {
+        setErr(`Sync finished with errors on ${failed.map((f) => f.institution_name ?? "an institution").join(", ")}.`);
+      } else {
+        setMsg(`Sync complete — ${changed === 0 ? "nothing new" : `${changed} transaction(s) updated`}.`);
+      }
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      qc.invalidateQueries({ queryKey: ["summary"] });
+      qc.invalidateQueries({ queryKey: ["plaid-items"] });
+    },
+    onError: (e) => setErr(e instanceof Error ? e.message : "Sync failed."),
+  });
+
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <p className="text-xs text-text-muted lg:col-span-2">Build 0.3.7</p>
@@ -302,6 +324,11 @@ export default function SettingsPage() {
           <Button disabled={linking} onClick={startLink}>
             {linking ? "Opening…" : "+ Connect a bank"}
           </Button>
+          {items.data && items.data.items.length > 0 && (
+            <Button variant="secondary" disabled={syncNow.isPending} onClick={() => syncNow.mutate()}>
+              {syncNow.isPending ? "Syncing…" : "Sync now"}
+            </Button>
+          )}
           {linkToken && (
             <PlaidLink
               token={linkToken}

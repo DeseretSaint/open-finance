@@ -178,11 +178,16 @@ class PlaidProxyPlugin : Plugin() {
         val accessToken = call.getString("accessToken") ?: return call.reject("missing accessToken")
         val cursor = call.getString("cursor")
         try {
-            val body = params(clientId, secret).put("access_token", accessToken)
-            if (!cursor.isNullOrBlank()) body.put("cursor", cursor)
-            val resp = post(env, "/transactions/sync", body)
-            fun mapTransactions(key: String): JSONArray {
-                val raw = resp.optJSONArray(key) ?: JSONArray()
+            // Follow has_more so the FULL history is imported (Plaid pages ~100
+            // transactions per call; a month of activity can span several pages).
+            var nextCursor = cursor
+            var hasMore = true
+            var guard = 0
+            val addedAll = JSONArray()
+            val modifiedAll = JSONArray()
+            val removedAll = JSONArray()
+            fun mapTransactions(page: JSONObject, key: String): JSONArray {
+                val raw = page.optJSONArray(key) ?: JSONArray()
                 val mapped = JSONArray()
                 for (i in 0 until raw.length()) {
                     val t = raw.optJSONObject(i) ?: continue
@@ -201,18 +206,28 @@ class PlaidProxyPlugin : Plugin() {
                 }
                 return mapped
             }
-            val removedRaw = resp.optJSONArray("removed") ?: JSONArray()
-            val removed = JSONArray()
-            for (i in 0 until removedRaw.length()) {
-                val r = removedRaw.optJSONObject(i) ?: continue
-                removed.put(JSObject().put("transactionId", r.optString("transaction_id")))
+            var resp: JSONObject
+            while (hasMore && guard < 50) {
+                guard++
+                val body = params(clientId, secret).put("access_token", accessToken)
+                if (!nextCursor.isNullOrBlank()) body.put("cursor", nextCursor)
+                resp = post(env, "/transactions/sync", body)
+                mapTransactions(resp, "added").let { for (i in 0 until it.length()) addedAll.put(it.get(i)) }
+                mapTransactions(resp, "modified").let { for (i in 0 until it.length()) modifiedAll.put(it.get(i)) }
+                val removedRaw = resp.optJSONArray("removed") ?: JSONArray()
+                for (i in 0 until removedRaw.length()) {
+                    val r = removedRaw.optJSONObject(i) ?: continue
+                    removedAll.put(JSObject().put("transactionId", r.optString("transaction_id")))
+                }
+                nextCursor = resp.optString("next_cursor", "")
+                hasMore = resp.optBoolean("has_more", false)
             }
             call.resolve(
                 JSObject()
-                    .put("added", mapTransactions("added"))
-                    .put("modified", mapTransactions("modified"))
-                    .put("removed", removed)
-                    .put("nextCursor", resp.optString("next_cursor", cursor ?: ""))
+                    .put("added", addedAll)
+                    .put("modified", modifiedAll)
+                    .put("removed", removedAll)
+                    .put("nextCursor", nextCursor ?: "")
             )
         } catch (e: Exception) {
             call.reject(e.message ?: "sync failed")

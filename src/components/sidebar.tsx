@@ -134,6 +134,7 @@ export function Sidebar() {
 
       {/* Mobile bottom tab bar */}
       <nav
+        id="of-tab-bar"
         className="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-border bg-surface md:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         aria-label="Primary"

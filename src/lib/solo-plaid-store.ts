@@ -26,6 +26,8 @@ export interface SoloPlaidItem {
   environment: string;
   accessToken: string;
   linkedAt: string;
+  /** Transactions-sync cursor (Plaid incremental sync); persisted so re-syncs only pull new/changed rows. */
+  cursor?: string | null;
   accounts: Array<{ id: string; name: string; type: string | null; mask: string | null }>;
 }
 
@@ -69,4 +71,9 @@ export function addSoloPlaidItem(item: SoloPlaidItem): void {
 
 export function removeSoloPlaidItem(id: string): void {
   write(ITEMS_KEY, getSoloPlaidItems().filter((i) => i.id !== id));
+}
+
+/** Persist the sync cursor for an item (incremental sync state). */
+export function setSoloPlaidItemCursor(id: string, cursor: string | null): void {
+  write(ITEMS_KEY, getSoloPlaidItems().map((i) => (i.id === id ? { ...i, cursor } : i)));
 }

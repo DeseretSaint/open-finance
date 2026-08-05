@@ -53,7 +53,6 @@ export const AGENT_ROUTES: RouteEntry[] = [
   { method: "GET", path: "/api/settings", scopes: ["read:summary"] },
   { method: "PUT", path: "/api/settings", scopes: ["settings:write"] },
   { method: "POST", path: "/api/transactions/sync", scopes: ["sync:run"] },
-  { method: "POST", path: "/api/plaid/items/:id/refresh", scopes: ["sync:run"] },
   { method: "GET", path: "/api/custom-views", scopes: ["dev:ui"] },
   { method: "POST", path: "/api/custom-views", scopes: ["dev:ui"] },
   { method: "PATCH", path: "/api/custom-views/:id", scopes: ["dev:ui"] },

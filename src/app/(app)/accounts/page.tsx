@@ -55,7 +55,7 @@ function typeIcon(type: string | null) {
 
 function AccountsSkeleton() {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {[0, 1, 2].map((i) => (
         <div key={i} className="skeleton h-32" />
       ))}
@@ -131,11 +131,11 @@ export default function AccountsPage() {
     {isLoading || !data ? (
         <AccountsSkeleton />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {data.accounts.map((a) => {
             const Icon = typeIcon(a.type);
             return (
-              <Card key={a.id}>
+              <Card key={a.id} className="min-w-0 overflow-hidden">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-muted text-text-muted" aria-hidden>

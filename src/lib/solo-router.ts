@@ -487,6 +487,7 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       let synced = 0;
       try {
         const { syncSoloItem } = await import("@/lib/solo-plaid-sync");
+        const { setSoloPlaidItemCursor } = await import("@/lib/solo-plaid-store");
         const result = await syncSoloItem({
           db,
           userId,
@@ -501,10 +502,67 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
           cursor: null,
         });
         synced = result.ok ? result.added + result.modified : 0;
+        // Persist the cursor so later "Sync now" runs are incremental.
+        if (result.ok && result.nextCursor) setSoloPlaidItemCursor(itemId, result.nextCursor);
       } catch {
         synced = 0;
       }
       return ok({ ok: true, itemId, synced });
+    }
+
+    // Re-sync all linked Plaid items (Settings → "Sync now"). Pulls new /
+    // changed transactions since the stored cursor (the Kotlin proxy follows
+    // has_more, so the full history is covered even on first link).
+    if (method === "POST" && path === "/api/transactions/sync") {
+      const { getSoloPlaidCreds, getSoloPlaidItems, setSoloPlaidItemCursor } = await import("@/lib/solo-plaid-store");
+      const { createNativePlaidClient } = await import("@/server/plaid/native");
+      const { syncSoloItem } = await import("@/lib/solo-plaid-sync");
+      const userId = await h.deviceUserId();
+      const creds = getSoloPlaidCreds();
+      if (!creds) throw apiErrors.badRequest("No Plaid keys saved on this phone.");
+      const items = getSoloPlaidItems();
+      const client = createNativePlaidClient();
+      const results: Array<{ itemId: string; institution_name: string | null; added: number; modified: number; removed: number; ok: boolean; error?: string }> = [];
+      for (const item of items) {
+        const env = item.environment === "production" ? "production" : "sandbox";
+        // Refresh balances alongside transactions so the Accounts tab stays current.
+        let accountDetails: Array<{ id: string; currentBalanceCents: number | null; availableBalanceCents: number | null; currency: string }> = [];
+        try {
+          const fresh = await client.getAccounts({ ...creds, environment: env as "production" | "sandbox" }, item.accessToken);
+          accountDetails = fresh.map((a) => ({
+            id: a.id,
+            currentBalanceCents: a.currentBalanceCents,
+            availableBalanceCents: a.availableBalanceCents,
+            currency: a.currency,
+          }));
+        } catch {
+          /* balances are best-effort on re-sync */
+        }
+        const res = await syncSoloItem({
+          db,
+          userId,
+          itemId: item.id,
+          institutionName: item.institutionName,
+          environment: env,
+          creds: { ...creds, environment: env as "production" | "sandbox" },
+          accountDetails,
+          accessToken: item.accessToken,
+          accounts: item.accounts,
+          client: client as never,
+          cursor: item.cursor ?? null,
+        });
+        if (res.ok && res.nextCursor) setSoloPlaidItemCursor(item.id, res.nextCursor);
+        results.push({
+          itemId: item.id,
+          institution_name: item.institutionName,
+          added: res.added,
+          modified: res.modified,
+          removed: res.removed,
+          ok: res.ok,
+          error: res.error,
+        });
+      }
+      return ok({ results });
     }
 
     if (method === "GET" && path === "/api/plaid/items") {
