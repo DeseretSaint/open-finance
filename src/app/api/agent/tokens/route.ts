@@ -14,6 +14,7 @@ const createSchema = z.object({
   accountIds: z.array(z.string()).nullable().optional(),
   uiTabs: z.array(z.string()).nullable().optional(),
   expiresAt: z.string().nullable().optional(),
+  followSettings: z.boolean().optional(),
 });
 
 /** User session: list agent tokens (never the raw token — prefix + scopes only). */

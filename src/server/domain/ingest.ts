@@ -3,8 +3,9 @@ import { getDb, type Db } from "@/server/db/adapter";
 
 /**
  * Ingest — the correctness contract for Plaid transaction rows.
- * Amount sign convention (matches Plaid + the adapter): positive = money out (expense),
- * negative = money in (income). Manual rows (source='manual') have NULL
+ * Amount sign convention used by the app: positive = money in (income),
+ * negative = money out (expense). Plaid's raw sign is flipped before ingest.
+ * Manual rows (source='manual') have NULL
  * plaid_transaction_id and are never touched by ingest.
  */
 export interface IngestTxn {

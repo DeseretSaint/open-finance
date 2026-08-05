@@ -90,6 +90,113 @@ const PROVIDERS = [
   { name: "Other", note: "Any MCP-capable agent" },
 ];
 
+function HermesSetupCard({ endpoint, setMsg, setErr }: { endpoint: string; setMsg: (s: string | null) => void; setErr: (s: string | null) => void }) {
+  const [createdToken, setCreatedToken] = useState<string | null>(null);
+  const [expiry, setExpiry] = useState("90d");
+  const [copied, setCopied] = useState<"config" | "token" | null>(null);
+  const qc = useQueryClient();
+  const create = useMutation({
+    mutationFn: () =>
+      api.post<{ token: string }>("/api/agent/tokens", {
+        name: "Hermes",
+        preset: "read-only",
+        followSettings: true,
+        expiresAt:
+          expiry === "never" ? null : new Date(Date.now() + Number(expiry.replace("d", "")) * 86400_000).toISOString().slice(0, 10),
+      }),
+    onSuccess: (data) => {
+      setCreatedToken(data.token);
+      setMsg("Hermes token created — copy the configuration now. The token is shown only once.");
+      setErr(null);
+      qc.invalidateQueries({ queryKey: ["agent-tokens"] });
+    },
+    onError: (e) => setErr(e instanceof Error ? e.message : "Could not create the Hermes connection."),
+  });
+
+  const config = createdToken
+    ? `mcp_servers:\n  open_finance:\n    url: "${endpoint}/api/mcp"\n    headers:\n      Authorization: "Bearer ${createdToken}"`
+    : "";
+
+  async function copy(kind: "config" | "token") {
+    const value = kind === "config" ? config : createdToken;
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(kind);
+      window.setTimeout(() => setCopied(null), 2200);
+    } catch {
+      setErr("Copy failed — select the text and copy it manually.");
+    }
+  }
+
+  return (
+    <Card className="border-accent/30">
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent" aria-hidden>
+          <ShieldCheck size={18} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <CardTitle>Connect to Hermes</CardTitle>
+          <p className="mt-1 text-sm text-text-muted">
+            Run Hermes on your hub or Mac, where its model provider is configured. Open Finance stays the private finance
+            tool server; no provider API key is stored on this phone.
+          </p>
+        </div>
+      </div>
+      {!createdToken ? (
+        <div className="mt-4 rounded-xl bg-surface-muted p-4">
+          <p className="text-sm text-text">
+            This token follows the current Settings access boundaries. If you later change the AI access switches, the
+            token&apos;s effective access changes immediately too.
+          </p>
+          <div className="mt-3 max-w-xs">
+            <CustomSelect
+              ariaLabel="Hermes token expiration"
+              value={expiry}
+              onChange={setExpiry}
+              options={[
+                { value: "30d", label: "Expires in 30 days" },
+                { value: "60d", label: "Expires in 60 days" },
+                { value: "90d", label: "Expires in 90 days (recommended)" },
+                { value: "never", label: "Never expires (not recommended)" },
+              ]}
+            />
+          </div>
+          <Button className="mt-3" onClick={() => create.mutate()} disabled={create.isPending}>
+            {create.isPending ? "Creating secure connection…" : "Create Hermes connection"}
+          </Button>
+        </div>
+      ) : (
+        <div className="mt-4 space-y-3">
+          <div>
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <p className="text-xs font-medium text-text-muted">Paste into ~/.hermes/config.yaml</p>
+              <Button size="sm" variant="secondary" onClick={() => copy("config")}>
+                <Copy size={13} className="mr-1.5" /> {copied === "config" ? "Copied" : "Copy config"}
+              </Button>
+            </div>
+            <pre className="overflow-x-auto rounded-xl bg-background p-3 text-xs leading-5 text-text"><code>{config}</code></pre>
+          </div>
+          <div>
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <p className="text-xs font-medium text-text-muted">Token (shown once)</p>
+              <Button size="sm" variant="secondary" onClick={() => copy("token")}>
+                <Copy size={13} className="mr-1.5" /> {copied === "token" ? "Copied" : "Copy token"}
+              </Button>
+            </div>
+            <code className="block break-all rounded-xl bg-background p-3 text-xs text-accent">{createdToken}</code>
+          </div>
+          <ol className="list-inside list-decimal space-y-1 text-xs text-text-muted">
+            <li>Paste the YAML into Hermes&apos; config and restart Hermes.</li>
+            <li>Keep the endpoint private with Tailscale when connecting away from home.</li>
+            <li>Ask Hermes to read your Open Finance summary; it will start read-only.</li>
+          </ol>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 /* ── page ──────────────────────────────────────────────────────────────── */
 
 export default function AgentsPage() {
@@ -230,6 +337,8 @@ export default function AgentsPage() {
             act on budgets. Agents start <strong className="text-text">read-only</strong> and ask before any write.
           </p>
         </div>
+
+        {!solo && <HermesSetupCard endpoint={endpoint} setMsg={setMsg} setErr={setErr} />}
 
         {solo ? (
           <Card>
@@ -411,10 +520,11 @@ export default function AgentsPage() {
                   </div>
                 </div>
                 <div className="rounded-xl bg-surface-muted px-4 py-3 text-xs text-text-muted">
-                  <p className="font-medium text-text">Example (Hermes / Claude / Cursor):</p>
+                  <p className="font-medium text-text">Hermes recommended setup</p>
                   <p className="mt-1">
-                    Add an MCP server to your agent with the endpoint above and the token. The agent can read
-                    budgets/summary immediately; writes prompt you for approval in the permission inbox.
+                    Run Hermes on your hub/Mac and configure its model provider there (Nous Portal, OpenAI-compatible,
+                    Ollama, or another supported provider). Add this MCP endpoint and the Open Finance token to Hermes.
+                    The phone never needs the model provider key.
                   </p>
                 </div>
                 <p className="text-xs text-text-muted">
@@ -452,6 +562,8 @@ export default function AgentsPage() {
 
       {msg && <p className="text-sm font-medium text-success">{msg}</p>}
       {err && <p className="text-sm text-danger">{err}</p>}
+
+      <HermesSetupCard endpoint={endpoint} setMsg={setMsg} setErr={setErr} />
 
       {/* Wire another agent right here — no need to go to Settings. */}
       <Card>

@@ -31,11 +31,13 @@ export function createSummaryService(db: Db = getDb()) {
       userId: string,
       referenceDate: string = new Date().toISOString().slice(0, 10),
       allowlist?: AllowlistCtx | null,
-      frame: BudgetFrame = { kind: "month" }
+      frame: BudgetFrame = { kind: "month" },
+      includeExcluded = false
     ): Promise<Summary> {
       const { start, end } = frame.kind === "period" ? monthBounds(referenceDate) : frameBounds(frame, referenceDate);
       const allowAccounts = withAllowlist(allowlist ?? null, "id");
       const allowTxns = withAllowlist(allowlist ?? null, "a.id");
+      const accountHistoryClause = includeExcluded ? "" : " AND a.deleted_at IS NULL";
 
       const totals = await db.all<{ type: string | null; balance: number }>(
         `SELECT type,
@@ -58,7 +60,7 @@ export function createSummaryService(db: Db = getDb()) {
            COALESCE(SUM(CASE WHEN t.amount_cents < 0 THEN -t.amount_cents ELSE 0 END), 0) AS expense
            FROM transactions t
            JOIN accounts a ON a.id = t.account_id
-          WHERE a.user_id = ? AND t.date >= ? AND t.date < ? AND t.pending = 0 AND t.exclude_from_budgets = 0
+          WHERE a.user_id = ?${accountHistoryClause} AND t.date >= ? AND t.date < ? AND t.pending = 0 AND t.exclude_from_budgets = 0
             ${allowTxns.clause}`,
         userId,
         start,
@@ -83,7 +85,7 @@ export function createSummaryService(db: Db = getDb()) {
            FROM transactions t
            JOIN accounts a ON a.id = t.account_id
            LEFT JOIN categories c ON c.id = t.user_category_id
-          WHERE a.user_id = ?${allowTxns.clause}
+          WHERE a.user_id = ?${accountHistoryClause}${allowTxns.clause}
           ORDER BY t.date DESC, t.created_at DESC
           LIMIT 8`,
         userId,

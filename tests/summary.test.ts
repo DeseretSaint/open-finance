@@ -64,4 +64,22 @@ describe("summary", () => {
     expect(summary.recentTransactions).toHaveLength(3);
     expect(summary.budgetOverview).toEqual([]);
   });
+
+  it("excludes transactions belonging to soft-deleted accounts", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const visible = await seedManualAccount(db, user.id, "Visible");
+    const removed = await seedManualAccount(db, user.id, "Removed");
+    await db.run("UPDATE accounts SET deleted_at = ?, hidden = 0 WHERE id = ?", new Date().toISOString(), removed);
+    const now = new Date().toISOString();
+    for (const [accountId, amount, name] of [[visible, 10000, "Real income"], [removed, 900000, "Removed income"]] as const) {
+      await db.run(
+        `INSERT INTO transactions (id, account_id, amount_cents, date, name, source, created_at) VALUES (?, ?, ?, ?, ?, 'manual', ?)`,
+        randomUUID(), accountId, amount, dateIn(0, 5), name, now
+      );
+    }
+    const summary = await createSummaryService(db).get(user.id, dateIn(0, 15));
+    expect(summary.monthIncomeCents).toBe(10000);
+    expect(summary.recentTransactions.map((t) => t.name)).not.toContain("Removed income");
+  });
 });

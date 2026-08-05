@@ -11,6 +11,7 @@ const updateSchema = z.object({
   name: z.string().min(1).max(50).optional(),
   color: z.string().max(20).nullable().optional(),
   plaidPaths: z.string().max(2000).nullable().optional(),
+  enabled: z.boolean().optional(),
 });
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {

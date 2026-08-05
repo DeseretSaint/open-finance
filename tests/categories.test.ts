@@ -32,13 +32,26 @@ describe("categories", () => {
     expect(list.filter((c) => c.is_system).length).toBe(list.length);
   });
 
-  it("blocks editing/deleting system categories", async () => {
+  it("allows system categories to be disabled without deleting them", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const svc = createCategoriesService(db);
+    await svc.ensureSystem(user.id);
+    const food = (await svc.listAll(user.id)).find((c) => c.name === "Food & Dining");
+    expect(food).toBeTruthy();
+    await svc.update(user.id, food!.id, { enabled: false });
+    expect((await svc.list(user.id)).some((c) => c.id === food!.id)).toBe(false);
+    expect((await svc.listAll(user.id)).find((c) => c.id === food!.id)?.enabled).toBe(0);
+    await svc.update(user.id, food!.id, { enabled: true });
+    expect((await svc.list(user.id)).some((c) => c.id === food!.id)).toBe(true);
+  });
+
+  it("blocks deleting system categories", async () => {
     const db = createTestDb();
     const user = await seedUser(db);
     const svc = createCategoriesService(db);
     await svc.ensureSystem(user.id);
     const system = (await svc.list(user.id))[0];
-    await expect(svc.update(user.id, system.id, { name: "Hacked" })).rejects.toThrow();
     await expect(svc.remove(user.id, system.id)).rejects.toThrow();
   });
 

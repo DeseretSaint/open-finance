@@ -290,7 +290,7 @@ export function createPlanningService(db: Db = getDb()) {
         const txn = await db.get<{ name: string; amount_cents: number; user_category_id: string | null }>(
           `SELECT t.name, t.amount_cents, t.user_category_id
              FROM transactions t JOIN accounts a ON a.id = t.account_id
-            WHERE t.id = ? AND a.user_id = ?`,
+            WHERE t.id = ? AND a.user_id = ? AND a.deleted_at IS NULL`,
           input.transactionId,
           userId
         );

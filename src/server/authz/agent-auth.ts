@@ -91,10 +91,14 @@ export async function requireAgentScope(req: NextRequest, requiredScopes: string
  * agent prefs each request so a Settings toggle applies immediately — no
  * token regeneration needed.
  */
-async function effectiveScopes(token: { user_id: string; scopes: string }): Promise<string[]> {
-  const tokenScopes = JSON.parse(token.scopes ?? "[]") as string[];
+async function effectiveScopes(token: { user_id: string; scopes: string; follow_settings?: number }): Promise<string[]> {
   const prefs = await createAgentPrefsService(getDb()).get(token.user_id);
   const caps = capScopes(prefs);
+  // A dedicated Hermes token follows the user's current Settings boundary in
+  // both directions: reducing access takes effect immediately, and expanding
+  // access does not require creating a replacement token.
+  if (token.follow_settings === 1) return caps;
+  const tokenScopes = JSON.parse(token.scopes ?? "[]") as string[];
   return tokenScopes.filter((s) => caps.includes(s));
 }
 

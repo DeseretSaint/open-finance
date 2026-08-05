@@ -155,7 +155,7 @@ export function createSoloBackupService(db: Db) {
             ? "SELECT bc.* FROM budget_categories bc JOIN budgets b ON b.id = bc.budget_id WHERE b.user_id = ?"
             : table === "balance_history"
               ? "SELECT bh.* FROM balance_history bh JOIN accounts a ON a.id = bh.account_id WHERE a.user_id = ?"
-              : "SELECT t.* FROM transactions t JOIN accounts a ON a.id = t.account_id WHERE a.user_id = ?";
+              : "SELECT t.* FROM transactions t JOIN accounts a ON a.id = t.account_id WHERE a.user_id = ? AND a.deleted_at IS NULL";
           dump[table] = await db.all<Record<string, unknown>>(query, userId);
         } else {
           dump[table] = await db.all<Record<string, unknown>>(`SELECT * FROM ${table} WHERE user_id = ?`, userId);

@@ -289,7 +289,11 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
     // ── Categories ──────────────────────────────────────────────────────
     if (method === "GET" && path === "/api/categories") {
       const userId = await h.deviceUserId();
-      return ok({ categories: await h.categories.list(userId) });
+      // Keep solo mode behavior identical to the server route: first access
+      // creates the standard categories so Plaid transactions have a useful
+      // picker immediately after linking.
+      await h.categories.ensureSystem(userId);
+      return ok({ categories: query.get("all") === "1" ? await h.categories.listAll(userId) : await h.categories.list(userId) });
     }
     if (method === "POST" && path === "/api/categories") {
       const userId = await h.deviceUserId();
@@ -298,6 +302,14 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         color: typeof B?.color === "string" ? B.color : null,
       });
       return ok({ category }, 201);
+    }
+    if (method === "PATCH" && path.startsWith("/api/categories/")) {
+      const userId = await h.deviceUserId();
+      const id = path.slice("/api/categories/".length);
+      const category = await h.categories.update(userId, id, {
+        enabled: typeof B?.enabled === "boolean" ? B.enabled : undefined,
+      });
+      return ok({ category });
     }
 
     // ── Transactions (manual entry) ─────────────────────────────────────
@@ -365,7 +377,7 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         frameKind === "custom" && start && end
           ? { kind: "custom", start, end }
           : { kind: (["week", "month", "quarter", "year", "period"].includes(frameKind) ? frameKind : "month") as "week" | "month" | "quarter" | "year" | "period" };
-      return ok({ summary: await h.summary.get(userId, referenceDate, null, frame) });
+      return ok({ summary: await h.summary.get(userId, referenceDate, null, frame, query.get("includeExcluded") === "1") });
     }
     if (method === "GET" && path === "/api/reports/spending-by-category") {
       const userId = await h.deviceUserId();
@@ -376,18 +388,27 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       const rows = await h.reports.spendingByCategory(
         userId,
         query.get("from") ?? firstOfMonth,
-        query.get("to") ?? today
+        query.get("to") ?? today,
+        undefined,
+        query.get("includeExcluded") === "1"
       );
       return ok({ rows });
     }
     if (method === "GET" && path === "/api/reports/cashflow") {
       const userId = await h.deviceUserId();
-      const rows = await h.reports.cashflow(userId, Number(query.get("months") ?? 6));
+      const rows = await h.reports.cashflow(
+        userId,
+        Number(query.get("months") ?? 6),
+        null,
+        query.get("from") ?? undefined,
+        query.get("to") ?? undefined,
+        query.get("includeExcluded") === "1"
+      );
       return ok({ rows });
     }
     if (method === "GET" && path === "/api/reports/net-worth") {
       const userId = await h.deviceUserId();
-      const netWorth = await h.reports.netWorth(userId);
+      const netWorth = await h.reports.netWorth(userId, null, query.get("includeExcluded") === "1");
       return ok({ netWorth });
     }
     if (method === "GET" && path === "/api/reports/spending-trend") {

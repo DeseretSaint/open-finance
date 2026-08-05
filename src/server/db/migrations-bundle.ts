@@ -64,5 +64,13 @@ export const SOLO_MIGRATIONS: { version: number; sql: string }[] = [
   {
     version: 14,
     sql: "-- 014: account reorder + descriptions + restore (soft delete)\n-- sort_order: user-controlled display order (default 0 = stable, then name)\n-- description: free-text note shown on the account card\n-- deleted_at: soft delete so removed accounts can be restored (v0.3.11)\nALTER TABLE accounts ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;\nALTER TABLE accounts ADD COLUMN description TEXT;\nALTER TABLE accounts ADD COLUMN deleted_at TEXT;\nCREATE INDEX IF NOT EXISTS idx_accounts_sort ON accounts(user_id, sort_order);\n",
+  },
+  {
+    version: 15,
+    sql: "-- 015: allow default and custom categories to be disabled without deleting history\nALTER TABLE categories ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1;\nCREATE INDEX IF NOT EXISTS idx_categories_user_enabled ON categories(user_id, enabled, name);\n\n-- Disabled categories remain referenced by historical transactions. They are\n-- omitted from active pickers, budgets, and automatic Plaid matching only.\n",
+  },
+  {
+    version: 16,
+    sql: "-- 016: Hermes tokens may explicitly follow current Agent settings.\n-- Scope enforcement already intersects token scopes with current caps on every request;\n-- this flag documents and exposes that behavior for the dedicated Hermes connection.\nALTER TABLE agent_tokens ADD COLUMN follow_settings INTEGER NOT NULL DEFAULT 0;\nCREATE INDEX IF NOT EXISTS idx_agent_tokens_follow_settings ON agent_tokens(user_id, follow_settings);\n",
   }
 ];

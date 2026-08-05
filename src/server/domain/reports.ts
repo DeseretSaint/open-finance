@@ -5,7 +5,7 @@ import { withAllowlist, type AllowlistCtx } from "@/server/db/allowlist";
 /**
  * Reports — aggregates derived from transactions. Every query is user-scoped
  * through accounts.user_id and, for agent calls, flows through withAllowlist.
- * Amount convention: positive = expense, negative = income.
+ * Amount convention: positive = income, negative = expense.
  */
 export function createReportsService(db: Db = getDb()) {
   return {
@@ -13,16 +13,18 @@ export function createReportsService(db: Db = getDb()) {
       userId: string,
       from: string,
       to: string,
-      allowlist?: AllowlistCtx | null
+      allowlist?: AllowlistCtx | null,
+      includeExcluded = false
     ): Promise<Array<{ categoryId: string | null; categoryName: string; color: string | null; spentCents: number }>> {
       const allow = withAllowlist(allowlist ?? null, "a.id");
+      const accountHistoryClause = includeExcluded ? "" : " AND a.deleted_at IS NULL";
       return db.all(
         `SELECT t.user_category_id AS categoryId, COALESCE(c.name, 'Uncategorized') AS categoryName,
                 c.color AS color, COALESCE(SUM(-t.amount_cents), 0) AS spentCents
           FROM transactions t
           JOIN accounts a ON a.id = t.account_id
           LEFT JOIN categories c ON c.id = t.user_category_id
-         WHERE a.user_id = ? AND t.date >= ? AND t.date < ?
+         WHERE a.user_id = ?${accountHistoryClause} AND t.date >= ? AND t.date < ?
            AND t.pending = 0 AND t.exclude_from_budgets = 0 AND t.amount_cents < 0
             ${allow.clause}
           GROUP BY t.user_category_id, c.name, c.color
@@ -34,21 +36,24 @@ export function createReportsService(db: Db = getDb()) {
       );
     },
 
-    /** One row per month (oldest → newest) for the last `months` calendar months. */
-    async cashflow(userId: string, months: number, allowlist?: AllowlistCtx | null): Promise<Array<{ month: string; incomeCents: number; expenseCents: number; netCents: number }>> {
+    /** One row per month (oldest → newest) for a bounded calendar window. */
+    async cashflow(userId: string, months: number, allowlist?: AllowlistCtx | null, from?: string, to?: string, includeExcluded = false): Promise<Array<{ month: string; incomeCents: number; expenseCents: number; netCents: number }>> {
       const allow = withAllowlist(allowlist ?? null, "a.id");
-      const end = addMonthsISO(todayISO().slice(0, 8) + "01", 1);
+      const accountHistoryClause = includeExcluded ? "" : " AND a.deleted_at IS NULL";
+      const end = to ?? addMonthsISO(todayISO().slice(0, 8) + "01", 1);
+      const start = from ?? addMonthsISO(end, -months);
       const rows = await db.all<{ month: string; incomeCents: number; expenseCents: number }>(
         `SELECT substr(t.date, 1, 7) AS month,
                 SUM(CASE WHEN t.amount_cents > 0 THEN t.amount_cents ELSE 0 END) AS incomeCents,
                 SUM(CASE WHEN t.amount_cents < 0 THEN -t.amount_cents ELSE 0 END) AS expenseCents
           FROM transactions t
           JOIN accounts a ON a.id = t.account_id
-         WHERE a.user_id = ? AND t.date < ? AND t.pending = 0 AND t.exclude_from_budgets = 0
+         WHERE a.user_id = ?${accountHistoryClause} AND t.date >= ? AND t.date < ? AND t.pending = 0 AND t.exclude_from_budgets = 0
            ${allow.clause}
          GROUP BY substr(t.date, 1, 7)
          ORDER BY month ASC`,
         userId,
+        start,
         end,
         ...allow.params
       );
@@ -65,18 +70,19 @@ export function createReportsService(db: Db = getDb()) {
       return out;
     },
 
-    async netWorth(userId: string, allowlist?: AllowlistCtx | null): Promise<{
+    async netWorth(userId: string, allowlist?: AllowlistCtx | null, includeExcluded = false): Promise<{
       assetsCents: number;
       liabilitiesCents: number;
       netCents: number;
       byType: Record<string, number>;
     }> {
       const allow = withAllowlist(allowlist ?? null, "id");
+      const accountHistoryClause = includeExcluded ? "" : " AND deleted_at IS NULL";
       const rows = await db.all<{ type: string | null; balance: number }>(
         `SELECT type,
                   COALESCE(SUM(CASE WHEN type IN ('credit', 'loan') THEN -ABS(COALESCE(current_balance_cents, 0))
                                    ELSE COALESCE(current_balance_cents, 0) END), 0) AS balance
-          FROM accounts WHERE user_id = ? AND hidden = 0 AND deleted_at IS NULL AND include_in_net_worth = 1${allow.clause} GROUP BY type`,
+          FROM accounts WHERE user_id = ? AND hidden = 0${accountHistoryClause} AND include_in_net_worth = 1${allow.clause} GROUP BY type`,
         userId,
         ...allow.params
       );

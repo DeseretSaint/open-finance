@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
@@ -80,8 +82,18 @@ interface Projection {
 }
 
 export default function ReportsPage() {
+  const router = useRouter();
   // Selected month: 0 = current (month-to-date), negative = past, positive = future
   const [monthOffset, setMonthOffset] = useState(0);
+  const [includeExcluded, setIncludeExcluded] = useState(false);
+  useEffect(() => {
+    setIncludeExcluded(new URLSearchParams(window.location.search).get("includeExcluded") === "1");
+  }, []);
+
+  function toggleExcluded(next: boolean) {
+    setIncludeExcluded(next);
+    router.replace(next ? "/reports?includeExcluded=1" : "/reports");
+  }
 
   const monthLabel = useMemo(() => {
     const d = new Date();
@@ -95,27 +107,43 @@ export default function ReportsPage() {
       const from = monthStart(monthOffset);
       const to = monthStart(monthOffset + 1);
       return api.get<{ rows: Array<{ categoryName: string; spentCents: number; color: string | null }> }>(
-        `/api/reports/spending-by-category?from=${from}&to=${to}`
+        `/api/reports/spending-by-category?from=${from}&to=${to}${includeExcluded ? "&includeExcluded=1" : ""}`
       );
     },
   });
 
   // Month summary (income / expense / net) for the selected month
   const monthSummary = useQuery({
-    queryKey: ["summary", "ref", monthOffset],
+    queryKey: ["summary", "ref", monthOffset, includeExcluded],
     queryFn: () =>
       api.get<{ summary: { monthIncomeCents: number; monthExpenseCents: number; monthNetCents: number } }>(
-        `/api/summary?ref=${refDate(monthOffset)}`
+        `/api/summary?ref=${refDate(monthOffset)}${includeExcluded ? "&includeExcluded=1" : ""}`
       ),
   });
 
   const cashflow = useQuery({
-    queryKey: ["reports", "cashflow"],
-    queryFn: () => api.get<{ rows: Array<{ month: string; incomeCents: number; expenseCents: number; netCents: number }> }>("/api/reports/cashflow?months=6"),
+    queryKey: ["reports", "cashflow", monthOffset, includeExcluded],
+    queryFn: () => {
+      // Anchor the six-month chart to the selected month, not whichever clock
+      // the hub/server happens to use. This keeps phone and hub reports aligned.
+      const selectedStart = monthStart(monthOffset);
+      const months = Array.from({ length: 6 }, (_, i) => {
+        const d = new Date(`${selectedStart}T00:00:00Z`);
+        d.setUTCMonth(d.getUTCMonth() - (5 - i));
+        return d.toISOString().slice(0, 7);
+      });
+      const from = `${months[0]}-01`;
+      const d = new Date(`${selectedStart}T00:00:00Z`);
+      d.setUTCMonth(d.getUTCMonth() + 1);
+      const to = d.toISOString().slice(0, 10);
+      return api.get<{ rows: Array<{ month: string; incomeCents: number; expenseCents: number; netCents: number }> }>(
+        `/api/reports/cashflow?months=6&from=${from}&to=${to}${includeExcluded ? "&includeExcluded=1" : ""}`
+      );
+    },
   });
   const netWorth = useQuery({
-    queryKey: ["reports", "net-worth"],
-    queryFn: () => api.get<{ netWorth: { assetsCents: number; liabilitiesCents: number; netCents: number } }>("/api/reports/net-worth"),
+    queryKey: ["reports", "net-worth", includeExcluded],
+    queryFn: () => api.get<{ netWorth: { assetsCents: number; liabilitiesCents: number; netCents: number } }>(`/api/reports/net-worth${includeExcluded ? "?includeExcluded=1" : ""}`),
   });
   const projection = useQuery({
     queryKey: ["planning", "projection"],
@@ -151,6 +179,15 @@ export default function ReportsPage() {
 
       {/* Month navigator */}
       <Card>
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-border bg-surface-muted px-3 py-2">
+          <div>
+            <p className="text-sm font-medium text-text">Removed-account history</p>
+            <p className="text-xs text-text-muted">{includeExcluded ? "Included in these report totals." : "Excluded from these report totals by default."}</p>
+          </div>
+          <Button size="sm" variant={includeExcluded ? "primary" : "secondary"} onClick={() => toggleExcluded(!includeExcluded)}>
+            {includeExcluded ? "Exclude" : "Include"}
+          </Button>
+        </div>
         <div className="flex items-center justify-between gap-3">
           <Button variant="secondary" size="sm" onClick={() => setMonthOffset((o) => o - 1)} aria-label="Previous month">
             <ChevronLeft size={16} />
@@ -214,6 +251,7 @@ export default function ReportsPage() {
                     paddingAngle={2}
                     stroke="var(--surface)"
                     strokeWidth={2}
+                    activeShape={false}
                   >
                     {pieData.map((_, i) => (
                       <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
@@ -222,6 +260,7 @@ export default function ReportsPage() {
                   <Tooltip
                     formatter={(value) => `$${(Number(value) / 100).toFixed(2)}`}
                     contentStyle={TOOLTIP_STYLE}
+                    wrapperStyle={{ pointerEvents: "none" }}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -262,7 +301,8 @@ export default function ReportsPage() {
                   <Tooltip
                     formatter={(value) => `$${Number(value).toFixed(2)}`}
                     contentStyle={TOOLTIP_STYLE}
-                    cursor={{ fill: "var(--surface-muted)" }}
+                    wrapperStyle={{ pointerEvents: "none" }}
+                    cursor={false}
                   />
                   <Legend wrapperStyle={{ fontSize: 12, color: "var(--text-muted)" }} />
                   <Bar dataKey="Income" fill="var(--success)" radius={[4, 4, 0, 0]} />

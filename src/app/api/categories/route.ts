@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     const session = await requireSession(req);
     const service = createCategoriesService(getDb());
     await service.ensureSystem(session.userId);
-    const categories = await service.list(session.userId);
+    const categories = req.nextUrl.searchParams.get("all") === "1" ? await service.listAll(session.userId) : await service.list(session.userId);
     return ok({ categories });
   })(req, { params: Promise.resolve({}) });
 }

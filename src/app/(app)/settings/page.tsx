@@ -198,6 +198,8 @@ export default function SettingsPage() {
 
       <AgentWiringCard setMsg={setMsg} setErr={setErr} />
 
+      <CategoriesCard setMsg={setMsg} setErr={setErr} />
+
       <Card>
         <CardTitle>Sessions</CardTitle>
         <div className="mt-4 space-y-2">
@@ -800,6 +802,64 @@ function NotificationsSecurityCard({ setMsg, setErr }: { setMsg: (s: string | nu
           </div>
         </>
       )}
+    </Card>
+  );
+}
+
+// ── Categories ─────────────────────────────────────────────────────────────
+
+function CategoriesCard({ setMsg, setErr }: { setMsg: (s: string | null) => void; setErr: (s: string | null) => void }) {
+  const qc = useQueryClient();
+  const [name, setName] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
+  const categories = useQuery({
+    queryKey: ["categories"],
+    queryFn: () => api.get<{ categories: Array<{ id: string; name: string; is_system: number; enabled: number }> }>("/api/categories?all=1"),
+  });
+  const create = useMutation({
+    mutationFn: () => api.post("/api/categories", { name }),
+    onSuccess: () => {
+      setName("");
+      setShowAdd(false);
+      qc.invalidateQueries({ queryKey: ["categories"] });
+      setMsg("Category added.");
+    },
+    onError: (e) => setErr(e instanceof Error ? e.message : "Could not add category."),
+  });
+  const toggle = useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) => api.patch(`/api/categories/${id}`, { enabled }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["categories"] });
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+    },
+    onError: (e) => setErr(e instanceof Error ? e.message : "Could not update category."),
+  });
+  const rows = categories.data?.categories ?? [];
+  return (
+    <Card>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <CardTitle>Categories</CardTitle>
+          <p className="mt-1 text-sm text-text-muted">Default categories are created automatically. Add your own for more precise transaction and budget tracking.</p>
+        </div>
+        <Button size="sm" variant="secondary" onClick={() => setShowAdd((v) => !v)}>{showAdd ? "Cancel" : "Add category"}</Button>
+      </div>
+      {showAdd && (
+        <form className="mt-4 flex gap-2" onSubmit={(e) => { e.preventDefault(); create.mutate(); }}>
+          <Input aria-label="New category name" placeholder="e.g. Kids activities" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+          <Button type="submit" disabled={!name.trim() || create.isPending}>Save</Button>
+        </form>
+      )}
+      <div className="mt-4 flex flex-wrap gap-2">
+        {rows.map((c) => (
+          <span key={c.id} className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-muted px-3 py-1 text-xs text-text">
+            {c.name}
+            <button type="button" onClick={() => toggle.mutate({ id: c.id, enabled: !c.enabled })} className="ml-1 text-text-muted hover:text-accent">
+              {c.enabled ? "Disable" : "Enable"}
+            </button>
+          </span>
+        ))}
+      </div>
     </Card>
   );
 }

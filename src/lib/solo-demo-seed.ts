@@ -123,8 +123,8 @@ export async function seedSoloDemo(db: Db, userId: string): Promise<void> {
     catIds.set(catNames[i], c.id);
   }
 
-  // ~90 days of transactions. SIGN CONVENTION: expenses = positive (money
-  // out), income (paycheck) = negative (money in). Rent on checking; card
+  // ~90 days of transactions. SIGN CONVENTION: income = positive (money
+  // in), expenses = negative (money out). Rent on checking; card
   // purchases on credit.
   const weeklyChecking: Array<[string, string, number]> = [
     ["Groceries — WinCo", catIds.get("Groceries")!, -148_23],
@@ -140,7 +140,7 @@ export async function seedSoloDemo(db: Db, userId: string): Promise<void> {
   for (let dayOffset = -90; dayOffset <= 0; dayOffset += 7) {
     const date = addDays(today, dayOffset);
     if (dayOffset % 30 === 0) {
-      // Paycheck = income = NEGATIVE (money in).
+      // Paycheck = income = POSITIVE (money in).
       await transactions.createManual(userId, {
         accountId: checking.id,
         amountCents: 2_800_00,
@@ -148,7 +148,7 @@ export async function seedSoloDemo(db: Db, userId: string): Promise<void> {
         name: "Paycheck",
         userCategoryId: null,
       });
-      // Rent = expense = POSITIVE (money out).
+      // Rent = expense = NEGATIVE (money out).
       await transactions.createManual(userId, {
         accountId: checking.id,
         amountCents: -1_650_00,

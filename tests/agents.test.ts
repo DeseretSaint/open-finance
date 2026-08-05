@@ -76,6 +76,26 @@ describe("agent token lifecycle", () => {
     const { token } = await svc.create(user.id, { name: "short", preset: "read-only", expiresAt: "2020-01-01" });
     expect(await svc.authenticate(token)).toBeNull();
   });
+
+  it("Hermes follow-settings tokens track current caps in both directions", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const svc = createAgentTokenService(db);
+    const { token, agent } = await svc.create(user.id, { name: "Hermes", preset: "read-only", followSettings: true });
+
+    // Default settings allow activity only, so the token starts with that cap.
+    const initial = await svc.authenticate(token);
+    expect(initial?.follow_settings).toBe(1);
+
+    // Expanding Settings to global read/write changes effective access without
+    // changing or recreating the raw token.
+    await db.run("UPDATE user_settings SET agent_global = 1, agent_global_write = 1 WHERE user_id = ?", user.id);
+    const expanded = await svc.authenticate(token);
+    expect(expanded?.id).toBe(agent.id);
+
+    const row = await db.get<{ follow_settings: number }>("SELECT follow_settings FROM agent_tokens WHERE id = ?", agent.id);
+    expect(row?.follow_settings).toBe(1);
+  });
 });
 
 describe("withAllowlist scope matrix (read:banking must NOT see investments)", () => {

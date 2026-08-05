@@ -9,6 +9,7 @@ export interface CategoryRow {
   color: string | null;
   plaid_paths: string | null;
   is_system: number;
+  enabled: number;
   created_at: string;
 }
 
@@ -25,7 +26,14 @@ export function createCategoriesService(db: Db = getDb()) {
   return {
     async list(userId: string): Promise<CategoryRow[]> {
       return db.all<CategoryRow>(
-        "SELECT * FROM categories WHERE user_id = ? ORDER BY name COLLATE NOCASE",
+        "SELECT * FROM categories WHERE user_id = ? AND enabled = 1 ORDER BY name COLLATE NOCASE",
+        userId
+      );
+    },
+
+    async listAll(userId: string): Promise<CategoryRow[]> {
+      return db.all<CategoryRow>(
+        "SELECT * FROM categories WHERE user_id = ? ORDER BY enabled DESC, name COLLATE NOCASE",
         userId
       );
     },
@@ -60,10 +68,10 @@ export function createCategoriesService(db: Db = getDb()) {
     async update(
       userId: string,
       id: string,
-      input: { name?: string; color?: string | null; plaidPaths?: string | null }
+      input: { name?: string; color?: string | null; plaidPaths?: string | null; enabled?: boolean }
     ): Promise<CategoryRow> {
-      const row = await this.get(userId, id);
-      if (row.is_system) throw apiErrors.forbidden("System categories cannot be edited.");
+      const row = await db.get<CategoryRow>("SELECT * FROM categories WHERE id = ? AND user_id = ?", id, userId);
+      if (!row) throw apiErrors.notFound("Category");
       const name = input.name !== undefined ? input.name.trim().slice(0, 50) : row.name;
       if (!name) throw apiErrors.badRequest("Category name cannot be empty.");
       const dup = await db.get(
@@ -74,10 +82,11 @@ export function createCategoriesService(db: Db = getDb()) {
       );
       if (dup) throw apiErrors.conflict("A category with that name already exists.");
       await db.run(
-        "UPDATE categories SET name = ?, color = ?, plaid_paths = ? WHERE id = ?",
+        "UPDATE categories SET name = ?, color = ?, plaid_paths = ?, enabled = ? WHERE id = ?",
         name,
         input.color !== undefined ? input.color?.trim() || null : row.color,
         input.plaidPaths !== undefined ? input.plaidPaths?.trim() || null : row.plaid_paths,
+        input.enabled !== undefined ? (input.enabled ? 1 : 0) : row.enabled,
         id
       );
       return this.get(userId, id);

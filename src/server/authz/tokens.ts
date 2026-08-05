@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { apiErrors } from "@/lib/api";
 import { hashSecret } from "@/lib/crypto";
 import { getDb, type Db } from "@/server/db/adapter";
+import { capScopes, createAgentPrefsService } from "@/server/domain/agent-prefs";
 
 /**
  * BYOA token service — agent tokens (`of_` + 32B base62), SHA-256 hashed at
@@ -57,6 +58,7 @@ export interface AgentTokenRow {
   account_ids: string | null;
   ui_tabs: string | null;
   expires_at: string | null;
+  follow_settings: number;
   revoked: boolean;
   created_at: string;
   last_used_at: string | null;
@@ -72,6 +74,7 @@ export interface PublicAgentToken {
   accountIds: string[] | null;
   uiTabs: string[] | null;
   expiresAt: string | null;
+  followSettings: boolean;
   revoked: boolean;
   createdAt: string;
   lastUsedAt: string | null;
@@ -98,6 +101,7 @@ function toPublic(row: AgentTokenRow): PublicAgentToken {
     accountIds: row.account_ids ? (JSON.parse(row.account_ids) as string[]) : null,
     uiTabs: row.ui_tabs ? (JSON.parse(row.ui_tabs) as string[]) : null,
     expiresAt: row.expires_at,
+    followSettings: row.follow_settings === 1,
     revoked: row.revoked,
     createdAt: row.created_at,
     lastUsedAt: row.last_used_at,
@@ -125,6 +129,7 @@ export function createAgentTokenService(db: Db = getDb()) {
         accountIds?: string[] | null;
         uiTabs?: string[] | null;
         expiresAt?: string | null;
+        followSettings?: boolean;
       }
     ): Promise<{ token: string; agent: PublicAgentToken }> {
       const name = input.name.trim().slice(0, 80);
@@ -134,7 +139,11 @@ export function createAgentTokenService(db: Db = getDb()) {
       if (!(preset in PRESETS) && preset !== "custom") {
         throw apiErrors.badRequest("Preset must be read-only, read-all, read-write, or custom.");
       }
-      const scopes = input.scopes && input.scopes.length > 0 ? input.scopes : PRESETS[preset] ?? [];
+      const scopes = input.followSettings
+        ? capScopes(await createAgentPrefsService(db).get(userId))
+        : input.scopes && input.scopes.length > 0
+          ? input.scopes
+          : PRESETS[preset] ?? [];
       for (const s of scopes) {
         if (!ALL_SCOPES.includes(s)) throw apiErrors.badRequest(`Unknown scope: ${s}`);
       }
@@ -147,8 +156,8 @@ export function createAgentTokenService(db: Db = getDb()) {
       const id = randomUUID();
       await db.run(
         `INSERT INTO agent_tokens (id, user_id, name, token_hash, token_prefix, preset, scopes,
-                                   account_ids, ui_tabs, expires_at, revoked, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+                                   account_ids, ui_tabs, expires_at, follow_settings, revoked, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
         id,
         userId,
         name,
@@ -159,6 +168,7 @@ export function createAgentTokenService(db: Db = getDb()) {
         input.accountIds && input.accountIds.length > 0 ? JSON.stringify(input.accountIds) : null,
         input.uiTabs && input.uiTabs.length > 0 ? JSON.stringify(input.uiTabs) : null,
         input.expiresAt ?? null,
+        input.followSettings ? 1 : 0,
         now()
       );
       const row = await db.get<AgentTokenRow>("SELECT * FROM agent_tokens WHERE id = ?", id);

@@ -335,12 +335,13 @@ export default function BudgetsPage() {
             aria-modal="true"
             aria-label="Create a budget"
             onClick={(e) => e.stopPropagation()}
-            className="w-full overflow-y-auto rounded-t-3xl border border-border bg-surface p-5 shadow-2xl md:max-w-lg md:rounded-3xl"
+            className="flex w-full max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-t-3xl border border-border bg-surface shadow-2xl md:max-h-[calc(100dvh-3rem)] md:max-w-lg md:rounded-3xl"
             style={{
-              paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom))",
-              maxHeight: `calc(100dvh - ${kbdHeight}px - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2rem)`,
+              maxHeight: `calc(100dvh - ${kbdHeight}px - 1rem)`,
+              paddingBottom: "env(safe-area-inset-bottom)",
             }}
           >
+            <div className="overflow-y-auto p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
             <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border md:hidden" />
             <div className="mb-4 flex items-center justify-between">
               <CardTitle>Create a budget</CardTitle>
@@ -422,6 +423,7 @@ export default function BudgetsPage() {
                 {create.isPending ? "Creating…" : "Create budget"}
               </Button>
             </form>
+            </div>
           </div>
         </div>
       )}

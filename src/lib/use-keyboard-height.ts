@@ -16,13 +16,31 @@ export function useKeyboardHeight(): number {
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.visualViewport) return;
+
+    const isTextEntry = () => {
+      const el = document.activeElement;
+      return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el?.getAttribute("contenteditable") === "true";
+    };
+
     const onResize = () => {
       const vv = window.visualViewport!;
       const delta = Math.max(0, window.innerHeight - vv.height);
-      setKbdHeight(delta > 100 ? delta : 0);
+      // Only move modal/layout content while the user is actually typing. This
+      // prevents Android WebView chrome/compactness changes from being treated
+      // as a keyboard and avoids the old stuck-lift behavior.
+      setKbdHeight(isTextEntry() && delta > 60 ? delta : 0);
     };
+    const onFocus = () => onResize();
+    const onBlur = () => setKbdHeight(0);
+
     window.visualViewport.addEventListener("resize", onResize);
-    return () => window.visualViewport!.removeEventListener("resize", onResize);
+    document.addEventListener("focusin", onFocus);
+    document.addEventListener("focusout", onBlur);
+    return () => {
+      window.visualViewport?.removeEventListener("resize", onResize);
+      document.removeEventListener("focusin", onFocus);
+      document.removeEventListener("focusout", onBlur);
+    };
   }, []);
 
   return kbdHeight;

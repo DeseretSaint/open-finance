@@ -125,7 +125,7 @@ export function createBudgetsService(db: Db = getDb()) {
           `SELECT bc.category_id, c.name
              FROM budget_categories bc
              JOIN categories c ON c.id = bc.category_id
-            WHERE bc.budget_id = ?`,
+            WHERE bc.budget_id = ? AND c.enabled = 1`,
           b.id
         );
         const { start, end } =
@@ -170,7 +170,7 @@ export function createBudgetsService(db: Db = getDb()) {
         `SELECT COALESCE(SUM(-t.amount_cents), 0) AS s
           FROM transactions t
           JOIN accounts a ON a.id = t.account_id
-         WHERE a.user_id = ? AND t.date >= ? AND t.date < ?
+         WHERE a.user_id = ? AND a.deleted_at IS NULL AND t.date >= ? AND t.date < ?
            AND t.pending = 0 AND t.exclude_from_budgets = 0 AND t.amount_cents < 0
            AND ${categoryClause}`,
         ...params
