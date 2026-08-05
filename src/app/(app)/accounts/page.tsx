@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { CreditCard, Landmark, PiggyBank, TrendingUp, Wallet, CircleHelp, X } from "lucide-react";
+import { CreditCard, Landmark, PiggyBank, TrendingUp, Wallet, CircleHelp, X, ChevronUp, ChevronDown, Pencil, RotateCcw } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,7 @@ interface Account {
   id: string;
   item_id: string | null;
   name: string;
+  official_name: string | null;
   type: string | null;
   subtype: string | null;
   mask: string | null;
@@ -26,6 +27,9 @@ interface Account {
   currency: string;
   institution_name: string | null;
   include_in_net_worth: number;
+  sort_order: number;
+  description: string | null;
+  deleted_at: string | null;
 }
 
 const TYPES = ["depository", "credit", "investment", "loan", "other"];
@@ -70,6 +74,10 @@ export default function AccountsPage() {
     queryKey: ["accounts"],
     queryFn: () => api.get<{ accounts: Account[] }>("/api/accounts"),
   });
+  const deleted = useQuery({
+    queryKey: ["accounts", "deleted"],
+    queryFn: () => api.get<{ accounts: Account[] }>("/api/accounts?deleted=1"),
+  });
 
   const [name, setName] = useState("");
   const [type, setType] = useState("depository");
@@ -77,7 +85,13 @@ export default function AccountsPage() {
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+  const [editingDesc, setEditingDesc] = useState<string | null>(null);
+  const [descDraft, setDescDraft] = useState("");
 
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["accounts"] });
+    qc.invalidateQueries({ queryKey: ["summary"] });
+  };
 
   const create = useMutation({
     mutationFn: () =>
@@ -91,8 +105,7 @@ export default function AccountsPage() {
       setBalance("");
       setError(null);
       setShowAdd(false);
-      qc.invalidateQueries({ queryKey: ["accounts"] });
-      qc.invalidateQueries({ queryKey: ["summary"] });
+      invalidate();
     },
     onError: (e) => setError(e instanceof Error ? e.message : "Failed to add account."),
   });
@@ -100,31 +113,55 @@ export default function AccountsPage() {
   const remove = useMutation({
     mutationFn: (id: string) => api.del(`/api/accounts/${id}`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["accounts"] });
-      qc.invalidateQueries({ queryKey: ["summary"] });
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["accounts", "deleted"] });
+    },
+  });
+
+  const restore = useMutation({
+    mutationFn: (id: string) => api.post(`/api/accounts/${id}/restore`),
+    onSuccess: () => {
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["accounts", "deleted"] });
     },
   });
 
   const toggleNetWorth = useMutation({
     mutationFn: ({ id, include }: { id: string; include: boolean }) =>
       api.patch(`/api/accounts/${id}`, { includeInNetWorth: include }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["accounts"] });
-      qc.invalidateQueries({ queryKey: ["summary"] });
-    },
+    onSuccess: invalidate,
   });
 
   const setTypeOverride = useMutation({
     mutationFn: ({ id, type }: { id: string; type: string }) => api.patch(`/api/accounts/${id}`, { type }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["accounts"] });
-      qc.invalidateQueries({ queryKey: ["summary"] });
-    },
+    onSuccess: invalidate,
   });
+
+  const setDescription = useMutation({
+    mutationFn: ({ id, description }: { id: string; description: string | null }) =>
+      api.patch(`/api/accounts/${id}`, { description }),
+    onSuccess: invalidate,
+  });
+
+  const reorder = useMutation({
+    mutationFn: (orderedIds: string[]) => api.put("/api/accounts/order", { orderedIds }),
+    onSuccess: invalidate,
+  });
+
+  function moveAccount(index: number, dir: -1 | 1) {
+    if (!data) return;
+    const ids = data.accounts.map((a) => a.id);
+    const j = index + dir;
+    if (j < 0 || j >= ids.length) return;
+    [ids[index], ids[j]] = [ids[j], ids[index]];
+    reorder.mutate(ids);
+  }
 
   function removeAccount(a: Account) {
     setConfirmDelete({ id: a.id, name: a.name });
   }
+
+  const deletedAccounts = deleted.data?.accounts ?? [];
 
   return (
     <div className="min-w-0 space-y-6 overflow-x-hidden">
@@ -132,8 +169,15 @@ export default function AccountsPage() {
         <AccountsSkeleton />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {data.accounts.map((a) => {
+          {data.accounts.map((a, i) => {
             const Icon = typeIcon(a.type);
+            const detail = [
+              a.institution_name ?? "Manual",
+              a.subtype ? a.subtype.replace(/-/g, " ") : null,
+              a.mask ? `••••${a.mask}` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ");
             return (
               <Card key={a.id} className="min-w-0 overflow-hidden">
                 <div className="flex items-start justify-between gap-2">
@@ -142,15 +186,28 @@ export default function AccountsPage() {
                       <Icon size={20} />
                     </div>
                     <div className="min-w-0">
-                      <CardTitle className="truncate">{a.name}</CardTitle>
-                      <p className="mt-0.5 truncate text-xs text-text-muted">
-                        {a.institution_name ?? "Manual"} {a.mask ? `· ••••${a.mask}` : ""}
-                      </p>
+                      <CardTitle className="truncate">{a.official_name ?? a.name}</CardTitle>
+                      <p className="mt-0.5 truncate text-xs text-text-muted">{detail}</p>
                     </div>
                   </div>
-                  <Badge className={a.item_id ? "bg-accent/10 text-accent" : "bg-surface-muted text-text-muted"}>
-                    {a.item_id ? "Connected" : "Manual"}
-                  </Badge>
+                  <div className="flex shrink-0 flex-col">
+                    <button
+                      aria-label="Move up"
+                      disabled={i === 0 || reorder.isPending}
+                      onClick={() => moveAccount(i, -1)}
+                      className="flex h-6 w-6 items-center justify-center rounded text-text-muted transition-colors hover:bg-surface-muted hover:text-text disabled:opacity-30"
+                    >
+                      <ChevronUp size={16} />
+                    </button>
+                    <button
+                      aria-label="Move down"
+                      disabled={i === data.accounts.length - 1 || reorder.isPending}
+                      onClick={() => moveAccount(i, 1)}
+                      className="flex h-6 w-6 items-center justify-center rounded text-text-muted transition-colors hover:bg-surface-muted hover:text-text disabled:opacity-30"
+                    >
+                      <ChevronDown size={16} />
+                    </button>
+                  </div>
                 </div>
                 <div className="mt-4 flex items-end justify-between gap-2">
                   <p className={`money text-2xl font-bold ${isLiability(a) ? "text-danger" : "text-text"}`}>
@@ -166,6 +223,40 @@ export default function AccountsPage() {
                     Remove
                   </Button>
                 </div>
+                {editingDesc === a.id ? (
+                  <form
+                    className="mt-3 flex items-center gap-2 border-t border-border pt-3"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      setDescription.mutate({ id: a.id, description: descDraft || null });
+                      setEditingDesc(null);
+                    }}
+                  >
+                    <Input
+                      aria-label={`Description for ${a.name}`}
+                      value={descDraft}
+                      onChange={(e) => setDescDraft(e.target.value)}
+                      placeholder="What is this account for?"
+                      maxLength={300}
+                      autoFocus
+                    />
+                    <Button type="submit" size="sm" disabled={setDescription.isPending}>
+                      Save
+                    </Button>
+                  </form>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingDesc(a.id);
+                      setDescDraft(a.description ?? "");
+                    }}
+                    className="mt-3 flex w-full items-center gap-1.5 border-t border-border pt-3 text-left text-xs text-text-muted transition-colors hover:text-text"
+                  >
+                    <Pencil size={12} className="shrink-0" />
+                    <span className="truncate">{a.description ? `Notes: ${a.description}` : "Add a note about this account…"}</span>
+                  </button>
+                )}
                 <div className="mt-3 grid gap-2 border-t border-border pt-3 sm:grid-cols-2">
                   <CustomSelect
                     ariaLabel={`Type for ${a.name}`}
@@ -221,6 +312,39 @@ export default function AccountsPage() {
         </div>
       )}
 
+      {/* Recently removed — restore soft-deleted accounts */}
+      {deletedAccounts.length > 0 && (
+        <Card>
+          <div className="mb-2 flex items-center gap-2">
+            <RotateCcw size={15} className="text-text-muted" />
+            <CardTitle>Recently removed</CardTitle>
+          </div>
+          <p className="mb-3 text-xs text-text-muted">
+            Removed accounts keep their history so they can be brought back. Tap Restore to undo a removal.
+          </p>
+          <ul className="divide-y divide-border">
+            {deletedAccounts.map((a) => (
+              <li key={a.id} className="flex items-center justify-between gap-3 py-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{a.official_name ?? a.name}</p>
+                  <p className="truncate text-xs text-text-muted">
+                    {a.institution_name ?? "Manual"} {a.mask ? `· ••••${a.mask}` : ""}
+                  </p>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={restore.isPending}
+                  onClick={() => restore.mutate(a.id)}
+                >
+                  Restore
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
       {/* Add-account modal */}
       {showAdd && (
         <div
@@ -272,7 +396,7 @@ export default function AccountsPage() {
                   ariaLabel="Account type"
                   value={type}
                   onChange={setType}
-                  options={TYPES.map((t) => ({ value: t, label: t }))}
+                  options={TYPES.map((t) => ({ value: t, label: TYPE_LABELS[t] }))}
                 />
               </div>
               <div>
@@ -307,7 +431,7 @@ export default function AccountsPage() {
       <ConfirmDialog
         open={confirmDelete !== null}
         title="Remove account?"
-        message={confirmDelete ? `"${confirmDelete.name}" and its transactions will be permanently removed. This cannot be undone.` : undefined}
+        message={confirmDelete ? `"${confirmDelete.name}" will be hidden. You can restore it later from “Recently removed”.` : undefined}
         confirmLabel="Remove"
         busy={remove.isPending}
         onCancel={() => setConfirmDelete(null)}

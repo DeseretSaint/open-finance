@@ -262,8 +262,19 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
     // ── Accounts (manual) ───────────────────────────────────────────────
     if (method === "GET" && path === "/api/accounts") {
       const userId = await h.deviceUserId();
+      if (query.get("deleted") === "1") {
+        const rows = await h.accounts.listDeleted(userId);
+        return ok({ accounts: rows });
+      }
       const rows = await h.accounts.list(userId);
       return ok({ accounts: rows });
+    }
+    if (method === "PUT" && path === "/api/accounts/order") {
+      const userId = await h.deviceUserId();
+      const orderedIds = Array.isArray(B?.orderedIds) ? B.orderedIds.map(String) : [];
+      if (orderedIds.length === 0) throw apiErrors.badRequest("orderedIds is required.");
+      await h.accounts.reorder(userId, orderedIds);
+      return ok({ ok: true });
     }
     if (method === "POST" && path === "/api/accounts") {
       const userId = await h.deviceUserId();
@@ -488,6 +499,7 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       try {
         const { syncSoloItem } = await import("@/lib/solo-plaid-sync");
         const { setSoloPlaidItemCursor } = await import("@/lib/solo-plaid-store");
+        const { createSoloSyncClient } = await import("@/server/plaid/native");
         const result = await syncSoloItem({
           db,
           userId,
@@ -498,7 +510,7 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
           accountDetails,
           accessToken,
           accounts,
-          client: createNativePlaidClient() as never,
+          client: createSoloSyncClient(),
           cursor: null,
         });
         synced = result.ok ? result.added + result.modified : 0;
@@ -515,7 +527,7 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
     // has_more, so the full history is covered even on first link).
     if (method === "POST" && path === "/api/transactions/sync") {
       const { getSoloPlaidCreds, getSoloPlaidItems, setSoloPlaidItemCursor } = await import("@/lib/solo-plaid-store");
-      const { createNativePlaidClient } = await import("@/server/plaid/native");
+      const { createNativePlaidClient, createSoloSyncClient } = await import("@/server/plaid/native");
       const { syncSoloItem } = await import("@/lib/solo-plaid-sync");
       const userId = await h.deviceUserId();
       const creds = getSoloPlaidCreds();
@@ -548,7 +560,7 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
           accountDetails,
           accessToken: item.accessToken,
           accounts: item.accounts,
-          client: client as never,
+          client: createSoloSyncClient(),
           cursor: item.cursor ?? null,
         });
         if (res.ok && res.nextCursor) setSoloPlaidItemCursor(item.id, res.nextCursor);
@@ -867,19 +879,27 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       const transaction = await h.transactions.update(userId, id, patch);
       return ok({ transaction });
     }
+    if (method === "POST" && path.startsWith("/api/accounts/") && path.endsWith("/restore")) {
+      const userId = await h.deviceUserId();
+      const id = parseId(path.replace(/\/restore$/, ""), "/api/accounts/");
+      const account = await h.accounts.restore(userId, id);
+      return ok({ account });
+    }
     if (method === "PATCH" && path.startsWith("/api/accounts/")) {
       const userId = await h.deviceUserId();
       const id = parseId(path, "/api/accounts/");
       const account =
-        typeof B?.type === "string"
-          ? await h.accounts.setType(userId, id, B.type)
-          : typeof B?.includeInNetWorth === "boolean"
-            ? await h.accounts.setNetWorthInclusion(userId, id, B.includeInNetWorth)
-            : typeof B?.name === "string"
-              ? await h.accounts.rename(userId, id, B.name)
-              : (() => {
-                  throw apiErrors.badRequest("Nothing to update.");
-                })();
+        typeof B?.description === "string" || B?.description === null
+          ? await h.accounts.setDescription(userId, id, B.description)
+          : typeof B?.type === "string"
+            ? await h.accounts.setType(userId, id, B.type)
+            : typeof B?.includeInNetWorth === "boolean"
+              ? await h.accounts.setNetWorthInclusion(userId, id, B.includeInNetWorth)
+              : typeof B?.name === "string"
+                ? await h.accounts.rename(userId, id, B.name)
+                : (() => {
+                    throw apiErrors.badRequest("Nothing to update.");
+                  })();
       return ok({ account });
     }
     if (method === "DELETE" && path.startsWith("/api/accounts/")) {

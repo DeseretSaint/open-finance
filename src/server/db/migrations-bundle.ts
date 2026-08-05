@@ -59,6 +59,10 @@ export const SOLO_MIGRATIONS: { version: number; sql: string }[] = [
   },
   {
     version: 13,
-    sql: "-- 013: per-account user override / soft-delete for Plaid accounts\n-- hidden accounts are not recreated by subsequent syncs\nALTER TABLE accounts ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0;\nALTER TABLE accounts ADD COLUMN type_override INTEGER NOT NULL DEFAULT 0;\nCREATE INDEX IF NOT EXISTS idx_accounts_visible ON accounts(user_id, hidden);\nCREATE INDEX IF NOT EXISTS idx_accounts_plaid_visible ON accounts(user_id, plaid_account_id, hidden);\n\n-- Existing Plaid types are provider classifications, not user overrides.\n-- Only a later Accounts-page edit sets type_override = 1.\n",
+    sql: "-- 013: per-account user override / soft-delete for Plaid accounts\n-- hidden accounts are not recreated by subsequent syncs\nALTER TABLE accounts ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0;\nALTER TABLE accounts ADD COLUMN type_override INTEGER NOT NULL DEFAULT 0;\nCREATE INDEX IF NOT EXISTS idx_accounts_visible ON accounts(user_id, hidden);\nCREATE INDEX IF NOT EXISTS idx_accounts_plaid_visible ON accounts(user_id, plaid_account_id, hidden);\n\n-- Existing Plaid types are provider classifications, not user overrides.\n-- Only a later Accounts-page edit sets type_override = 1.\n"
+  },
+  {
+    version: 14,
+    sql: "-- 014: account reorder + descriptions + restore (soft delete)\n-- sort_order: user-controlled display order (default 0 = stable, then name)\n-- description: free-text note shown on the account card\n-- deleted_at: soft delete so removed accounts can be restored (v0.3.11)\nALTER TABLE accounts ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;\nALTER TABLE accounts ADD COLUMN description TEXT;\nALTER TABLE accounts ADD COLUMN deleted_at TEXT;\nCREATE INDEX IF NOT EXISTS idx_accounts_sort ON accounts(user_id, sort_order);\n"
   }
 ];

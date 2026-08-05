@@ -41,7 +41,7 @@ export function createSummaryService(db: Db = getDb()) {
         `SELECT type,
                   COALESCE(SUM(CASE WHEN type IN ('credit', 'loan') THEN -ABS(COALESCE(current_balance_cents, 0))
                                    ELSE COALESCE(current_balance_cents, 0) END), 0) AS balance
-          FROM accounts WHERE user_id = ? AND hidden = 0 AND include_in_net_worth = 1${allowAccounts.clause} GROUP BY type`,
+          FROM accounts WHERE user_id = ? AND hidden = 0 AND deleted_at IS NULL AND include_in_net_worth = 1${allowAccounts.clause} GROUP BY type`,
         userId,
         ...allowAccounts.params
       );

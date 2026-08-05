@@ -23,6 +23,11 @@ export async function GET(req: NextRequest) {
   return agentRoute(async (req) => {
     const auth = await requireSessionOrAgent(req, ["read:banking", "read:investments"], "list_accounts");
     if (auth.kind === "session") {
+      const url = new URL(req.url);
+      if (url.searchParams.get("deleted") === "1") {
+        const accounts = await createAccountsService(getDb()).listDeleted(auth.userId);
+        return ok({ accounts });
+      }
       const accounts = await createAccountsService(getDb()).list(auth.userId);
       return ok({ accounts });
     }

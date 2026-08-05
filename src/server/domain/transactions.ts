@@ -44,7 +44,7 @@ function now(): string {
 export function createTransactionsService(db: Db = getDb()) {
   return {
     async list(userId: string, f: TransactionFilters): Promise<{ rows: TransactionRow[]; total: number }> {
-      const where: string[] = ["a.user_id = ?"];
+      const where: string[] = ["a.user_id = ?", "a.deleted_at IS NULL"];
       const params: unknown[] = [userId];
       if (f.accountId) {
         where.push("t.account_id = ?");
@@ -107,7 +107,7 @@ export function createTransactionsService(db: Db = getDb()) {
            FROM transactions t
            JOIN accounts a ON a.id = t.account_id
            LEFT JOIN categories c ON c.id = t.user_category_id
-          WHERE t.id = ? AND a.user_id = ?`,
+          WHERE t.id = ? AND a.user_id = ? AND a.deleted_at IS NULL`,
         id,
         userId
       );

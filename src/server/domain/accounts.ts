@@ -19,6 +19,9 @@ export interface AccountRow {
   include_in_net_worth: number;
   hidden: number;
   type_override: number;
+  sort_order: number;
+  description: string | null;
+  deleted_at: string | null;
   created_at: string;
 }
 
@@ -35,8 +38,20 @@ export function createAccountsService(db: Db = getDb()) {
         `SELECT a.*, i.institution_name
            FROM accounts a
            LEFT JOIN plaid_items i ON i.id = a.item_id
-          WHERE a.user_id = ? AND a.hidden = 0
-           ORDER BY a.type, a.name COLLATE NOCASE`,
+          WHERE a.user_id = ? AND a.hidden = 0 AND a.deleted_at IS NULL
+          ORDER BY a.sort_order, a.type, a.name COLLATE NOCASE`,
+        userId
+      );
+    },
+
+    /** Removed accounts (soft-deleted) so the user can restore them. */
+    async listDeleted(userId: string): Promise<AccountRow[]> {
+      return db.all<AccountRow>(
+        `SELECT a.*, i.institution_name
+           FROM accounts a
+           LEFT JOIN plaid_items i ON i.id = a.item_id
+          WHERE a.user_id = ? AND a.deleted_at IS NOT NULL
+          ORDER BY a.deleted_at DESC`,
         userId
       );
     },
@@ -140,25 +155,70 @@ export function createAccountsService(db: Db = getDb()) {
       return this.get(userId, id);
     },
 
-    /** Remove one account and its local history. For Plaid accounts this
-     * disconnects the account locally; the institution remains linked so a
-     * later sync will continue importing the other accounts. */
+    /** Remove one account (soft delete so it can be restored). For Plaid
+     * accounts this disconnects the account locally; the institution remains
+     * linked so a later sync will continue importing the other accounts. */
     async remove(userId: string, id: string): Promise<void> {
       const row = await db.get<{ id: string; item_id: string | null }>(
-        "SELECT id, item_id FROM accounts WHERE id = ? AND user_id = ? AND hidden = 0",
+        "SELECT id, item_id FROM accounts WHERE id = ? AND user_id = ? AND hidden = 0 AND deleted_at IS NULL",
         id,
         userId
       );
       if (!row) throw apiErrors.notFound("Account");
       await db.transaction(async () => {
-        await db.run("DELETE FROM transactions WHERE account_id = ?", id);
-        await db.run("DELETE FROM balance_history WHERE account_id = ?", id);
         if (row.item_id) {
-          await db.run("UPDATE accounts SET hidden = 1 WHERE id = ?", id);
+          // Keep the row (hidden) so sync doesn't recreate it, and mark it
+          // deleted so it shows in "Recently removed" for restore.
+          await db.run(
+            "UPDATE accounts SET hidden = 1, deleted_at = ? WHERE id = ?",
+            now(),
+            id
+          );
         } else {
-          await db.run("DELETE FROM accounts WHERE id = ?", id);
+          await db.run("UPDATE accounts SET deleted_at = ? WHERE id = ?", now(), id);
         }
       });
+    },
+
+    /** Restore a soft-deleted account (and any Plaid account it belonged to). */
+    async restore(userId: string, id: string): Promise<AccountRow> {
+      const row = await db.get<{ id: string; deleted_at: string | null }>(
+        "SELECT id, deleted_at FROM accounts WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL",
+        id,
+        userId
+      );
+      if (!row) throw apiErrors.notFound("Account");
+      await db.run("UPDATE accounts SET deleted_at = NULL, hidden = 0 WHERE id = ?", id);
+      return this.get(userId, id);
+    },
+
+    /** Persist user-defined display order (array of account ids, first = top). */
+    async reorder(userId: string, orderedIds: string[]): Promise<void> {
+      const mine = await db.all<{ id: string }>(
+        "SELECT id FROM accounts WHERE user_id = ? AND deleted_at IS NULL",
+        userId
+      );
+      const mineSet = new Set(mine.map((r) => r.id));
+      const seen = new Set<string>();
+      const valid = orderedIds.filter((id) => {
+        if (!mineSet.has(id) || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
+      if (valid.length === 0) throw apiErrors.badRequest("No valid account ids to reorder.");
+      await db.transaction(async () => {
+        for (const [i, accountId] of valid.entries()) {
+          await db.run("UPDATE accounts SET sort_order = ? WHERE id = ? AND user_id = ?", i, accountId, userId);
+        }
+      });
+    },
+
+    /** Free-text note describing the account (shown on the card). */
+    async setDescription(userId: string, id: string, description: string | null): Promise<AccountRow> {
+      await this.get(userId, id);
+      const clean = description?.trim().slice(0, 300) || null;
+      await db.run("UPDATE accounts SET description = ? WHERE id = ?", clean, id);
+      return this.get(userId, id);
     },
 
     /** User override for Plaid's inferred account type. */

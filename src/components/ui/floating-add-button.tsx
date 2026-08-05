@@ -30,6 +30,7 @@ export function FloatingAddButton({
   // from the live tab bar (its rendered height already includes the safe
   // area), so the FAB clears it on every device and density.
   const [bottom, setBottom] = useState<number>(96);
+  const [kbd, setKbd] = useState<number>(0);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -54,6 +55,35 @@ export function FloatingAddButton({
     };
   }, []);
 
+  // Keyboard lift (v0.3.11): raise the FAB above the on-screen keyboard so it
+  // never hides behind it — in every compaction (density) layout. v0.3.8
+  // removed keyboard handling entirely because an unguarded visualViewport
+  // delta could stick and leave the FAB raised after the keyboard closed.
+  // The guard here: only lift while a text field is actually focused AND the
+  // viewport is visibly shrunken; blur always resets to 0, so it cannot stick.
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return;
+    function isTextField(el: Element | null): boolean {
+      if (!el) return false;
+      const tag = el.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || (el as HTMLElement).isContentEditable;
+    }
+    function measureKeyboard() {
+      const vv = window.visualViewport!;
+      const delta = Math.max(0, window.innerHeight - vv.height);
+      const typing = isTextField(document.activeElement);
+      setKbd(typing && delta > 60 ? delta : 0);
+    }
+    window.visualViewport.addEventListener("resize", measureKeyboard);
+    document.addEventListener("focusin", measureKeyboard);
+    document.addEventListener("focusout", measureKeyboard);
+    return () => {
+      window.visualViewport?.removeEventListener("resize", measureKeyboard);
+      document.removeEventListener("focusin", measureKeyboard);
+      document.removeEventListener("focusout", measureKeyboard);
+    };
+  }, []);
+
   if (hidden || !mounted) return null;
 
   return createPortal(
@@ -63,7 +93,7 @@ export function FloatingAddButton({
       title={label}
       onClick={onClick}
       className="fixed right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-foreground)] shadow-lg transition-transform hover:scale-105 active:scale-95"
-      style={{ bottom: `${bottom}px` }}
+      style={{ bottom: `${bottom + kbd}px` }}
     >
       <Plus size={26} strokeWidth={2.5} />
     </button>,

@@ -11,6 +11,7 @@ const patchSchema = z.object({
   name: z.string().min(1, "Account name is required.").optional(),
   type: z.enum(["depository", "credit", "investment", "loan", "other"]).optional(),
   includeInNetWorth: z.boolean().optional(),
+  description: z.string().max(300).nullable().optional(),
 });
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -21,11 +22,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const body = await parseBody(patchSchema, req);
     const svc = createAccountsService(getDb());
     const account =
-      body.type !== undefined
-        ? await svc.setType(session.userId, id, body.type)
-        : body.includeInNetWorth !== undefined
-          ? await svc.setNetWorthInclusion(session.userId, id, body.includeInNetWorth)
-          : await svc.rename(session.userId, id, body.name as string);
+      body.description !== undefined
+        ? await svc.setDescription(session.userId, id, body.description)
+        : body.type !== undefined
+          ? await svc.setType(session.userId, id, body.type)
+          : body.includeInNetWorth !== undefined
+            ? await svc.setNetWorthInclusion(session.userId, id, body.includeInNetWorth)
+            : await svc.rename(session.userId, id, body.name as string);
     return ok({ account });
   })(req, ctx);
 }

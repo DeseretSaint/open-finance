@@ -112,7 +112,6 @@ export function createNativePlaidClient(): PlaidClient {
         "If Capacitor=yes but PlaidProxy=missing, the native plugin may not be registered in this build."
     );
   }
-
   return {
     async testCredentials(creds: PlaidCreds) {
       const r = await p.testCredentials({
@@ -181,6 +180,42 @@ export function createNativePlaidClient(): PlaidClient {
     },
   };
 }
+
+/**
+ * Solo sync adapter (P23 fix, v0.3.11): syncSoloItem calls
+ * `client.syncTransactions({clientId, secret, environment, accessToken,
+ * cursor})` with ONE object argument, but the native PlaidClient's
+ * syncTransactions takes THREE positional arguments (creds, accessToken,
+ * cursor). Passing the raw native client used to be hidden behind `as never`,
+ * which made accessToken arrive as `undefined` → the Kotlin proxy rejected
+ * with "missing accessToken" → every sync silently imported ZERO
+ * transactions. This adapter bridges the two shapes explicitly.
+ */
+export function createSoloSyncClient(native: PlaidClient = createNativePlaidClient()): SoloNativeClient {
+  return {
+    async syncTransactions(opts: {
+      clientId: string;
+      secret: string;
+      environment: "sandbox" | "production";
+      accessToken: string;
+      cursor: string | null;
+    }) {
+      const res = await native.syncTransactions(
+        { clientId: opts.clientId, secret: opts.secret, environment: opts.environment },
+        opts.accessToken,
+        opts.cursor ?? null
+      );
+      return {
+        added: res.added,
+        modified: res.modified,
+        removed: res.removed,
+        nextCursor: res.nextCursor,
+      };
+    },
+  };
+}
+
+export type SoloNativeClient = import("@/lib/solo-plaid-sync").SoloNativeClient;
 
 /**
  * Open native Plaid Link (solo mode). Returns the public token on success,

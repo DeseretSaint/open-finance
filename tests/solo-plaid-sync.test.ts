@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { syncSoloItem, type SoloPlaidTxn, type SoloNativeClient } from "@/lib/solo-plaid-sync";
+import type { PlaidClient } from "@/server/plaid/adapter";
 import { createTestDb, seedUser } from "./helpers";
 
 function fakeClient(added: SoloPlaidTxn[], cursor: string | null = null) {
@@ -135,5 +136,67 @@ describe("solo plaid sync (webview-safe import)", () => {
     });
     expect(result.ok).toBe(false);
     expect(result.error).toBe("boom");
+  });
+});
+
+describe("createSoloSyncClient adapter (v0.3.11 regression)", () => {
+  it("passes accessToken/cursor positionally so the native proxy stops rejecting with 'missing accessToken'", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    // The native PlaidClient signature is (creds, accessToken, cursor) —
+    // positional. syncSoloItem calls client.syncTransactions({...}) with ONE
+    // object. Before the adapter, `as never` hid the mismatch and accessToken
+    // arrived undefined → every sync imported zero transactions.
+    let seenAccessToken: string | null = null;
+    let seenCursor: string | null = "never";
+    const nativeLike = {
+      syncTransactions: async (
+        _creds: { clientId: string; secret: string; environment: string },
+        accessToken: string,
+        cursor: string | null
+      ) => {
+        seenAccessToken = accessToken;
+        seenCursor = cursor;
+        return {
+          added: [
+            {
+              id: "txn-1",
+              accountId: "acct-1",
+              amountCents: 1999,
+              date: "2026-07-28",
+              authorizedDate: null,
+              name: "Netflix",
+              merchantName: null,
+              categoryPath: null,
+              personalFinanceCategory: null,
+              pending: false,
+            },
+          ],
+          modified: [],
+          removed: [],
+          nextCursor: "cursor-2",
+          hasMore: false,
+        };
+      },
+    } as unknown as PlaidClient;
+
+    const { createSoloSyncClient } = await import("@/server/plaid/native");
+    const result = await syncSoloItem({
+      db,
+      userId: user.id,
+      itemId: "item-1",
+      institutionName: null,
+      environment: "sandbox",
+      creds: { clientId: "c", secret: "s", environment: "sandbox" },
+      accessToken: "access-1",
+      accounts: [{ id: "acct-1", name: "Checking", type: "depository", mask: null }],
+      client: createSoloSyncClient(nativeLike),
+      cursor: null,
+    });
+
+    expect(seenAccessToken).toBe("access-1");
+    expect(seenCursor).toBeNull();
+    expect(result.ok).toBe(true);
+    expect(result.added).toBe(1);
   });
 });
