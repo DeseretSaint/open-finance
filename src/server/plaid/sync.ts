@@ -6,6 +6,7 @@ import type { PlaidClient, PlaidCreds, PlaidEnvironment } from "./adapter";
 import { realPlaidClient } from "./real";
 import { createCategoriesService } from "@/server/domain/categories";
 import { createIngestService } from "@/server/domain/ingest";
+import { markLinkedTransfers } from "@/server/domain/transfers";
 
 function now(): string {
   return new Date().toISOString();
@@ -139,6 +140,8 @@ export function createSyncService(db: Db = getDb(), clientFactory: (creds: Plaid
       cursor = res.nextCursor;
       hasMore = res.hasMore;
     }
+
+    await markLinkedTransfers(db, userId);
 
     // Refresh balances + one balance_history point per account.
     const freshAccounts = await client.getAccounts(creds, accessToken);

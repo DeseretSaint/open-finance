@@ -90,7 +90,7 @@ const PROVIDERS = [
   { name: "Other", note: "Any MCP-capable agent" },
 ];
 
-function HermesSetupCard({ endpoint, setMsg, setErr }: { endpoint: string; setMsg: (s: string | null) => void; setErr: (s: string | null) => void }) {
+function HermesSetupCard({ endpoint, solo, setMsg, setErr }: { endpoint: string; solo: boolean; setMsg: (s: string | null) => void; setErr: (s: string | null) => void }) {
   const [createdToken, setCreatedToken] = useState<string | null>(null);
   const [expiry, setExpiry] = useState("90d");
   const [copied, setCopied] = useState<"config" | "token" | null>(null);
@@ -143,7 +143,12 @@ function HermesSetupCard({ endpoint, setMsg, setErr }: { endpoint: string; setMs
           </p>
         </div>
       </div>
-      {!createdToken ? (
+      {solo ? (
+        <div className="mt-4 rounded-xl bg-surface-muted p-4">
+          <p className="text-sm text-text">This phone is running standalone mode. Pair it to your hub first; the hub hosts Hermes, the MCP endpoint, and the token permissions.</p>
+          <p className="mt-2 text-xs text-text-muted">After pairing, open Agents on the hub to generate the secure Hermes connection.</p>
+        </div>
+      ) : !createdToken ? (
         <div className="mt-4 rounded-xl bg-surface-muted p-4">
           <p className="text-sm text-text">
             This token follows the current Settings access boundaries. If you later change the AI access switches, the
@@ -193,6 +198,30 @@ function HermesSetupCard({ endpoint, setMsg, setErr }: { endpoint: string; setMs
           </ol>
         </div>
       )}
+    </Card>
+  );
+}
+
+function RemoteAgentBriefCard({ endpoint }: { endpoint: string }) {
+  const [gateway, setGateway] = useState("Telegram");
+  const [chat, setChat] = useState("");
+  const [model, setModel] = useState("Keep the current Hermes model");
+  const [copied, setCopied] = useState(false);
+  const brief = `Open Finance agent connection request\n\nYou are my finance agent running on my trusted Hermes hub.\n\nOpen Finance endpoint: ${endpoint}/mcp\nGateway: ${gateway}\nGateway chat/topic: ${chat || "[SET CHAT OR TOPIC ID]"}\nModel preference: ${model}\n\nPlease complete this setup on the hub:\n1. Use the Open Finance MCP endpoint above with the bearer token I provide separately. Never ask me to paste a provider API key into Open Finance or this chat.\n2. Fetch GET /api/agent/guide after connecting and call get_capabilities first.\n3. Keep access bounded by Open Finance Settings; begin read-only and ask before writes.\n4. Bind this conversation to the gateway chat/topic above so future finance questions stay in this dedicated channel.\n5. If I requested a model change, use Hermes model selection/configuration on the hub. Do not store provider credentials in Open Finance.\n6. Confirm the connection by reading my financial summary, without changing any data.`;
+  async function copy() {
+    try { await navigator.clipboard.writeText(brief); setCopied(true); window.setTimeout(() => setCopied(false), 2200); } catch { /* select manually */ }
+  }
+  return (
+    <Card>
+      <CardTitle>Remote agent handoff</CardTitle>
+      <p className="mt-1 text-sm text-text-muted">Set the dedicated gateway chat and preferred model, then copy this brief and send it to your agent. The token is provided separately and never included here.</p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <CustomSelect ariaLabel="Agent gateway" value={gateway} onChange={setGateway} options={[{ value: "Telegram", label: "Telegram" }, { value: "Discord", label: "Discord" }, { value: "Slack", label: "Slack" }, { value: "Other", label: "Other" }]} />
+        <Input aria-label="Gateway chat or topic ID" placeholder="Chat/topic ID" value={chat} onChange={(e) => setChat(e.target.value)} />
+        <Input aria-label="Preferred Hermes model" placeholder="e.g. current Hermes model" value={model} onChange={(e) => setModel(e.target.value)} />
+      </div>
+      <textarea aria-label="Remote agent handoff text" readOnly value={brief} className="mt-3 min-h-64 w-full resize-y rounded-xl border border-border bg-background p-3 text-xs leading-5 text-text" />
+      <div className="mt-3 flex flex-wrap items-center gap-2"><Button onClick={copy}><Copy size={14} /> {copied ? "Copied" : "Copy handoff text"}</Button><span className="text-xs text-text-muted">Gateway and model credentials stay in Hermes.</span></div>
     </Card>
   );
 }
@@ -338,7 +367,8 @@ export default function AgentsPage() {
           </p>
         </div>
 
-        {!solo && <HermesSetupCard endpoint={endpoint} setMsg={setMsg} setErr={setErr} />}
+        <HermesSetupCard endpoint={endpoint} solo={solo} setMsg={setMsg} setErr={setErr} />
+        {!solo && <RemoteAgentBriefCard endpoint={endpoint} />}
 
         {solo ? (
           <Card>
@@ -563,7 +593,8 @@ export default function AgentsPage() {
       {msg && <p className="text-sm font-medium text-success">{msg}</p>}
       {err && <p className="text-sm text-danger">{err}</p>}
 
-      <HermesSetupCard endpoint={endpoint} setMsg={setMsg} setErr={setErr} />
+      <HermesSetupCard endpoint={endpoint} solo={solo} setMsg={setMsg} setErr={setErr} />
+      <RemoteAgentBriefCard endpoint={endpoint} />
 
       {/* Wire another agent right here — no need to go to Settings. */}
       <Card>

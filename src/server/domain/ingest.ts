@@ -19,6 +19,7 @@ export interface IngestTxn {
   categoryPath: string | null;
   personalFinanceCategory: string | null;
   pending: boolean;
+  isTransfer?: boolean;
 }
 
 export function createIngestService(db: Db = getDb()) {
@@ -38,7 +39,7 @@ export function createIngestService(db: Db = getDb()) {
           `UPDATE transactions
              SET account_id = ?, amount_cents = ?, date = ?, authorized_date = ?, name = ?,
                  merchant_name = ?, category_path = ?, personal_finance_category = ?, pending = ?,
-                 user_category_id = COALESCE(user_category_id, ?)
+                 user_category_id = COALESCE(user_category_id, ?), is_transfer = ?
            WHERE plaid_transaction_id = ?`,
           txn.accountRowId,
           txn.amountCents,
@@ -50,6 +51,7 @@ export function createIngestService(db: Db = getDb()) {
           txn.personalFinanceCategory,
           txn.pending ? 1 : 0,
           categoryId,
+          txn.isTransfer ? 1 : 0,
           txn.plaidId
         );
         return;
@@ -57,9 +59,9 @@ export function createIngestService(db: Db = getDb()) {
       await db.run(
         `INSERT INTO transactions
            (id, account_id, plaid_transaction_id, amount_cents, date, authorized_date, name,
-            merchant_name, category_path, personal_finance_category, pending, user_category_id,
+            merchant_name, category_path, personal_finance_category, pending, user_category_id, is_transfer,
             source, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'plaid', ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'plaid', ?)`,
         randomUUID(),
         txn.accountRowId,
         txn.plaidId,
@@ -72,6 +74,7 @@ export function createIngestService(db: Db = getDb()) {
         txn.personalFinanceCategory,
         txn.pending ? 1 : 0,
         categoryId,
+        txn.isTransfer ? 1 : 0,
         now()
       );
     },

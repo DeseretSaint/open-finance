@@ -171,7 +171,7 @@ export function createBudgetsService(db: Db = getDb()) {
           FROM transactions t
           JOIN accounts a ON a.id = t.account_id
          WHERE a.user_id = ? AND a.deleted_at IS NULL AND t.date >= ? AND t.date < ?
-           AND t.pending = 0 AND t.exclude_from_budgets = 0 AND t.amount_cents < 0
+          AND t.pending = 0 AND t.exclude_from_budgets = 0 AND t.is_transfer = 0 AND t.amount_cents < 0
            AND ${categoryClause}`,
         ...params
       );

@@ -49,6 +49,17 @@ describe("account description (v0.3.11)", () => {
   });
 });
 
+describe("account custom names", () => {
+  it("persists a custom name override", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const id = await seedManualAccount(db, user.id, "Plaid Checking");
+    const account = await createAccountsService(db).rename(user.id, id, "Household Checking");
+    expect(account.name).toBe("Household Checking");
+    expect(account.name_override).toBe("Household Checking");
+  });
+});
+
 describe("account soft delete + restore (v0.3.11)", () => {
   it("removed accounts disappear from list but can be restored", async () => {
     const db = createTestDb();

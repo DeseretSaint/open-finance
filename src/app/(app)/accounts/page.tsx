@@ -19,6 +19,7 @@ interface Account {
   id: string;
   item_id: string | null;
   name: string;
+  name_override: string | null;
   official_name: string | null;
   type: string | null;
   subtype: string | null;
@@ -87,6 +88,8 @@ export default function AccountsPage() {
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [editingDesc, setEditingDesc] = useState<string | null>(null);
   const [descDraft, setDescDraft] = useState("");
+  const [editingName, setEditingName] = useState<string | null>(null);
+  const [nameDraft, setNameDraft] = useState("");
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["accounts"] });
@@ -143,6 +146,11 @@ export default function AccountsPage() {
     onSuccess: invalidate,
   });
 
+  const rename = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) => api.patch(`/api/accounts/${id}`, { name }),
+    onSuccess: invalidate,
+  });
+
   const reorder = useMutation({
     mutationFn: (orderedIds: string[]) => api.put("/api/accounts/order", { orderedIds }),
     onSuccess: invalidate,
@@ -186,7 +194,16 @@ export default function AccountsPage() {
                       <Icon size={20} />
                     </div>
                     <div className="min-w-0">
-                      <CardTitle className="truncate">{a.official_name ?? a.name}</CardTitle>
+                      {editingName === a.id ? (
+                        <form className="flex min-w-0 items-center gap-1" onSubmit={(e) => { e.preventDefault(); rename.mutate({ id: a.id, name: nameDraft }); setEditingName(null); }}>
+                          <Input aria-label={`Custom name for ${a.name}`} className="h-8 min-w-0" value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} autoFocus />
+                          <Button type="submit" size="sm" disabled={rename.isPending}>Save</Button>
+                        </form>
+                      ) : (
+                        <button type="button" className="block max-w-full truncate text-left text-base font-semibold text-text hover:text-accent" onClick={() => { setEditingName(a.id); setNameDraft(a.name); }}>
+                          {a.name}
+                        </button>
+                      )}
                       <p className="mt-0.5 truncate text-xs text-text-muted">{detail}</p>
                     </div>
                   </div>

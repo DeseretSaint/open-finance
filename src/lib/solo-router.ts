@@ -536,7 +536,7 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         });
         synced = result.ok ? result.added + result.modified : 0;
         // Persist the cursor so later "Sync now" runs are incremental.
-        if (result.ok && result.nextCursor) setSoloPlaidItemCursor(itemId, result.nextCursor);
+        if (result.ok) setSoloPlaidItemCursor(itemId, result.nextCursor);
       } catch {
         synced = 0;
       }
@@ -584,7 +584,7 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
           client: createSoloSyncClient(),
           cursor: item.cursor ?? null,
         });
-        if (res.ok && res.nextCursor) setSoloPlaidItemCursor(item.id, res.nextCursor);
+        if (res.ok) setSoloPlaidItemCursor(item.id, res.nextCursor);
         results.push({
           itemId: item.id,
           institution_name: item.institutionName,

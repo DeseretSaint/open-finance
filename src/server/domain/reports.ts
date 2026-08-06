@@ -25,7 +25,7 @@ export function createReportsService(db: Db = getDb()) {
           JOIN accounts a ON a.id = t.account_id
           LEFT JOIN categories c ON c.id = t.user_category_id
          WHERE a.user_id = ?${accountHistoryClause} AND t.date >= ? AND t.date < ?
-           AND t.pending = 0 AND t.exclude_from_budgets = 0 AND t.amount_cents < 0
+           AND t.pending = 0 AND t.exclude_from_budgets = 0 AND t.is_transfer = 0 AND t.amount_cents < 0
             ${allow.clause}
           GROUP BY t.user_category_id, c.name, c.color
           ORDER BY spentCents DESC`,
@@ -48,7 +48,7 @@ export function createReportsService(db: Db = getDb()) {
                 SUM(CASE WHEN t.amount_cents < 0 THEN -t.amount_cents ELSE 0 END) AS expenseCents
           FROM transactions t
           JOIN accounts a ON a.id = t.account_id
-         WHERE a.user_id = ?${accountHistoryClause} AND t.date >= ? AND t.date < ? AND t.pending = 0 AND t.exclude_from_budgets = 0
+         WHERE a.user_id = ?${accountHistoryClause} AND t.date >= ? AND t.date < ? AND t.pending = 0 AND t.exclude_from_budgets = 0 AND t.is_transfer = 0
            ${allow.clause}
          GROUP BY substr(t.date, 1, 7)
          ORDER BY month ASC`,

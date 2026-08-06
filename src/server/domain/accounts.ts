@@ -8,6 +8,7 @@ export interface AccountRow {
   item_id: string | null;
   plaid_account_id: string | null;
   name: string;
+  name_override: string | null;
   official_name: string | null;
   type: string | null;
   subtype: string | null;
@@ -151,7 +152,7 @@ export function createAccountsService(db: Db = getDb()) {
       await this.get(userId, id);
       const clean = name.trim().slice(0, 100);
       if (!clean) throw apiErrors.badRequest("Account name cannot be empty.");
-      await db.run("UPDATE accounts SET name = ? WHERE id = ?", clean, id);
+      await db.run("UPDATE accounts SET name = ?, name_override = ? WHERE id = ?", clean, clean, id);
       return this.get(userId, id);
     },
 

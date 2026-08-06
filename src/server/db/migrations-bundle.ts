@@ -72,5 +72,13 @@ export const SOLO_MIGRATIONS: { version: number; sql: string }[] = [
   {
     version: 16,
     sql: "-- 016: Hermes tokens may explicitly follow current Agent settings.\n-- Scope enforcement already intersects token scopes with current caps on every request;\n-- this flag documents and exposes that behavior for the dedicated Hermes connection.\nALTER TABLE agent_tokens ADD COLUMN follow_settings INTEGER NOT NULL DEFAULT 0;\nCREATE INDEX IF NOT EXISTS idx_agent_tokens_follow_settings ON agent_tokens(user_id, follow_settings);\n",
+  },
+  {
+    version: 17,
+    sql: "-- 017: mark linked-account internal transfers so they are not income or expense\nALTER TABLE transactions ADD COLUMN is_transfer INTEGER NOT NULL DEFAULT 0;\nCREATE INDEX IF NOT EXISTS idx_txn_transfer ON transactions(account_id, date, is_transfer);\n\n-- A transfer is retained in Activity but excluded from income, expense,\n-- spending, budgets, projections, and report totals.\n",
+  },
+  {
+    version: 18,
+    sql: "-- 018: preserve user-defined account names across Plaid refreshes\nALTER TABLE accounts ADD COLUMN name_override TEXT;\n\n-- A non-null override wins over Plaid's institution-provided name.\nCREATE INDEX IF NOT EXISTS idx_accounts_name_override ON accounts(user_id, name_override);\n",
   }
 ];

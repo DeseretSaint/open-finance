@@ -12,6 +12,7 @@
 import type { Db } from "@/server/db/types";
 import { randomUUID } from "@/lib/uuid";
 import { createCategoriesService } from "@/server/domain/categories";
+import { markLinkedTransfers } from "@/server/domain/transfers";
 
 export interface SoloSyncAccount {
   id: string; // plaid account id
@@ -87,9 +88,10 @@ export async function syncSoloItem(input: SoloSyncInput): Promise<SoloSyncResult
         );
         if (existingMeta?.hidden === 1) continue;
         const details = accountDetails?.find((d) => d.id === a.id);
+        const override = await db.get<{ name_override: string | null }>("SELECT name_override FROM accounts WHERE id = ?", existing.id);
         await db.run(
           "UPDATE accounts SET name = ?, type = ?, mask = ?, item_id = ?, current_balance_cents = ?, available_balance_cents = ?, currency = ? WHERE id = ? AND hidden = 0",
-          a.name,
+          override?.name_override ?? a.name,
           existingMeta?.type_override === 1 ? existingMeta.type : a.type,
           a.mask,
           itemId,
@@ -156,6 +158,8 @@ export async function syncSoloItem(input: SoloSyncInput): Promise<SoloSyncResult
       await db.run("DELETE FROM transactions WHERE plaid_transaction_id = ?", plaidId);
     }
 
+    await markLinkedTransfers(db, userId);
+
     return {
       added: res.added.length,
       modified: res.modified.length,
@@ -191,7 +195,7 @@ async function upsertTxn(
       `UPDATE transactions
          SET account_id = ?, amount_cents = ?, date = ?, authorized_date = ?, name = ?,
              merchant_name = ?, category_path = ?, personal_finance_category = ?, pending = ?,
-             user_category_id = COALESCE(user_category_id, ?)
+             user_category_id = COALESCE(user_category_id, ?), is_transfer = ?
        WHERE plaid_transaction_id = ?`,
       accountRowId,
       txn.amountCents,
@@ -203,6 +207,7 @@ async function upsertTxn(
       txn.personalFinanceCategory,
       txn.pending ? 1 : 0,
       categoryId,
+      0,
       txn.id
     );
     return;
@@ -210,9 +215,9 @@ async function upsertTxn(
   await db.run(
     `INSERT INTO transactions
        (id, account_id, plaid_transaction_id, amount_cents, date, authorized_date, name,
-        merchant_name, category_path, personal_finance_category, pending, user_category_id,
+        merchant_name, category_path, personal_finance_category, pending, user_category_id, is_transfer,
         source, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'plaid', ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'plaid', ?)`,
     randomUUID(),
     accountRowId,
     txn.id,
@@ -225,6 +230,7 @@ async function upsertTxn(
     txn.personalFinanceCategory,
     txn.pending ? 1 : 0,
     categoryId,
+    0,
     new Date().toISOString()
   );
 }

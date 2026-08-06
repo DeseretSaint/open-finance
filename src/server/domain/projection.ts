@@ -68,7 +68,7 @@ export function createProjectionService(db: Db = getDb()) {
              FROM transactions t
              JOIN accounts a ON a.id = t.account_id
              LEFT JOIN categories c ON c.id = t.user_category_id
-            WHERE a.user_id = ? AND a.deleted_at IS NULL AND t.amount_cents > 0 AND t.date >= ? AND t.date < ?
+            WHERE a.user_id = ? AND a.deleted_at IS NULL AND t.is_transfer = 0 AND t.amount_cents > 0 AND t.date >= ? AND t.date < ?
               AND t.pending = 0 AND c.name = 'Income'`,
           userId,
           r.start,

@@ -27,6 +27,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (!isLoading && !data) router.replace("/login");
   }, [isLoading, data, router]);
 
+  // Standalone mode: sync immediately on app entry/resume and poll while active.
+  useEffect(() => {
+    if (!data || onboarding.data?.completed === false || typeof window === "undefined") return;
+    let stop: (() => void) | undefined;
+    import("@/lib/solo-auto-sync").then(({ startSoloAutoSync }) => {
+      stop = startSoloAutoSync();
+    }).catch(() => {});
+    return () => stop?.();
+  }, [data, onboarding.data?.completed]);
+
   // P11: keep the on-device status notification schedule fresh on every launch
   // (native only — the plugin is a no-op elsewhere).
   useEffect(() => {

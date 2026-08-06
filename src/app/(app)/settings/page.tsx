@@ -133,7 +133,7 @@ export default function SettingsPage() {
       const changed = d.results.reduce((n, r) => n + r.added + r.modified, 0);
       const failed = d.results.filter((r) => !r.ok);
       if (failed.length > 0) {
-        setErr(`Sync finished with errors on ${failed.map((f) => f.institution_name ?? "an institution").join(", ")}.`);
+        setErr(`Sync finished with errors on ${failed.map((f) => `${f.institution_name ?? "an institution"}${f.error ? `: ${f.error}` : ""}`).join("; ")}.`);
       } else {
         setMsg(`Sync complete — ${changed === 0 ? "nothing new" : `${changed} transaction(s) updated`}.`);
       }
