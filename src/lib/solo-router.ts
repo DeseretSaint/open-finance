@@ -195,6 +195,10 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         await h.solo.bootstrap({ displayName: "Demo phone", pin: undefined, isDemo: true });
       }
       const userId = await h.deviceUserId();
+      const userRow = await db.get<{ is_demo: number }>("SELECT is_demo FROM users WHERE id = ?", userId);
+      if (!userRow || userRow.is_demo !== 1) {
+        throw apiErrors.conflict("Demo mode is unavailable after creating a real account.");
+      }
       await seedSoloDemo(db, userId);
       await h.onboarding.complete(userId);
       return ok({ ok: true });

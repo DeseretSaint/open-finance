@@ -202,22 +202,25 @@ function HermesSetupCard({ endpoint, solo, setMsg, setErr }: { endpoint: string;
   );
 }
 
-function RemoteAgentBriefCard({ endpoint }: { endpoint: string }) {
+function RemoteAgentBriefCard({ endpoint, solo }: { endpoint: string; solo: boolean }) {
   const [gateway, setGateway] = useState("Telegram");
+  const [hubEndpoint, setHubEndpoint] = useState("");
   const [chat, setChat] = useState("");
   const [model, setModel] = useState("Keep the current Hermes model");
   const [copied, setCopied] = useState(false);
-  const brief = `Open Finance agent connection request\n\nYou are my finance agent running on my trusted Hermes hub.\n\nOpen Finance endpoint: ${endpoint}/mcp\nGateway: ${gateway}\nGateway chat/topic: ${chat || "[SET CHAT OR TOPIC ID]"}\nModel preference: ${model}\n\nPlease complete this setup on the hub:\n1. Use the Open Finance MCP endpoint above with the bearer token I provide separately. Never ask me to paste a provider API key into Open Finance or this chat.\n2. Fetch GET /api/agent/guide after connecting and call get_capabilities first.\n3. Keep access bounded by Open Finance Settings; begin read-only and ask before writes.\n4. Bind this conversation to the gateway chat/topic above so future finance questions stay in this dedicated channel.\n5. If I requested a model change, use Hermes model selection/configuration on the hub. Do not store provider credentials in Open Finance.\n6. Confirm the connection by reading my financial summary, without changing any data.`;
+  const target = (solo ? hubEndpoint.trim().replace(/\/$/, "") : endpoint.replace(/\/$/, "")) || "[ENTER THE PAIRED HUB URL]";
+  const brief = `Open Finance remote agent connection request\n\nYou are my finance agent running on my trusted Hermes hub.\n\nOpen Finance hub MCP endpoint: ${target}/api/mcp\nGateway: ${gateway}\nDedicated gateway chat/topic: ${chat || "[SET CHAT OR TOPIC ID]"}\nModel preference: ${model}\n\nComplete this setup on the trusted hub:\n1. Use the hub MCP endpoint above with the Open Finance bearer token I provide separately. Never ask me to paste a provider API key into Open Finance, the phone, or this chat.\n2. Fetch ${target}/api/agent/guide and call get_capabilities first.\n3. Keep access bounded by the current Open Finance Settings; begin read-only and ask before any write.\n4. Configure the gateway to route this dedicated chat/topic (${chat || "the ID I provide"}) to this Hermes session.\n5. If I requested a model change, change the model in Hermes on the hub. Do not store provider credentials in Open Finance or on the phone.\n6. Confirm the connection with a read-only financial summary and do not modify data.`;
   async function copy() {
     try { await navigator.clipboard.writeText(brief); setCopied(true); window.setTimeout(() => setCopied(false), 2200); } catch { /* select manually */ }
   }
   return (
     <Card>
       <CardTitle>Remote agent handoff</CardTitle>
-      <p className="mt-1 text-sm text-text-muted">Set the dedicated gateway chat and preferred model, then copy this brief and send it to your agent. The token is provided separately and never included here.</p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+      <p className="mt-1 text-sm text-text-muted">Copy this token-free brief and send it through the gateway chat you choose. In standalone mode, the hub URL is required because the phone does not host Hermes or MCP.</p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <CustomSelect ariaLabel="Agent gateway" value={gateway} onChange={setGateway} options={[{ value: "Telegram", label: "Telegram" }, { value: "Discord", label: "Discord" }, { value: "Slack", label: "Slack" }, { value: "Other", label: "Other" }]} />
         <Input aria-label="Gateway chat or topic ID" placeholder="Chat/topic ID" value={chat} onChange={(e) => setChat(e.target.value)} />
+        {solo && <Input aria-label="Paired hub URL" placeholder="Paired hub URL, e.g. http://192.168.1.20:3000" value={hubEndpoint} onChange={(e) => setHubEndpoint(e.target.value)} />}
         <Input aria-label="Preferred Hermes model" placeholder="e.g. current Hermes model" value={model} onChange={(e) => setModel(e.target.value)} />
       </div>
       <textarea aria-label="Remote agent handoff text" readOnly value={brief} className="mt-3 min-h-64 w-full resize-y rounded-xl border border-border bg-background p-3 text-xs leading-5 text-text" />
@@ -368,7 +371,7 @@ export default function AgentsPage() {
         </div>
 
         <HermesSetupCard endpoint={endpoint} solo={solo} setMsg={setMsg} setErr={setErr} />
-        {!solo && <RemoteAgentBriefCard endpoint={endpoint} />}
+        <RemoteAgentBriefCard endpoint={endpoint} solo={solo} />
 
         {solo ? (
           <Card>
@@ -594,7 +597,7 @@ export default function AgentsPage() {
       {err && <p className="text-sm text-danger">{err}</p>}
 
       <HermesSetupCard endpoint={endpoint} solo={solo} setMsg={setMsg} setErr={setErr} />
-      <RemoteAgentBriefCard endpoint={endpoint} />
+      <RemoteAgentBriefCard endpoint={endpoint} solo={solo} />
 
       {/* Wire another agent right here — no need to go to Settings. */}
       <Card>

@@ -27,6 +27,7 @@ interface Account {
   current_balance_cents: number | null;
   currency: string;
   institution_name: string | null;
+  is_demo: number;
   include_in_net_worth: number;
   sort_order: number;
   description: string | null;
@@ -180,8 +181,9 @@ export default function AccountsPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {data.accounts.map((a, i) => {
             const Icon = typeIcon(a.type);
+            const source = a.is_demo ? "Demo data" : a.institution_name ?? (a.item_id ? "Linked institution" : "Manual account");
             const detail = [
-              a.institution_name ?? "Manual",
+              source,
               a.subtype ? a.subtype.replace(/-/g, " ") : null,
               a.mask ? `••••${a.mask}` : null,
             ]
@@ -228,8 +230,8 @@ export default function AccountsPage() {
                   </div>
                 </div>
                 <div className="mt-4 flex items-end justify-between gap-2">
-                  <p className={`money text-2xl font-bold ${isLiability(a) ? "text-danger" : "text-text"}`}>
-                    <Money cents={isLiability(a) ? -(a.current_balance_cents ?? 0) : a.current_balance_cents ?? 0} currency={a.currency} signed={isLiability(a)} />
+                  <p className={`money text-2xl font-bold ${isLiability(a) && (a.current_balance_cents ?? 0) < 0 ? "text-danger" : "text-text"}`}>
+                    <Money cents={a.current_balance_cents ?? 0} currency={a.currency} signed={isLiability(a)} />
                   </p>
                   <Button
                     variant="ghost"

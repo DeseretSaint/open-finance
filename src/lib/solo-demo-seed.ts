@@ -118,8 +118,13 @@ export async function seedSoloDemo(db: Db, userId: string): Promise<void> {
   ];
   const colors = ["#8B5CF6", "#10B981", "#F59E0B", "#06B6D4", "#6366F1", "#EF4444", "#22C55E", "#F97316"];
   const catIds = new Map<string, string>();
+  const existingCategories = await categories.listAll(userId);
   for (let i = 0; i < catNames.length; i++) {
-    const c = await categories.create(userId, { name: catNames[i], color: colors[i] });
+    // Demo data may share a name with an automatically seeded system category
+    // (notably Groceries). Reuse it instead of colliding with the unique name
+    // constraint; this also makes interrupted demo seeds safely retryable.
+    const existing = existingCategories.find((c) => c.name.toLowerCase() === catNames[i].toLowerCase());
+    const c = existing ?? (await categories.create(userId, { name: catNames[i], color: colors[i] }));
     catIds.set(catNames[i], c.id);
   }
 

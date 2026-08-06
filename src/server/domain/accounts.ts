@@ -17,6 +17,7 @@ export interface AccountRow {
   available_balance_cents: number | null;
   currency: string;
   institution_name: string | null;
+  is_demo: number;
   include_in_net_worth: number;
   hidden: number;
   type_override: number;
@@ -36,9 +37,10 @@ export function createAccountsService(db: Db = getDb()) {
   return {
     async list(userId: string): Promise<AccountRow[]> {
       return db.all<AccountRow>(
-        `SELECT a.*, i.institution_name
+        `SELECT a.*, i.institution_name, u.is_demo
            FROM accounts a
            LEFT JOIN plaid_items i ON i.id = a.item_id
+           JOIN users u ON u.id = a.user_id
           WHERE a.user_id = ? AND a.hidden = 0 AND a.deleted_at IS NULL
           ORDER BY a.sort_order, a.type, a.name COLLATE NOCASE`,
         userId
@@ -48,9 +50,10 @@ export function createAccountsService(db: Db = getDb()) {
     /** Removed accounts (soft-deleted) so the user can restore them. */
     async listDeleted(userId: string): Promise<AccountRow[]> {
       return db.all<AccountRow>(
-        `SELECT a.*, i.institution_name
+        `SELECT a.*, i.institution_name, u.is_demo
            FROM accounts a
            LEFT JOIN plaid_items i ON i.id = a.item_id
+           JOIN users u ON u.id = a.user_id
           WHERE a.user_id = ? AND a.deleted_at IS NOT NULL
           ORDER BY a.deleted_at DESC`,
         userId
@@ -82,9 +85,10 @@ export function createAccountsService(db: Db = getDb()) {
         }
       }
       return db.all<AccountRow>(
-        `SELECT a.*, i.institution_name
+        `SELECT a.*, i.institution_name, u.is_demo
            FROM accounts a
            LEFT JOIN plaid_items i ON i.id = a.item_id
+           JOIN users u ON u.id = a.user_id
           WHERE ${conditions.join(" AND ")}
           ORDER BY a.type, a.name COLLATE NOCASE`,
         ...params
@@ -93,9 +97,10 @@ export function createAccountsService(db: Db = getDb()) {
 
     async get(userId: string, id: string): Promise<AccountRow> {
       const row = await db.get<AccountRow>(
-        `SELECT a.*, i.institution_name
+        `SELECT a.*, i.institution_name, u.is_demo
            FROM accounts a
            LEFT JOIN plaid_items i ON i.id = a.item_id
+           JOIN users u ON u.id = a.user_id
           WHERE a.id = ? AND a.user_id = ? AND a.hidden = 0`,
         id,
         userId

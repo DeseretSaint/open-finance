@@ -39,6 +39,9 @@ describe("solo bootstrap (P8b)", () => {
     const solo = createSoloBootstrapService(db);
     // Simulate the demo having run on this device.
     await solo.bootstrap({ displayName: "Demo", isDemo: true });
+    const demoUser = await solo.getDeviceUser();
+    await db.run("INSERT INTO accounts (id, user_id, name, type, currency, created_at) VALUES ('demo-account', ?, 'Everyday Checking', 'depository', 'USD', ?)", demoUser!.id, new Date().toISOString());
+    await db.run("INSERT INTO categories (id, user_id, name, created_at) VALUES ('demo-category', ?, 'Groceries', ?)", demoUser!.id, new Date().toISOString());
     expect(await solo.isBootstrapped()).toBe(true);
 
     // Creating an account on the same device must NOT say "already set up".
@@ -60,6 +63,8 @@ describe("solo bootstrap (P8b)", () => {
       user.id
     );
     expect(settings?.onboarding_completed).toBe(0);
+    expect(await db.get("SELECT id FROM accounts WHERE id = 'demo-account'")).toBeUndefined();
+    expect(await db.get("SELECT id FROM categories WHERE id = 'demo-category'")).toBeUndefined();
   });
 
   it("verifies recovery codes case-insensitively and rejects wrong ones", async () => {

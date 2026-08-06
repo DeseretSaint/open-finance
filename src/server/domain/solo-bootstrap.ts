@@ -26,6 +26,23 @@ function now(): string {
   return new Date().toISOString();
 }
 
+/** Remove all finance data from a throwaway demo before upgrading the device. */
+async function clearDemoData(db: Db, userId: string): Promise<void> {
+  await db.transaction(async () => {
+    await db.run("DELETE FROM transactions WHERE account_id IN (SELECT id FROM accounts WHERE user_id = ?)", userId);
+    await db.run("DELETE FROM balance_history WHERE account_id IN (SELECT id FROM accounts WHERE user_id = ?)", userId);
+    await db.run("DELETE FROM budget_categories WHERE budget_id IN (SELECT id FROM budgets WHERE user_id = ?)", userId);
+    await db.run("DELETE FROM budgets WHERE user_id = ?", userId);
+    await db.run("DELETE FROM bills WHERE user_id = ?", userId);
+    await db.run("DELETE FROM debts WHERE user_id = ?", userId);
+    await db.run("DELETE FROM goals WHERE user_id = ?", userId);
+    await db.run("DELETE FROM agent_tokens WHERE user_id = ?", userId);
+    await db.run("DELETE FROM custom_views WHERE user_id = ?", userId);
+    await db.run("DELETE FROM categories WHERE user_id = ?", userId);
+    await db.run("DELETE FROM accounts WHERE user_id = ?", userId);
+  });
+}
+
 /** SHA-256 hex (not for passwords — recovery codes are high-entropy). */
 async function hashSecret(secret: string): Promise<string> {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret));
@@ -94,7 +111,8 @@ export function createSoloBootstrapService(db: Db = getDb()) {
         if (!row || row.is_demo !== 1) {
           throw apiErrors.conflict("This device already has an account — unlock it instead.");
         }
-        // Demo-only device → upgrade to a real account.
+        // Demo-only device → clear the throwaway dataset before upgrading.
+        await clearDemoData(db, existing.id);
         const recoveryCode = randomRecoveryCode();
         const displayName = (input.displayName ?? "This phone").trim().slice(0, 50) || "This phone";
         await db.transaction(async () => {
