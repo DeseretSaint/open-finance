@@ -89,18 +89,24 @@ export async function syncSoloItem(input: SoloSyncInput): Promise<SoloSyncResult
         if (existingMeta?.hidden === 1) continue;
         const details = accountDetails?.find((d) => d.id === a.id);
         const override = await db.get<{ name_override: string | null }>("SELECT name_override FROM accounts WHERE id = ?", existing.id);
+        // App convention: linked credit/loan balances are stored negative (owed).
+        const balanceSign = a.type === "credit" || a.type === "loan" ? -1 : 1;
+        const current = details?.currentBalanceCents == null ? null : details.currentBalanceCents * balanceSign;
+        const available = details?.availableBalanceCents == null ? null : details.availableBalanceCents * balanceSign;
         await db.run(
           "UPDATE accounts SET name = ?, type = ?, mask = ?, item_id = ?, current_balance_cents = ?, available_balance_cents = ?, currency = ? WHERE id = ? AND hidden = 0",
           override?.name_override ?? a.name,
           existingMeta?.type_override === 1 ? existingMeta.type : a.type,
           a.mask,
           itemId,
-          details?.currentBalanceCents ?? null,
-          details?.availableBalanceCents ?? null,
+          current,
+          available,
           details?.currency ?? "USD",
           existing.id
         );
       } else {
+        const newSign = a.type === "credit" || a.type === "loan" ? -1 : 1;
+        const d = accountDetails?.find((dd) => dd.id === a.id);
         await db.run(
           `INSERT INTO accounts (id, user_id, item_id, plaid_account_id, name, type, mask, current_balance_cents, available_balance_cents, currency, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -111,9 +117,9 @@ export async function syncSoloItem(input: SoloSyncInput): Promise<SoloSyncResult
           a.name,
           a.type,
           a.mask,
-          accountDetails?.find((d) => d.id === a.id)?.currentBalanceCents ?? null,
-          accountDetails?.find((d) => d.id === a.id)?.availableBalanceCents ?? null,
-          accountDetails?.find((d) => d.id === a.id)?.currency ?? "USD",
+          d?.currentBalanceCents == null ? null : d.currentBalanceCents * newSign,
+          d?.availableBalanceCents == null ? null : d.availableBalanceCents * newSign,
+          d?.currency ?? "USD",
           new Date().toISOString()
         );
       }

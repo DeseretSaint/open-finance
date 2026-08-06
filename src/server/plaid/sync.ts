@@ -149,10 +149,11 @@ export function createSyncService(db: Db = getDb(), clientFactory: (creds: Plaid
       const rowId = plaidToRow.get(a.id);
       if (!rowId) continue;
       const balance = a.currentBalanceCents ?? a.availableBalanceCents ?? 0;
+      const balanceSign = a.type === "credit" || a.type === "loan" ? -1 : 1;
       await db.run(
       "UPDATE accounts SET current_balance_cents = ?, available_balance_cents = ?, currency = ? WHERE id = ?",
-      a.currentBalanceCents,
-      a.availableBalanceCents,
+      a.currentBalanceCents == null ? null : a.currentBalanceCents * balanceSign,
+      a.availableBalanceCents == null ? null : a.availableBalanceCents * balanceSign,
       a.currency,
       rowId
       );
@@ -162,7 +163,7 @@ export function createSyncService(db: Db = getDb(), clientFactory: (creds: Plaid
         randomUUID(),
         rowId,
         today(),
-        balance
+        balance * balanceSign
       );
     }
 

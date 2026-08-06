@@ -266,6 +266,8 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
     // ── Accounts (manual) ───────────────────────────────────────────────
     if (method === "GET" && path === "/api/accounts") {
       const userId = await h.deviceUserId();
+      const { repairAccountRows } = await import("@/server/domain/account-repair");
+      await repairAccountRows(db, userId);
       if (query.get("deleted") === "1") {
         const rows = await h.accounts.listDeleted(userId);
         return ok({ accounts: rows });

@@ -208,15 +208,30 @@ function RemoteAgentBriefCard({ endpoint, solo }: { endpoint: string; solo: bool
   const [chat, setChat] = useState("");
   const [model, setModel] = useState("Keep the current Hermes model");
   const [copied, setCopied] = useState(false);
-  const target = (solo ? hubEndpoint.trim().replace(/\/$/, "") : endpoint.replace(/\/$/, "")) || "[ENTER THE PAIRED HUB URL]";
-  const brief = `Open Finance remote agent connection request\n\nYou are my finance agent running on my trusted Hermes hub.\n\nOpen Finance hub MCP endpoint: ${target}/api/mcp\nGateway: ${gateway}\nDedicated gateway chat/topic: ${chat || "[SET CHAT OR TOPIC ID]"}\nModel preference: ${model}\n\nComplete this setup on the trusted hub:\n1. Use the hub MCP endpoint above with the Open Finance bearer token I provide separately. Never ask me to paste a provider API key into Open Finance, the phone, or this chat.\n2. Fetch ${target}/api/agent/guide and call get_capabilities first.\n3. Keep access bounded by the current Open Finance Settings; begin read-only and ask before any write.\n4. Configure the gateway to route this dedicated chat/topic (${chat || "the ID I provide"}) to this Hermes session.\n5. If I requested a model change, change the model in Hermes on the hub. Do not store provider credentials in Open Finance or on the phone.\n6. Confirm the connection with a read-only financial summary and do not modify data.`;
+  const target = (solo ? hubEndpoint.trim().replace(/\/$/, "") : endpoint.replace(/\/$/, "")) || "[HUB_URL]";
+  const brief = `Open Finance remote agent connection request
+
+You are my finance agent running on my trusted Hermes hub.
+
+${solo ? "Standalone phone: I cannot see the hub URL from here. Please discover it yourself — check my Tailscale devices for the Open Finance hub (hosted on my hub computer or Mac), or ask me to confirm it. The hub MCP endpoint is: ${target}/api/mcp" : `Open Finance MCP endpoint: ${target}/api/mcp`}
+Gateway: ${gateway}
+Dedicated gateway chat/topic: ${chat || "[SET CHAT OR TOPIC ID]"}
+Model preference: ${model}
+
+Complete this setup on the trusted hub:
+1. Use the hub MCP endpoint above with the Open Finance bearer token I provide separately. Never ask me to paste a provider API key into Open Finance, the phone, or this chat.
+2. Fetch ${target}/api/agent/guide and call get_capabilities first.
+3. Keep access bounded by the current Open Finance Settings; begin read-only and ask before any write.
+4. Configure the gateway to route this dedicated chat/topic (${chat || "the ID I provide"}) to this Hermes session.
+5. If I requested a model change, change the model in Hermes on the hub. Do not store provider credentials in Open Finance or on the phone.
+6. Confirm the connection with a read-only financial summary and do not modify data.`;
   async function copy() {
     try { await navigator.clipboard.writeText(brief); setCopied(true); window.setTimeout(() => setCopied(false), 2200); } catch { /* select manually */ }
   }
   return (
     <Card>
       <CardTitle>Remote agent handoff</CardTitle>
-      <p className="mt-1 text-sm text-text-muted">Copy this token-free brief and send it through the gateway chat you choose. In standalone mode, the hub URL is required because the phone does not host Hermes or MCP.</p>
+      <p className="mt-1 text-sm text-text-muted">Copy this token-free brief and send it through the gateway chat you choose. In standalone mode the hub URL is optional — your agent can discover the hub over Tailscale itself, or ask you to confirm it.</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <CustomSelect ariaLabel="Agent gateway" value={gateway} onChange={setGateway} options={[{ value: "Telegram", label: "Telegram" }, { value: "Discord", label: "Discord" }, { value: "Slack", label: "Slack" }, { value: "Other", label: "Other" }]} />
         <Input aria-label="Gateway chat or topic ID" placeholder="Chat/topic ID" value={chat} onChange={(e) => setChat(e.target.value)} />

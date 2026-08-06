@@ -5,6 +5,7 @@ import { requireCsrf, requireSession } from "@/server/auth/service";
 import { requireSessionOrAgent, agentRoute } from "@/server/authz/agent-auth";
 import { createAccountsService } from "@/server/domain/accounts";
 import { getDb } from "@/server/db/adapter";
+import { repairAccountRows } from "@/server/domain/account-repair";
 
 export const runtime = "nodejs";
 
@@ -28,6 +29,7 @@ export async function GET(req: NextRequest) {
         const accounts = await createAccountsService(getDb()).listDeleted(auth.userId);
         return ok({ accounts });
       }
+      await repairAccountRows(getDb(), auth.userId);
       const accounts = await createAccountsService(getDb()).list(auth.userId);
       return ok({ accounts });
     }
