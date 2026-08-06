@@ -1,6 +1,7 @@
 import { getDb, type Db } from "@/server/db/registry";
 import { addMonthsISO, todayISO } from "@/server/domain/dates";
 import { withAllowlist, type AllowlistCtx } from "@/server/db/allowlist";
+import { markLinkedTransfers } from "@/server/domain/transfers";
 
 /**
  * Reports — aggregates derived from transactions. Every query is user-scoped
@@ -16,6 +17,7 @@ export function createReportsService(db: Db = getDb()) {
       allowlist?: AllowlistCtx | null,
       includeExcluded = false
     ): Promise<Array<{ categoryId: string | null; categoryName: string; color: string | null; spentCents: number }>> {
+      await markLinkedTransfers(db, userId);
       const allow = withAllowlist(allowlist ?? null, "a.id");
       const accountHistoryClause = includeExcluded ? "" : " AND a.deleted_at IS NULL";
       return db.all(
@@ -38,6 +40,7 @@ export function createReportsService(db: Db = getDb()) {
 
     /** One row per month (oldest → newest) for a bounded calendar window. */
     async cashflow(userId: string, months: number, allowlist?: AllowlistCtx | null, from?: string, to?: string, includeExcluded = false): Promise<Array<{ month: string; incomeCents: number; expenseCents: number; netCents: number }>> {
+      await markLinkedTransfers(db, userId);
       const allow = withAllowlist(allowlist ?? null, "a.id");
       const accountHistoryClause = includeExcluded ? "" : " AND a.deleted_at IS NULL";
       const end = to ?? addMonthsISO(todayISO().slice(0, 8) + "01", 1);

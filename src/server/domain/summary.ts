@@ -1,6 +1,7 @@
 import { getDb, type Db } from "@/server/db/registry";
 import { createBudgetsService, frameBounds, monthBounds, type BudgetFrame } from "@/server/domain/budgets";
 import { withAllowlist, type AllowlistCtx } from "@/server/db/allowlist";
+import { markLinkedTransfers } from "@/server/domain/transfers";
 
 /** Dashboard one-call briefing. */
 export interface Summary {
@@ -34,6 +35,9 @@ export function createSummaryService(db: Db = getDb()) {
       frame: BudgetFrame = { kind: "month" },
       includeExcluded = false
     ): Promise<Summary> {
+      // Backfill linked card-payment transfers before calculating totals. This
+      // also corrects transactions imported before transfer detection existed.
+      await markLinkedTransfers(db, userId);
       const { start, end } = frame.kind === "period" ? monthBounds(referenceDate) : frameBounds(frame, referenceDate);
       const allowAccounts = withAllowlist(allowlist ?? null, "id");
       const allowTxns = withAllowlist(allowlist ?? null, "a.id");

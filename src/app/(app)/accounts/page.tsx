@@ -115,9 +115,10 @@ export default function AccountsPage() {
 
   const remove = useMutation({
     mutationFn: (id: string) => api.del(`/api/accounts/${id}`),
-    onSuccess: () => {
-      invalidate();
-      qc.invalidateQueries({ queryKey: ["accounts", "deleted"] });
+    onSuccess: async () => {
+      await qc.refetchQueries({ queryKey: ["accounts"] });
+      await qc.refetchQueries({ queryKey: ["accounts", "deleted"] });
+      qc.invalidateQueries({ queryKey: ["summary"] });
     },
   });
 

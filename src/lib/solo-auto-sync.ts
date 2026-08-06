@@ -10,7 +10,11 @@ export async function syncSoloNow(): Promise<void> {
   try {
     const { isSoloCandidate } = await import("@/lib/mobile-mode");
     if (!isSoloCandidate(window.location.origin)) return;
-    await fetch("/api/transactions/sync", { method: "POST", headers: { "x-of-request": "1" } });
+    // Use the same API client as the app. In solo mode it dispatches through
+    // solo-router; a raw fetch would hit the static-export WebView origin,
+    // where no /api/transactions/sync route exists.
+    const { api } = await import("@/lib/api-client");
+    await api.post("/api/transactions/sync");
   } finally {
     running = false;
   }

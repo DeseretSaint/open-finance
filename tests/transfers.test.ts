@@ -11,10 +11,10 @@ describe("linked account transfers", () => {
     const card = await seedManualAccount(db, user.id, "Credit Card", "credit");
     const now = new Date().toISOString();
     const date = "2026-08-05";
-    for (const [account, amount, name] of [[bank, -50000, "Credit Card Payment"], [card, 50000, "Payment - Thank You"]] as const) {
+    for (const [account, amount, postedDate, name, category] of [[bank, -50000, date, "ACH DEBIT", "Transfer Out"], [card, 50000, "2026-08-10", "CARD PAYMENT", "Transfer In"]] as const) {
       await db.run(
-        `INSERT INTO transactions (id, account_id, amount_cents, date, name, source, created_at) VALUES (?, ?, ?, ?, ?, 'plaid', ?)`,
-        randomUUID(), account, amount, date, name, now
+        `INSERT INTO transactions (id, account_id, amount_cents, date, name, category_path, source, created_at) VALUES (?, ?, ?, ?, ?, ?, 'plaid', ?)`,
+        randomUUID(), account, amount, postedDate, name, category, now
       );
     }
     expect(await markLinkedTransfers(db, user.id)).toBe(2);
