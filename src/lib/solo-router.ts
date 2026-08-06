@@ -16,6 +16,7 @@
  */
 
 import { ApiError, apiErrors } from "@/lib/api-error";
+import { randomUUID } from "@/lib/uuid";
 import type { Db } from "@/server/db/types";
 import { CapSqliteDb } from "@/server/db/cap-sqlite";
 import { registerDbProvider } from "@/server/db/registry";
@@ -39,6 +40,7 @@ export interface SoloRequest {
   path: string; // pathname only, no query string
   query: URLSearchParams;
   body: unknown;
+  headers?: Record<string, string>; // remote (native HTTP server) requests carry these
 }
 
 export interface SoloResponse {
@@ -134,6 +136,22 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
     const B = body as Record<string, unknown> | undefined;
 
     // ── Auth / bootstrap ────────────────────────────────────────────────
+    // Remote requests (native HTTP server over Tailscale) must present the
+    // device's remote-access bearer token. In-app webview calls carry none.
+    const authHeader = req.headers?.authorization ?? "";
+    if (authHeader.startsWith("Bearer ")) {
+      const presented = authHeader.slice("Bearer ".length).trim();
+      const stored = await db.get<{ value: string }>(
+        "SELECT value FROM app_state WHERE key = 'remote.agent.token'"
+      );
+      const valid = stored && presented.length > 0 && stored.value === presented;
+      if (!valid) {
+        return { status: 401, data: { error: { code: "unauthorized", message: "Invalid remote access token." } } };
+      }
+    } else if (authHeader) {
+      return { status: 401, data: { error: { code: "unauthorized", message: "Bearer token required for remote access." } } };
+    }
+
     if (method === "POST" && path === "/api/auth/register") {
       const result = await h.solo.bootstrap({
         displayName: typeof B?.display_name === "string" ? B.display_name : undefined,
@@ -327,6 +345,7 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         to: query.get("to") ?? undefined,
         categoryId: query.get("categoryId") ?? undefined,
         q: query.get("q") ?? undefined,
+        pendingOnly: query.get("pending") === "1" || query.get("pending") === "true",
         limit: Number(query.get("limit") ?? 50),
         offset: Number(query.get("offset") ?? 0),
       };
@@ -727,6 +746,27 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         if (typeof B?.requireWriteConfirm === "boolean") patch.requireWriteConfirm = B.requireWriteConfirm;
         if (typeof B?.auditEnabled === "boolean") patch.auditEnabled = B.auditEnabled;
         return ok({ prefs: await svc.update(userId, patch) });
+      }
+    }
+
+    // ── Remote access (agent connects directly to this phone over Tailscale) ──
+    if (path === "/api/agent/remote" || path === "/api/agent/remote/enable" || path === "/api/agent/remote/disable") {
+      if (method === "GET") {
+        const row = await db.get<{ value: string }>("SELECT value FROM app_state WHERE key = 'remote.agent.token'");
+        return ok({ enabled: !!row, port: 8787, token: row?.value ?? null });
+      }
+      if (method === "POST" && path === "/api/agent/remote/enable") {
+        let row = await db.get<{ value: string }>("SELECT value FROM app_state WHERE key = 'remote.agent.token'");
+        if (!row) {
+          const token = randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
+          await db.run("INSERT INTO app_state (key, value, updated_at) VALUES ('remote.agent.token', ?, ?)", token, new Date().toISOString());
+          row = { value: token };
+        }
+        return ok({ token: row.value, port: 8787 });
+      }
+      if (method === "POST" && path === "/api/agent/remote/disable") {
+        await db.run("DELETE FROM app_state WHERE key = 'remote.agent.token'");
+        return ok({ ok: true });
       }
     }
 

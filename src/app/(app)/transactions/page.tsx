@@ -25,6 +25,7 @@ interface Txn {
   category_name: string | null;
   category_color: string | null;
   exclude_from_budgets: number;
+  pending: number;
   source: string;
 }
 
@@ -56,6 +57,7 @@ export default function TransactionsPage() {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [accountId, setAccountId] = useState("");
+  const [pendingOnly, setPendingOnly] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -65,8 +67,9 @@ export default function TransactionsPage() {
     const p = new URLSearchParams({ limit: "100" });
     if (q.trim()) p.set("q", q.trim());
     if (accountId) p.set("accountId", accountId);
+    if (pendingOnly) p.set("pending", "1");
     return p.toString();
-  }, [q, accountId]);
+  }, [q, accountId, pendingOnly]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["transactions", params],
@@ -161,6 +164,23 @@ export default function TransactionsPage() {
               options={(accounts.data?.accounts ?? []).map((a) => ({ value: a.id, label: a.name }))}
             />
           </div>
+          <button
+            type="button"
+            aria-pressed={pendingOnly}
+            onClick={() => setPendingOnly((v) => !v)}
+            className={`flex h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors ${
+              pendingOnly
+                ? "border-accent bg-accent/15 text-accent"
+                : "border-border bg-surface text-text-muted hover:text-text"
+            }`}
+          >
+            {pendingOnly && (
+              <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 6.5L4.5 9L10 3" />
+              </svg>
+            )}
+            Pending
+          </button>
           <span className="text-sm text-text-muted">{data ? `${data.total} transaction${data.total === 1 ? "" : "s"}` : "…"}</span>
         </div>
       </Card>
@@ -311,14 +331,15 @@ export default function TransactionsPage() {
         ) : data.rows.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <p className="text-sm text-text-muted">
-              {q || accountId ? "No transactions match your filters." : "No transactions yet."}
+              {q || accountId || pendingOnly ? "No transactions match your filters." : "No transactions yet."}
             </p>
-            {(q || accountId) && (
+            {(q || accountId || pendingOnly) && (
               <button
                 className="mt-1 text-sm font-medium text-accent hover:underline"
                 onClick={() => {
                   setQ("");
                   setAccountId("");
+                  setPendingOnly(false);
                 }}
               >
                 Clear filters
@@ -348,6 +369,11 @@ export default function TransactionsPage() {
                       <span className="flex items-center justify-between gap-3">
                         <span className="min-w-0 truncate text-[15px] font-medium text-text">
                           {t.name}
+                          {t.pending === 1 && (
+                            <span className="ml-2 rounded bg-[var(--warning-soft)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--warning)]">
+                              pending
+                            </span>
+                          )}
                           {t.exclude_from_budgets === 1 && (
                             <span className="ml-2 rounded bg-surface-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-muted">
                               excluded

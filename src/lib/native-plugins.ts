@@ -19,4 +19,20 @@ export function ensureNativePlugins(): void {
   if (!cap?.registerPlugin) return; // plain web / PWA — no native bridge
   if (!w.PlaidProxy) w.PlaidProxy = cap.registerPlugin("PlaidProxy");
   if (!w.Keystore) w.Keystore = cap.registerPlugin("Keystore");
+  if (!w.RemoteServer) w.RemoteServer = cap.registerPlugin("RemoteServer");
+  // Remote-agent bridge: the native HTTP server calls this with the parsed
+  // request; we dispatch it through the same solo router the webview uses.
+  if (!w.__ofRemoteDispatch) {
+    w.__ofRemoteDispatch = async (req: { method: string; path: string; query: string; body: unknown; headers?: Record<string, string> }) => {
+      const { soloDispatch } = await import("@/lib/solo-router");
+      const url = new URL(req.path + (req.query ? `?${req.query}` : ""), "http://solo.local");
+      return soloDispatch({
+        method: req.method,
+        path: url.pathname,
+        query: url.searchParams,
+        body: req.body === null || req.body === undefined ? undefined : req.body,
+        headers: req.headers,
+      });
+    };
+  }
 }

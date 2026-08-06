@@ -32,6 +32,7 @@ export interface TransactionFilters {
   to?: string;
   categoryId?: string | null; // null = uncategorized only (agent smart categorization)
   q?: string;
+  pendingOnly?: boolean;
   limit: number;
   offset: number;
 }
@@ -80,6 +81,9 @@ export function createTransactionsService(db: Db = getDb()) {
         where.push("(t.name LIKE ? OR t.merchant_name LIKE ? OR t.category_path LIKE ?)");
         const like = `%${f.q}%`;
         params.push(like, like, like);
+      }
+      if (f.pendingOnly) {
+        where.push("t.pending = 1");
       }
       const whereSql = where.join(" AND ");
 

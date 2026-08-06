@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { PairingSection } from "@/components/pairing-section";
 import { isSoloCandidate } from "@/lib/mobile-mode";
 
 /* ── types ─────────────────────────────────────────────────────────────── */
@@ -145,8 +144,14 @@ function HermesSetupCard({ endpoint, solo, setMsg, setErr }: { endpoint: string;
       </div>
       {solo ? (
         <div className="mt-4 rounded-xl bg-surface-muted p-4">
-          <p className="text-sm text-text">This phone is running standalone mode. Pair it to your hub first; the hub hosts Hermes, the MCP endpoint, and the token permissions.</p>
-          <p className="mt-2 text-xs text-text-muted">After pairing, open Agents on the hub to generate the secure Hermes connection.</p>
+          <p className="text-sm text-text">
+            This phone runs standalone mode. Hermes itself still runs on your hub or Mac — but it connects{" "}
+            <strong className="text-text">directly to this phone over Tailscale</strong> (port 8787), so no separate
+            Open Finance install on the hub is needed.
+          </p>
+          <p className="mt-2 text-xs text-text-muted">
+            Turn on Direct remote access below, then use the handoff brief to point your agent at this phone.
+          </p>
         </div>
       ) : !createdToken ? (
         <div className="mt-4 rounded-xl bg-surface-muted p-4">
@@ -204,16 +209,43 @@ function HermesSetupCard({ endpoint, solo, setMsg, setErr }: { endpoint: string;
 
 function RemoteAgentBriefCard({ endpoint, solo }: { endpoint: string; solo: boolean }) {
   const [gateway, setGateway] = useState("Telegram");
-  const [hubEndpoint, setHubEndpoint] = useState("");
   const [chat, setChat] = useState("");
   const [model, setModel] = useState("Keep the current Hermes model");
   const [copied, setCopied] = useState(false);
-  const target = (solo ? hubEndpoint.trim().replace(/\/$/, "") : endpoint.replace(/\/$/, "")) || "[HUB_URL]";
-  const brief = `Open Finance remote agent connection request
+  const [remoteToken, setRemoteToken] = useState("");
+  const [remoteEnabled, setRemoteEnabled] = useState(false);
+  useEffect(() => {
+    if (!solo) return;
+    api
+      .get<{ enabled: boolean; port: number; token: string | null }>("/api/agent/remote")
+      .then((r) => {
+        setRemoteEnabled(r.enabled);
+        setRemoteToken(r.token ?? "");
+      })
+      .catch(() => {});
+  }, [solo]);
+  const target = solo ? "" : endpoint.replace(/\/$/, "");
+  const authLine = remoteToken
+    ? "Authenticate every request with the HTTP header:\n   Authorization: Bearer " + remoteToken
+    : "Authenticate every request with the HTTP header: Authorization: Bearer <remote access token from the Open Finance Agents page>";
+  const brief = solo
+    ? `Open Finance remote agent connection request
+
+You are my finance agent running on my trusted agent hub (Hermes on my hub computer or Mac).
+
+Connect DIRECTLY to my Open Finance phone over Tailscale. The phone runs Open Finance itself — there is no separate Open Finance install on a hub to find.
+
+1. Reach the phone at its Tailscale address on port 8787 (find the phone in your Tailscale device list, or ask me to confirm its address). Example base: http://<phone-tailscale-address>:8787
+2. ${authLine}
+3. The phone answers the standard Open Finance REST API: GET /api/summary, GET /api/accounts, GET /api/transactions, GET /api/budgets, GET /api/categories, GET /api/reports/*.
+4. Start read-only: fetch the summary and account list, and confirm what you can see before acting. Ask before any write (categories, budgets, transactions).
+5. Gateway: ${gateway} · dedicated chat/topic: ${chat || "[SET CHAT OR TOPIC ID]"} · model preference: ${model} (change it in Hermes on the hub).
+6. Keep provider credentials in Hermes on the hub — never store them in Open Finance, on the phone, or in this chat. The phone stores no provider API keys.`
+    : `Open Finance remote agent connection request
 
 You are my finance agent running on my trusted Hermes hub.
 
-${solo ? "Standalone phone: I cannot see the hub URL from here. Please discover it yourself — check my Tailscale devices for the Open Finance hub (hosted on my hub computer or Mac), or ask me to confirm it. The hub MCP endpoint is: ${target}/api/mcp" : `Open Finance MCP endpoint: ${target}/api/mcp`}
+Open Finance MCP endpoint: ${target}/api/mcp
 Gateway: ${gateway}
 Dedicated gateway chat/topic: ${chat || "[SET CHAT OR TOPIC ID]"}
 Model preference: ${model}
@@ -231,15 +263,145 @@ Complete this setup on the trusted hub:
   return (
     <Card>
       <CardTitle>Remote agent handoff</CardTitle>
-      <p className="mt-1 text-sm text-text-muted">Copy this token-free brief and send it through the gateway chat you choose. In standalone mode the hub URL is optional — your agent can discover the hub over Tailscale itself, or ask you to confirm it.</p>
+      {solo ? (
+        <p className="mt-1 text-sm text-text-muted">
+          Copy this token-free brief and send it through the gateway chat you choose. Your agent connects{" "}
+          <strong className="text-text">directly to this phone over Tailscale</strong> (port 8787) — no Open Finance
+          install on a hub is needed.
+        </p>
+      ) : (
+        <p className="mt-1 text-sm text-text-muted">
+          Copy this token-free brief and send it through the gateway chat you choose. It points your agent at this
+          hub&apos;s Open Finance MCP endpoint.
+        </p>
+      )}
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <CustomSelect ariaLabel="Agent gateway" value={gateway} onChange={setGateway} options={[{ value: "Telegram", label: "Telegram" }, { value: "Discord", label: "Discord" }, { value: "Slack", label: "Slack" }, { value: "Other", label: "Other" }]} />
         <Input aria-label="Gateway chat or topic ID" placeholder="Chat/topic ID" value={chat} onChange={(e) => setChat(e.target.value)} />
-        {solo && <Input aria-label="Paired hub URL" placeholder="Paired hub URL, e.g. http://192.168.1.20:3000" value={hubEndpoint} onChange={(e) => setHubEndpoint(e.target.value)} />}
+        {solo && (
+          <div className="rounded-lg border border-border bg-surface-muted/40 px-3 py-2 text-xs text-text-muted sm:col-span-2">
+            {remoteEnabled ? (
+              <>
+                <span className="font-medium text-text">Remote access enabled</span> — the phone listens on{" "}
+                <span className="font-mono text-accent">port 8787</span> over Tailscale. Token:{" "}
+                <span className="break-all font-mono text-text">{remoteToken || "…"}</span>
+              </>
+            ) : (
+              <>
+                Remote access is <span className="font-medium text-text">off</span>. Turn it on below to let your agent
+                reach this phone directly over Tailscale.
+              </>
+            )}
+          </div>
+        )}
         <Input aria-label="Preferred Hermes model" placeholder="e.g. current Hermes model" value={model} onChange={(e) => setModel(e.target.value)} />
       </div>
       <textarea aria-label="Remote agent handoff text" readOnly value={brief} className="mt-3 min-h-64 w-full resize-y rounded-xl border border-border bg-background p-3 text-xs leading-5 text-text" />
       <div className="mt-3 flex flex-wrap items-center gap-2"><Button onClick={copy}><Copy size={14} /> {copied ? "Copied" : "Copy handoff text"}</Button><span className="text-xs text-text-muted">Gateway and model credentials stay in Hermes.</span></div>
+    </Card>
+  );
+}
+
+/* ── Remote access control (solo phone → agent hub over Tailscale) ───── */
+
+function RemoteAccessCard() {
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [token, setToken] = useState("");
+  const [starting, setStarting] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const refresh = () =>
+    api
+      .get<{ enabled: boolean; port: number; token: string | null }>("/api/agent/remote")
+      .then((r) => {
+        setEnabled(r.enabled);
+        setToken(r.token ?? "");
+      })
+      .catch(() => setEnabled(false));
+
+  useEffect(() => {
+    void refresh();
+  }, []);
+
+  async function startRemoteServer() {
+    try {
+      const w = window as unknown as { RemoteServer?: { start?: (o: { port: number }) => Promise<unknown> } };
+      const plugin = w.RemoteServer;
+      if (plugin?.start) await plugin.start({ port: 8787 });
+    } catch {
+      // Native plugin missing (plain web) — the token still works for tests.
+    }
+  }
+  async function stopRemoteServer() {
+    try {
+      const w = window as unknown as { RemoteServer?: { stop?: () => Promise<unknown> } };
+      const plugin = w.RemoteServer;
+      if (plugin?.stop) await plugin.stop();
+    } catch {
+      // ignore
+    }
+  }
+
+  async function enable() {
+    setStarting(true);
+    setMsg(null);
+    try {
+      const r = await api.post<{ token: string; port: number }>("/api/agent/remote/enable");
+      setToken(r.token);
+      await startRemoteServer();
+      setEnabled(true);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Failed to enable remote access.");
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  async function disable() {
+    setStarting(true);
+    setMsg(null);
+    try {
+      await api.post("/api/agent/remote/disable");
+      await stopRemoteServer();
+      setEnabled(false);
+      setToken("");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Failed to disable remote access.");
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardTitle>Direct remote access (Tailscale)</CardTitle>
+      <p className="mt-1 text-sm text-text-muted">
+        Lets your agent hub connect <strong className="text-text">directly to this phone</strong> over Tailscale on port
+        8787 — the phone itself serves Open Finance, no hub install required. Requests must present the bearer token.
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <Button onClick={enabled ? disable : enable} disabled={starting || enabled === null}>
+          {starting ? "Working…" : enabled ? "Disable remote access" : "Enable remote access"}
+        </Button>
+        {enabled && (
+          <span className="rounded-full bg-accent/10 px-3 py-1 text-xs font-medium text-accent">● Listening on 8787</span>
+        )}
+      </div>
+      {msg && <p role="alert" className="mt-2 text-sm text-danger">{msg}</p>}
+      {enabled && token && (
+        <div className="mt-3 rounded-xl bg-surface-muted px-4 py-3 text-xs text-text-muted">
+          <p className="font-medium text-text">Bearer token (device-local, like your recovery code):</p>
+          <p className="mt-1 break-all font-mono text-text">{token}</p>
+          <p className="mt-2">
+            Your agent reaches this phone at <span className="font-mono text-accent">http://&lt;phone-tailscale-address&gt;:8787</span>.
+            Find the phone in your Tailscale device list — the phone can&apos;t see its own address from here.
+          </p>
+        </div>
+      )}
+      <p className="mt-3 text-xs text-text-muted">
+        Everything stays on your devices: Tailscale provides the private encrypted route; the token gates access; provider
+        credentials stay in Hermes on the hub.
+      </p>
     </Card>
   );
 }
@@ -386,30 +548,31 @@ export default function AgentsPage() {
         </div>
 
         <HermesSetupCard endpoint={endpoint} solo={solo} setMsg={setMsg} setErr={setErr} />
+        {solo && <RemoteAccessCard />}
         <RemoteAgentBriefCard endpoint={endpoint} solo={solo} />
 
         {solo ? (
           <Card>
-            <CardTitle>This phone’s agent connection uses a hub (optional)</CardTitle>
+            <CardTitle>This phone’s agent connection (direct over Tailscale)</CardTitle>
             <ol className="mt-3 list-inside list-decimal space-y-2 text-sm text-text">
               <li>
                 <div className="inline">
-                  <strong className="text-text">Install Open Finance on your hub computer</strong> and choose Hub mode.
-                  Install Tailscale on both devices if you want access away from home. Then scan the QR code the hub
-                  shows on its pair page (or type its URL) right here:
-                </div>
-                <div className="mt-2">
-                  <PairingSection compact />
+                  <strong className="text-text">Install Tailscale on this phone</strong> and on your agent hub (your
+                  computer or Mac). The phone then has a private Tailscale address — that is the endpoint your agent
+                  reaches. No Open Finance install on the hub is needed; this phone serves Open Finance itself.
                 </div>
               </li>
               <li>
-                On the hub computer, open its <strong className="text-text">Agents</strong> tab. Create the agent token
-                there; the hub hosts the MCP endpoint, permissions, and audit log.
+                Turn on <strong className="text-text">Direct remote access</strong> above — it starts the phone&apos;s
+                listener on port 8787 and shows the bearer token.
               </li>
-              <li>Point your agent at the hub&apos;s MCP endpoint with the token you created. Tailscale provides the private route; it does not replace the token.</li>
+              <li>
+                Point your agent at <span className="font-mono text-accent">http://&lt;phone-tailscale-address&gt;:8787</span>{" "}
+                with the bearer token. Tailscale provides the private encrypted route; it does not replace the token.
+              </li>
             </ol>
             <div className="mt-4 rounded-xl bg-surface-muted px-4 py-3 text-xs text-text-muted">
-              Everything stays on your machines — the hub never leaves your network.
+              Everything stays on your devices — the phone never leaves your Tailscale network.
             </div>
           </Card>
         ) : (

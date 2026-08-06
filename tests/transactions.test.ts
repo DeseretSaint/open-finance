@@ -48,6 +48,25 @@ describe("transactions", () => {
     expect(rows).toHaveLength(2);
   });
 
+  it("filters pendingOnly to pending transactions", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const acc = await seedManualAccount(db, user.id);
+    const svc = createTransactionsService(db);
+    await svc.createManual(user.id, { accountId: acc, amountCents: -2000, date: "2026-02-01", name: "Paycheck" });
+    await db.run(
+      `INSERT INTO transactions (id, account_id, plaid_transaction_id, amount_cents, date, name, pending, source, created_at)
+       VALUES ('pend-1', ?, 'plaid-pend', 850, '2026-02-06', 'Pending Coffee', 1, 'plaid', '2026-02-06T00:00:00.000Z')`,
+      acc
+    );
+    const all = await svc.list(user.id, { limit: 50, offset: 0 });
+    expect(all.total).toBe(2);
+    const pending = await svc.list(user.id, { limit: 50, offset: 0, pendingOnly: true });
+    expect(pending.total).toBe(1);
+    expect(pending.rows[0].name).toBe("Pending Coffee");
+    expect(pending.rows[0].pending).toBe(1);
+  });
+
   it("searches by name", async () => {
     const { svc, user } = await seed(createTestDb());
     const { rows } = await svc.list(user.id, { limit: 50, offset: 0, q: "star" });

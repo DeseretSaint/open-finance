@@ -14,6 +14,7 @@ const listSchema = z.object({
   to: z.string().optional(),
   categoryId: z.string().optional(),
   q: z.string().optional(),
+  pending: z.coerce.boolean().optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
@@ -40,7 +41,11 @@ export async function GET(req: NextRequest) {
       throw apiErrors.badRequest(parsed.error.issues.map((i) => i.message).join("; "));
     }
     const userId = auth.kind === "agent" ? auth.ctx.userId : auth.userId;
-    const filters = { ...parsed.data, accountIds: auth.kind === "agent" ? auth.ctx.accountIds : undefined };
+    const filters = {
+      ...parsed.data,
+      accountIds: auth.kind === "agent" ? auth.ctx.accountIds : undefined,
+      pendingOnly: parsed.data.pending === true,
+    };
     const result = await createTransactionsService(getDb()).list(userId, filters);
     return ok(result);
   })(req, { params: Promise.resolve({}) });
