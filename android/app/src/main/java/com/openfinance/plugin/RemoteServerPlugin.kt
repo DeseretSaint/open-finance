@@ -40,7 +40,7 @@ class RemoteServerPlugin : Plugin() {
 
     @PluginMethod
     fun start(call: PluginCall) {
-        val port = call.getInt("port", 8787)
+        val port = call.getInt("port", 8787) ?: 8787
         if (serverSocket != null) {
             call.resolve(JSObject().put("ok", true).put("port", port))
             return
