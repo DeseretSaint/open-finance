@@ -25,6 +25,7 @@
 
 package com.openfinance.app
 
+import android.app.ActivityManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -130,6 +131,14 @@ class RemoteServerService : Service() {
         executor = Executors.newCachedThreadPool()
         Thread {
             try {
+                // Bind to all interfaces (0.0.0.0) so the agent can reach the
+                // phone over Tailscale (packets arrive destined for the
+                // device's 100.x.y.z address, not loopback) AND over a LAN if
+                // the user is on one. Exposure is controlled by the bearer-token
+                // gate in solo-router (every remote request must present it),
+                // not by the bind interface — binding loopback would break
+                // Tailscale connectivity. The port only listens while remote
+                // access is enabled, and the token is device-local.
                 val ss = ServerSocket(port)
                 serverSocket = ss
                 Log.i("RemoteServer", "listening on $port")
@@ -188,6 +197,13 @@ class RemoteServerService : Service() {
                 .put("headers", JSONObject(headers))
                 .toString()
 
+            // If the app is backgrounded, Android freezes the WebView renderer
+            // (timer throttling + paused JS event loop), so the bridge dispatched
+            // below would never run and time out → 503. Bring the app to the
+            // foreground first so the renderer wakes and can answer. This is what
+            // the user does manually ("open the app and keep it up"); we automate it.
+            wakeAppIfBackgrounded()
+
             val resultJson = dispatcher?.invoke(requestJson)
             val out = client.getOutputStream()
             if (resultJson == null) {
@@ -207,6 +223,45 @@ class RemoteServerService : Service() {
                 client.close()
             } catch (_: Exception) {
             }
+        }
+    }
+
+    /**
+     * True when the app is not in the foreground. A backgrounded app has its
+     * WebView renderer throttled/frozen by Android, which makes the JS bridge
+     * unreliable (requests time out → 503). We use the process importance flag,
+     * which is the signal Android itself uses for foreground/background.
+     */
+    private fun isAppBackgrounded(): Boolean {
+        val am = getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return false
+        val procs = am.runningAppProcesses ?: return true
+        for (proc in procs) {
+            if (proc.processName == packageName) {
+                return proc.importance != ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+            }
+        }
+        return true
+    }
+
+    /**
+     * If the app is backgrounded, bring its task to the foreground so the WebView
+     * renderer wakes and can service the bridge request. Without this, the agent's
+     * writes "doze off" because the renderer is frozen. This mirrors what the user
+     * does manually (open the app and keep it up) — but automatic.
+     */
+    private fun wakeAppIfBackgrounded() {
+        if (!isAppBackgrounded()) return
+        try {
+            val launch = packageManager.getLaunchIntentForPackage(packageName)
+            if (launch != null) {
+                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                startActivity(launch)
+                // Give the renderer a moment to spin back up before we dispatch.
+                Thread.sleep(400)
+            }
+        } catch (_: Exception) {
+            // Best-effort: if we can't wake it, the dispatch will still try and
+            // may 503 — the agent retries.
         }
     }
 

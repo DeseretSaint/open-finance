@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarRange, Trash2, X } from "lucide-react";
+import { CalendarRange, ChevronDown, Trash2, X } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/badge";
@@ -27,6 +27,16 @@ interface Budget {
   pct: number;
   categoryIds: string[];
   categoryNames: string[];
+}
+
+interface BudgetTxn {
+  id: string;
+  name: string;
+  date: string;
+  amount_cents: number;
+  account_name: string | null;
+  category_name: string | null;
+  pending?: number;
 }
 
 interface Category {
@@ -60,6 +70,65 @@ function BudgetsSkeleton() {
       {[0, 1, 2].map((i) => (
         <div key={i} className="skeleton h-36" />
       ))}
+    </div>
+  );
+}
+
+/** Lazy-loaded transaction list shown when a budget card is expanded. */
+function BudgetTxnList({
+  budgetId,
+  params,
+  frameKey,
+}: {
+  budgetId: string;
+  params: URLSearchParams;
+  frameKey: unknown[];
+}) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["budget-transactions", budgetId, ...frameKey],
+    queryFn: () =>
+      api.get<{ transactions: BudgetTxn[] }>(`/api/budgets/${budgetId}/transactions?${params.toString()}`),
+  });
+
+  if (isLoading) {
+    return <div className="mt-3 space-y-2 border-t border-border pt-3"><div className="skeleton h-10" /><div className="skeleton h-10" /></div>;
+  }
+  if (error) {
+    return (
+      <p role="alert" className="mt-3 border-t border-border pt-3 text-xs text-danger">
+        Couldn&apos;t load transactions.
+      </p>
+    );
+  }
+  const txns = data?.transactions ?? [];
+  if (txns.length === 0) {
+    return (
+      <p className="mt-3 border-t border-border pt-3 text-xs text-text-muted">
+        No transactions in this period.
+      </p>
+    );
+  }
+  return (
+    <div className="mt-3 border-t border-border pt-3">
+      <p className="mb-2 text-xs font-medium text-text-muted">Transactions</p>
+      <ul className="space-y-1.5">
+        {txns.map((t) => (
+          <li key={t.id} className="flex items-center justify-between gap-2 text-sm">
+            <span className="min-w-0">
+              <span className="block truncate text-text">{t.name}</span>
+              <span className="block text-xs text-text-muted">
+                {t.date}
+                {t.account_name ? ` · ${t.account_name}` : ""}
+                {t.category_name ? ` · ${t.category_name}` : ""}
+                {t.pending ? " · pending" : ""}
+              </span>
+            </span>
+            <span className="money shrink-0 text-text">
+              −<Money cents={-t.amount_cents} />
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -99,6 +168,7 @@ export default function BudgetsPage() {
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
 
   const invalidate = () => {
@@ -222,7 +292,7 @@ export default function BudgetsPage() {
               {frame === "period" ? "This month's pool" : `${FRAME_LABELS[frame]} pool`}
             </CardTitle>
             <p className="mt-1 text-xs text-text-muted">
-              Income in the period, minus what you&apos;ve spent — it dwindles as expenses come in.
+              Income in the period, minus what you&apos;ve spent — it dwindles as expenses come in. This is your safe-to-spend pool.
             </p>
           </div>
           {summary.data && (
@@ -240,7 +310,7 @@ export default function BudgetsPage() {
                 </p>
               </div>
               <div className="min-w-0">
-                <p className="text-xs text-text-muted">Remaining</p>
+                <p className="text-xs text-text-muted">Safe to spend</p>
                 <p className={`money truncate text-xl font-bold sm:text-2xl ${summary.data.summary.monthNetCents >= 0 ? "text-text" : "text-danger"}`}>
                   <Money cents={summary.data.summary.monthNetCents} signed />
                 </p>
@@ -260,10 +330,25 @@ export default function BudgetsPage() {
                 style={{
                   width: `${Math.min(100, (summary.data.summary.monthExpenseCents / Math.max(1, summary.data.summary.monthIncomeCents)) * 100)}%`,
                   background:
-                    summary.data.summary.monthNetCents >= 0 ? "var(--accent)" : "var(--danger)",
+                    summary.data.summary.monthNetCents < 0
+                      ? "var(--danger)"
+                      : summary.data.summary.monthExpenseCents / Math.max(1, summary.data.summary.monthIncomeCents) >= 0.85
+                        ? "var(--warning)"
+                        : "var(--accent)",
                 }}
               />
             </div>
+            {summary.data.summary.monthNetCents >= 0 && (frame === "month" || frame === "period") && (
+              (() => {
+                const daysLeft = Math.max(1, new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate() - new Date().getDate() + 1);
+                const perDayCents = Math.floor(summary.data!.summary.monthNetCents / daysLeft);
+                return (
+                  <p className="mt-2 text-xs text-text-muted">
+                    About <span className="font-medium text-text"><Money cents={perDayCents} /></span> per day left this month.
+                  </p>
+                );
+              })()
+            )}
           </div>
         )}
       </Card>
@@ -274,7 +359,9 @@ export default function BudgetsPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {data.budgets.map((b) => {
             const over = b.pct > 1;
+            const near = !over && b.pct >= 0.85;
             const periodLabel = b.period === "weekly" ? "/week" : b.period === "yearly" ? "/year" : "/mo";
+            const expanded = expandedId === b.id;
             return (
               <Card key={b.id}>
                 <div className="flex items-start justify-between gap-2">
@@ -284,18 +371,30 @@ export default function BudgetsPage() {
                       {b.categoryNames.length > 0 ? b.categoryNames.join(", ") : "Uncategorized"}
                     </p>
                   </div>
-                  <button
-                    aria-label={`Delete budget ${b.name}`}
-                    title="Delete budget"
-                    onClick={() => setConfirmDelete({ id: b.id, name: b.name })}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-[var(--danger-soft)] hover:text-danger"
-                  >
-                    <Trash2 size={15} />
-                  </button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      aria-label={expanded ? `Collapse ${b.name} transactions` : `Expand ${b.name} transactions`}
+                      title={expanded ? "Collapse" : "See transactions"}
+                      onClick={() => setExpandedId(expanded ? null : b.id)}
+                      className={`flex h-9 w-9 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-muted hover:text-text ${
+                        expanded ? "rotate-180 bg-surface-muted text-text" : ""
+                      }`}
+                    >
+                      <ChevronDown size={15} />
+                    </button>
+                    <button
+                      aria-label={`Delete budget ${b.name}`}
+                      title="Delete budget"
+                      onClick={() => setConfirmDelete({ id: b.id, name: b.name })}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-[var(--danger-soft)] hover:text-danger"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 </div>
                 <div className="mt-4">
                   <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 text-sm">
-                    <span className={`money min-w-0 ${over ? "font-medium text-danger" : "text-text"}`}>
+                    <span className={`money min-w-0 ${over ? "font-medium text-danger" : near ? "font-medium text-[var(--warning)]" : "text-text"}`}>
                       <Money cents={b.spentCents} /> of <Money cents={b.amount_cents} />
                       <span className="text-xs text-text-muted">{periodLabel}</span>
                     </span>
@@ -312,7 +411,17 @@ export default function BudgetsPage() {
                     </span>
                   </div>
                   <Progress value={b.pct} />
+                  {near && (
+                    <p className="mt-1.5 text-xs text-[var(--warning)]">Near limit — {Math.round(b.pct * 100)}% used.</p>
+                  )}
                 </div>
+                {expanded && (
+                  <BudgetTxnList
+                    budgetId={b.id}
+                    params={params}
+                    frameKey={[frame, customStart, customEnd, includePending]}
+                  />
+                )}
               </Card>
             );
           })}

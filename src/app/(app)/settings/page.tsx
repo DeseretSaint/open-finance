@@ -7,6 +7,7 @@ import jsQR from "jsqr";
 import { Moon, Sun, ExternalLink } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
+import { SettingsGroup } from "@/components/ui/settings-group";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -90,6 +91,8 @@ export default function SettingsPage() {
   const [environment, setEnvironment] = useState<"sandbox" | "production">("sandbox");
   const [linkToken, setLinkToken] = useState<string | null>(null);
   const [linking, setLinking] = useState(false);
+  const [reconnectItemId, setReconnectItemId] = useState<string | null>(null);
+  const [reconnectingItem, setReconnectingItem] = useState<string | null>(null);
   const [showPlaidHelp, setShowPlaidHelp] = useState(false);
 
   const saveCreds = useMutation({
@@ -146,81 +149,81 @@ export default function SettingsPage() {
   });
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      <p className="text-xs text-text-muted lg:col-span-2">Build 0.3.7</p>
-      <Card>
-        <CardTitle>Profile</CardTitle>
-        <form
-          className="mt-4 space-y-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            saveName.mutate();
-          }}
-        >
-          <Input placeholder="Display name" value={displayName || (me.data?.user.display_name ?? "")} onChange={(e) => setDisplayName(e.target.value)} />
-          <Button type="submit" disabled={saveName.isPending || !displayName}>
-            Save display name
-          </Button>
-        </form>
+    <div className="space-y-8">
+      <p className="text-xs text-text-muted">Build 0.3.7</p>
 
-        {solo ? (
-          <div className="mt-6 rounded-xl bg-surface-muted px-4 py-3 text-xs text-text-muted">
-            This phone is protected by your <strong className="text-text">device PIN</strong> (and optionally
-            fingerprint / face) instead of a password. To change it, use{" "}
-            <strong className="text-text">Reset PIN</strong> in Notifications &amp; security below — you&apos;ll need
-            your recovery code.
-          </div>
-        ) : (
-          <>
-            <h4 className="mt-6 text-sm font-semibold text-text">Change password</h4>
-            <form
-              className="mt-2 space-y-3"
-              onSubmit={(e) => {
-                e.preventDefault();
-                changePassword.mutate();
-              }}
-            >
-              <Input type="password" placeholder="Current password" value={cur} onChange={(e) => setCur(e.target.value)} />
-              <Input type="password" placeholder="New password" value={next} onChange={(e) => setNext(e.target.value)} />
-              <Button type="submit" variant="secondary" disabled={changePassword.isPending || !cur || !next}>
-                Change password
-              </Button>
-            </form>
-          </>
-        )}
-      </Card>
+      <SettingsGroup title="Account" description="Your identity and active sessions.">
+        <Card>
+          <CardTitle>Profile</CardTitle>
+          <form
+            className="mt-4 space-y-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              saveName.mutate();
+            }}
+          >
+            <Input placeholder="Display name" value={displayName || (me.data?.user.display_name ?? "")} onChange={(e) => setDisplayName(e.target.value)} />
+            <Button type="submit" disabled={saveName.isPending || !displayName}>
+              Save display name
+            </Button>
+          </form>
 
-      <NotificationsSecurityCard setMsg={setMsg} setErr={setErr} />
-
-      <PaydaysCard setMsg={setMsg} setErr={setErr} />
-
-      <HubPanel setMsg={setMsg} setErr={setErr} />
-
-      <AgentWiringCard setMsg={setMsg} setErr={setErr} />
-
-      <CategoriesCard setMsg={setMsg} setErr={setErr} />
-
-      <Card>
-        <CardTitle>Sessions</CardTitle>
-        <div className="mt-4 space-y-2">
-          {sessions.data?.sessions.map((s) => (
-            <div key={s.id} className="flex items-center justify-between text-sm">
-              <span className="text-text">
-                {s.device_label || "Unknown device"}
-                {s.current && <Badge className="ml-2 bg-accent/10 text-accent">current</Badge>}
-              </span>
-              {!s.current && (
-                <button onClick={() => revoke.mutate(s.id)} className="text-xs text-text-muted hover:text-danger">
-                  Revoke
-                </button>
-              )}
+          {solo ? (
+            <div className="mt-6 rounded-xl bg-surface-muted px-4 py-3 text-xs text-text-muted">
+              This phone is protected by your <strong className="text-text">device PIN</strong> (and optionally
+              fingerprint / face) instead of a password. To change it, use{" "}
+              <strong className="text-text">Reset PIN</strong> in Notifications &amp; security below — you&apos;ll need
+              your recovery code.
             </div>
-          ))}
-        </div>
-        <Button variant="ghost" size="sm" className="mt-3 text-danger" onClick={() => setConfirmLogoutAll(true)}>
-          Sign out everywhere
-        </Button>
-      </Card>
+          ) : (
+            <>
+              <h4 className="mt-6 text-sm font-semibold text-text">Change password</h4>
+              <form
+                className="mt-2 space-y-3"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  changePassword.mutate();
+                }}
+              >
+                <Input type="password" placeholder="Current password" value={cur} onChange={(e) => setCur(e.target.value)} />
+                <Input type="password" placeholder="New password" value={next} onChange={(e) => setNext(e.target.value)} />
+                <Button type="submit" variant="secondary" disabled={changePassword.isPending || !cur || !next}>
+                  Change password
+                </Button>
+              </form>
+            </>
+          )}
+        </Card>
+
+        <Card>
+          <CardTitle>Sessions</CardTitle>
+          <div className="mt-4 space-y-2">
+            {sessions.data?.sessions.map((s) => (
+              <div key={s.id} className="flex items-center justify-between text-sm">
+                <span className="text-text">
+                  {s.device_label || "Unknown device"}
+                  {s.current && <Badge className="ml-2 bg-accent/10 text-accent">current</Badge>}
+                </span>
+                {!s.current && (
+                  <button onClick={() => revoke.mutate(s.id)} className="text-xs text-text-muted hover:text-danger">
+                    Revoke
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          <Button variant="ghost" size="sm" className="mt-3 text-danger" onClick={() => setConfirmLogoutAll(true)}>
+            Sign out everywhere
+          </Button>
+        </Card>
+      </SettingsGroup>
+
+      <SettingsGroup title="Security" description="Device lock, notifications, and account recovery.">
+        <NotificationsSecurityCard setMsg={setMsg} setErr={setErr} />
+      </SettingsGroup>
+
+      <SettingsGroup title="Connections" description="Banks, pay schedule, and linking this device to a hub.">
+        {/* Bank connections card continues below */}
 
       <Card className="lg:col-span-2">
         <CardTitle>Bank connections</CardTitle>
@@ -340,16 +343,24 @@ export default function SettingsPage() {
                   environment,
                   institutionId: metadata.institution?.institution_id ?? null,
                   institutionName: metadata.institution?.name ?? null,
+                  updateItemId: reconnectItemId ?? undefined,
                 });
                 setLinkToken(null);
+                setReconnectItemId(null);
                 setLinking(false);
                 qc.invalidateQueries({ queryKey: ["plaid-items"] });
                 qc.invalidateQueries({ queryKey: ["accounts"] });
                 qc.invalidateQueries({ queryKey: ["summary"] });
-                setMsg("Bank connected — run a sync to pull transactions.");
+                qc.invalidateQueries({ queryKey: ["transactions"] });
+                setMsg(
+                  reconnectItemId
+                    ? "Bank re-connected — run a sync to pull the latest transactions."
+                    : "Bank connected — run a sync to pull transactions."
+                );
               }}
               onExit={() => {
                 setLinkToken(null);
+                setReconnectItemId(null);
                 setLinking(false);
               }}
               className="hidden"
@@ -368,6 +379,29 @@ export default function SettingsPage() {
                 <Badge className={it.status === "active" ? "bg-success/10 text-success" : "bg-danger/10 text-danger"}>
                   {it.status}
                 </Badge>
+                {it.status !== "active" && it.status !== "linked" && (
+                  <button
+                    onClick={async () => {
+                      setReconnectingItem(it.id);
+                      setErr(null);
+                      try {
+                        const res = await api.get<{ linkToken: string }>(
+                          `/api/plaid/link-token?environment=${it.environment}&updateItemId=${it.id}`
+                        );
+                        setLinkToken(res.linkToken);
+                        setReconnectItemId(it.id);
+                      } catch (e) {
+                        setErr(e instanceof Error ? e.message : "Could not start re-connect.");
+                      } finally {
+                        setReconnectingItem(null);
+                      }
+                    }}
+                    disabled={reconnectingItem === it.id}
+                    className="text-xs text-accent hover:underline disabled:opacity-50"
+                  >
+                    {reconnectingItem === it.id ? "Opening…" : "Reconnect"}
+                  </button>
+                )}
                 <button onClick={() => setConfirmRemoveItem(it.id)} className="text-xs text-text-muted hover:text-danger">
                   Remove
                 </button>
@@ -377,8 +411,14 @@ export default function SettingsPage() {
         </div>
       </Card>
 
-      <Card className="lg:col-span-2">
-        <CardTitle>Personalize</CardTitle>
+      <PaydaysCard setMsg={setMsg} setErr={setErr} />
+      <HubPanel setMsg={setMsg} setErr={setErr} />
+      <PhoneImportPanel setMsg={setMsg} setErr={setErr} />
+      </SettingsGroup>
+
+      <SettingsGroup title="Appearance" description="Theme, accent, and interface density.">
+        <Card className="lg:col-span-2">
+          <CardTitle>Personalize</CardTitle>
         <p className="mt-1 text-sm text-text-muted">Make it yours — applied instantly, everywhere.</p>
 
         <div className="mt-4 grid gap-5 sm:grid-cols-2">
@@ -509,9 +549,17 @@ export default function SettingsPage() {
         </div>
       </Card>
 
-      <BackupPanel setMsg={setMsg} setErr={setErr} />
-      <PhoneImportPanel setMsg={setMsg} setErr={setErr} />
-      <UpdatesCard />
+      </SettingsGroup>
+
+      <SettingsGroup title="AI agent" description="What your assistant can see and do.">
+        <AgentWiringCard setMsg={setMsg} setErr={setErr} />
+        <CategoriesCard setMsg={setMsg} setErr={setErr} />
+      </SettingsGroup>
+
+      <SettingsGroup title="Data" description="Backups and app updates.">
+        <BackupPanel setMsg={setMsg} setErr={setErr} />
+        <UpdatesCard />
+      </SettingsGroup>
 
       <p className="pb-2 text-center text-xs text-text-muted lg:col-span-2">
         Open Finance v{process.env.NEXT_PUBLIC_APP_VERSION ?? "0.1.0"} · MIT · self-hosted

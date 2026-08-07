@@ -31,6 +31,7 @@ interface PlaidProxy {
     secret: string;
     environment: string;
     config?: Record<string, unknown>;
+    accessToken?: string;
   }) => Promise<{ linkToken: string }>;
   exchangePublicToken: (opts: {
     clientId: string;
@@ -122,12 +123,13 @@ export function createNativePlaidClient(): PlaidClient {
       return r.valid ? { ok: true } : { ok: false, message: r.error };
     },
 
-    async createLinkToken(creds: PlaidCreds, clientUserId: string) {
+    async createLinkToken(creds: PlaidCreds, clientUserId: string, accessToken?: string) {
       const r = await p.createLinkToken({
         clientId: creds.clientId,
         secret: creds.secret,
         environment: creds.environment,
         config: { client_user_id: clientUserId },
+        ...(accessToken ? { accessToken } : {}),
       });
       return r.linkToken;
     },

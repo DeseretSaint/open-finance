@@ -38,7 +38,14 @@ export interface SessionInfo {
 }
 
 export function isHttps(): boolean {
-  return env.PUBLIC_URL.startsWith("https://");
+  // The session cookie is marked `secure` whenever we believe we're behind
+  // TLS. Solo/phone mode runs entirely in-process (no network cookie), so
+  // this only affects the hub web UI. We deliberately default to `secure`
+  // rather than gating on the request scheme, because a request can arrive
+  // over plain HTTP even when the site is TLS-terminated (proxy → app). The
+  // operator must set PUBLIC_URL to an https origin; if they truly need an
+  // insecure cookie for local dev they opt in with OF_ALLOW_INSECURE_COOKIE.
+  return env.PUBLIC_URL.startsWith("https://") || !env.ALLOW_INSECURE_COOKIE;
 }
 
 export function newSessionToken(): string {

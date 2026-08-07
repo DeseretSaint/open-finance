@@ -8,6 +8,7 @@ import { Card, CardLabel, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/badge";
 import { Money } from "@/components/money";
 import { AgentWidgets } from "@/components/agent-widgets";
+import { ReviewWidget } from "@/components/review-widget";
 import { useIncludePending } from "@/lib/pending-pref";
 
 interface Summary {
@@ -67,7 +68,8 @@ export default function DashboardPage() {
       {/* Widgets your AI added (dev:ui) — removable inline */}
       <AgentWidgets tab="dashboard" />
 
-      {/* Hero balance */}
+      {/* One-tap review of transactions that still need a human-set category */}
+      <ReviewWidget />
       <Card
         className="border-accent/20"
         style={{ background: "linear-gradient(135deg, var(--accent-soft), transparent 55%), var(--surface)" }}

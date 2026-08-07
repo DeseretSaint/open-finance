@@ -23,11 +23,13 @@ const creds: PlaidCreds = { clientId: "test-client", secret: "test-secret", envi
 function fakeClient(overrides: Partial<PlaidClient> = {}): PlaidClient {
   const calls = { removed: 0 };
   const client: PlaidClient = {
-    async createLinkToken() {
+    async createLinkToken(_creds, _userId, accessToken) {
+      // Record the access token so we can assert update mode was requested.
+      (client as { lastUpdateToken?: string }).lastUpdateToken = accessToken;
       return "link-test-token";
     },
     async exchangePublicToken() {
-      return { accessToken: "access-test-token", itemId: "item-test-1" };
+      return { accessToken: "access-test-token", itemId: `item-test-${Math.random().toString(36).slice(2, 10)}` };
     },
     async getAccounts() {
       return [
@@ -108,6 +110,41 @@ describe("plaid service (fake client)", () => {
     const { linkToken } = await svc.createLinkToken(userId, "sandbox");
     expect(linkToken).toBe("link-test-token");
     await expect(svc.createLinkToken(userId, "production")).rejects.toMatchObject({ code: "not_found" });
+  });
+
+  it("reconnect (update mode) reuses the item's access token + marks it active", async () => {
+    // Capture the access token Plaid receives on the initial link so we can
+    // assert update mode passes the SAME token back (not a fresh one).
+    const captured: { initial?: string; updateCreate?: string } = {};
+    const trackingClient = {
+      ...fakeClient(),
+      async exchangePublicToken(_c: PlaidCreds, _p: string) {
+        return { accessToken: "access-initial-token", itemId: "item-test-1" };
+      },
+      async createLinkToken(_c: PlaidCreds, _u: string, accessToken?: string) {
+        captured.updateCreate = accessToken;
+        return "link-test-token";
+      },
+    } as unknown as PlaidClient;
+    const svc = createPlaidService(db, () => trackingClient);
+    const linked = await svc.exchangePublicToken(userId, "sandbox", "public-test", "ins_109512", "Houndstooth Bank");
+    const itemId = linked.itemId;
+    // Simulate ITEM_LOGIN_REQUIRED by forcing the row to a non-active status.
+    await db.run("UPDATE plaid_items SET status = 'login_required' WHERE id = ?", itemId);
+
+    // Update-mode link token should carry the existing access token.
+    await svc.createLinkToken(userId, "sandbox", itemId);
+    expect(captured.updateCreate).toBe("access-initial-token");
+
+    // Re-exchanging should refresh the token and restore status to active.
+    const reconnect = await svc.exchangePublicToken(userId, "sandbox", "public-reconnect", "ins_109512", "Houndstooth Bank", itemId);
+    expect(reconnect.itemId).toBe(itemId);
+    expect(reconnect.updated).toBe(true);
+    const after = await db.get<{ status: string }>("SELECT status FROM plaid_items WHERE id = ?", itemId);
+    expect(after!.status).toBe("active");
+    // Clean up so later tests don't hit the unique plaid_item_id constraint.
+    await db.run("DELETE FROM plaid_items WHERE id = ?", itemId);
+    await db.run("DELETE FROM accounts WHERE item_id = ?", itemId);
   });
 
   it("exchanges a public token into an item + accounts (with user_id)", async () => {

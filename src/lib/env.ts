@@ -16,6 +16,12 @@ const envSchema = z.object({
   WEBHOOK_SECRET: z.string().optional(),
   CAP_SERVER_URL: z.string().optional(),
   DEFAULT_AGENT_SCOPE: z.string().default("read-only"),
+  // Opt-in to sending the session cookie over plain HTTP (NEVER in production).
+  // Allowed only for local HTTP development where TLS isn't available.
+  ALLOW_INSECURE_COOKIE: z
+    .string()
+    .optional()
+    .transform((v) => v === "true"),
 });
 
 const parsed = envSchema.safeParse(process.env);

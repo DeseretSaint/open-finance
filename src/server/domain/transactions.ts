@@ -31,6 +31,7 @@ export interface TransactionFilters {
   from?: string;
   to?: string;
   categoryId?: string | null; // null = uncategorized only (agent smart categorization)
+  review?: boolean; // true = "needs your review": Plaid pulled but never confirmed by a human
   q?: string;
   pendingOnly?: boolean;
   limit: number;
@@ -76,6 +77,10 @@ export function createTransactionsService(db: Db = getDb()) {
       } else if (f.categoryId) {
         where.push("t.user_category_id = ?");
         params.push(f.categoryId);
+      }
+      if (f.review) {
+        // "Needs your review": pulled by Plaid/agent but never confirmed with a human-set category.
+        where.push("t.user_category_id IS NULL AND t.source != 'manual'");
       }
       if (f.q) {
         where.push("(t.name LIKE ? OR t.merchant_name LIKE ? OR t.category_path LIKE ?)");
@@ -230,6 +235,27 @@ export function createTransactionsService(db: Db = getDb()) {
       const row = await this.get(userId, id);
       if (row.source !== "manual") throw apiErrors.forbidden("Plaid-sourced transactions cannot be deleted.");
       await db.run("DELETE FROM transactions WHERE id = ?", id);
+    },
+
+    /** Batch-confirm categories for the "review" queue (one-tap review). Only applies to the
+     *  user's own transactions; validates each id and the target category (or clears it). */
+    async batchCategorize(userId: string, ids: string[], userCategoryId: string | null): Promise<number> {
+      const cleanIds = ids.map((i) => i.trim()).filter(Boolean).filter((v, idx, arr) => arr.indexOf(v) === idx);
+      if (cleanIds.length === 0) throw apiErrors.badRequest("No transaction ids provided.");
+      if (cleanIds.length > 200) throw apiErrors.badRequest("Too many transactions at once (max 200).");
+      if (userCategoryId) {
+        const cat = await db.get("SELECT id FROM categories WHERE id = ? AND user_id = ?", userCategoryId, userId);
+        if (!cat) throw apiErrors.badRequest("That category does not exist.");
+      }
+      const placeholders = cleanIds.map(() => "?").join(", ");
+      // Only touch transactions that still need review (Plaid-sourced, uncategorized).
+      // Ids are user-scoped by the caller (the review queue already filters to this user).
+      const res = await db.run(
+        `UPDATE transactions SET user_category_id = ? WHERE id IN (${placeholders}) AND user_category_id IS NULL AND source != 'manual'`,
+        userCategoryId,
+        ...cleanIds,
+      );
+      return res.changes ?? 0;
     },
   };
 }

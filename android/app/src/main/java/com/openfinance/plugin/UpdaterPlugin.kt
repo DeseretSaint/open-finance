@@ -33,15 +33,33 @@ class UpdaterPlugin : Plugin() {
         OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
-            .followRedirects(true)
+            .followRedirects(false)
+            .followSslRedirects(false)
             .build()
     }
 
     /**
-     * Download an APK from `url` into the app's cache dir, optionally verify
-     * `sha256` (hex), then launch the system installer on the content URI.
+     * Download an APK from `url` into the app's cache dir, verify `sha256`
+     * (hex), then launch the system installer on the content URI.
      * Options: { url, sha256?, fileName? }
+     *
+     * SECURITY: the URL must be https and its host must be on the trusted
+     * release host allowlist (GitHub releases for this repo). Redirects are
+     * disabled so a malicious 302 cannot send the download to an untrusted
+     * host. The `sha256` is verified against the value supplied here — it is
+     * provided by the same release metadata that supplied the URL, so it
+     * guards against corruption/transposition, not against a fully malicious
+     * endpoint that also ships a matching hash. The trusted source of both
+     * the URL and hash is the app's own update check (api.github.com, or a
+     * deploy-controlled UPDATE_CHECK_URL), never an arbitrary caller.
      */
+    private val trustedHosts = setOf(
+        "github.com",
+        "objects.githubusercontent.com",
+        "release-assets.githubusercontent.com",
+        "github-releases.githubusercontent.com"
+    )
+
     @PluginMethod
     fun downloadAndInstall(call: PluginCall) {
         val ctx = context ?: run {
@@ -54,6 +72,22 @@ class UpdaterPlugin : Plugin() {
         }
         val expectedSha = call.getString("sha256")?.lowercase()?.takeIf { it.length == 64 }
         val fileName = call.getString("fileName") ?: "openfinance-update.apk"
+
+        // Validate the URL before any network use.
+        val uri = try {
+            java.net.URI(url)
+        } catch (e: Exception) {
+            call.reject("Invalid update URL.")
+            return
+        }
+        if (uri.scheme != "https") {
+            call.reject("Update URL must be https.")
+            return
+        }
+        if (!trustedHosts.contains(uri.host)) {
+            call.reject("Update URL host is not trusted: ${uri.host}")
+            return
+        }
 
         Thread {
             try {

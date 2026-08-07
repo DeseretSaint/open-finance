@@ -17,6 +17,7 @@
 
 import { ApiError, apiErrors } from "@/lib/api-error";
 import { randomUUID } from "@/lib/uuid";
+import { hashSecret, safeEqual } from "@/lib/crypto";
 import type { Db } from "@/server/db/types";
 import { CapSqliteDb } from "@/server/db/cap-sqlite";
 import { registerDbProvider } from "@/server/db/registry";
@@ -48,6 +49,17 @@ export interface SoloResponse {
   data: unknown;
 }
 
+/** In-app routes the device-lock screen itself needs (PIN pad, status, bootstrap, remote card). */
+const LOCK_EXEMPT_PATHS = [
+  "/api/device-lock",
+  "/api/device/status",
+  "/api/auth/me",
+  "/api/auth/register",
+  "/api/onboarding",
+  "/api/agent/remote",
+  "/api/health",
+];
+
 let _db: CapSqliteDb | null = null;
 
 /** Lazily created singleton: local SQLite + full schema. */
@@ -64,6 +76,12 @@ export async function getSoloDb(): Promise<CapSqliteDb> {
 /** For tests: reset the singleton between cases. */
 export function resetSoloDb(): void {
   _db = null;
+}
+
+/** For tests: inject an in-memory test Db so soloDispatch runs against it. */
+export function setSoloDbForTest(db: Db): void {
+  _db = db as unknown as CapSqliteDb;
+  registerDbProvider(() => db);
 }
 
 function toApiError(e: unknown): { status: number; code: string; message: string } {
@@ -136,20 +154,62 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
     const B = body as Record<string, unknown> | undefined;
 
     // ── Auth / bootstrap ────────────────────────────────────────────────
-    // Remote requests (native HTTP server over Tailscale) must present the
-    // device's remote-access bearer token. In-app webview calls carry none.
+    // Remote requests (native HTTP server over Tailscale) ALWAYS carry a
+    // `headers` object (the socket forwards them, even when empty). In-app
+    // webview calls (soloFetch → soloDispatch) pass NO headers field. So a
+    // request that arrived with headers came over the network and MUST
+    // present the device's remote-access bearer token — this closes the old
+    // "omit the Authorization header and be treated as in-app" bypass.
+    // In-app calls are authorized by the device lock instead (below).
     const authHeader = req.headers?.authorization ?? "";
-    if (authHeader.startsWith("Bearer ")) {
+    const isRemote = req.headers !== undefined;
+    // GET /api/agent/remote only reports status {enabled, port} (never the
+    // token), so it is readable without a Bearer — useful for the in-app card
+    // to poll state. All other remote requests require the bearer token.
+    const remoteNeedsToken = !(method === "GET" && path === "/api/agent/remote");
+    if (isRemote && remoteNeedsToken) {
+      if (!authHeader.startsWith("Bearer ")) {
+        return { status: 401, data: { error: { code: "unauthorized", message: "Bearer token required for remote access." } } };
+      }
       const presented = authHeader.slice("Bearer ".length).trim();
+      if (!presented) {
+        return { status: 401, data: { error: { code: "unauthorized", message: "Invalid remote access token." } } };
+      }
       const stored = await db.get<{ value: string }>(
         "SELECT value FROM app_state WHERE key = 'remote.agent.token'"
       );
-      const valid = stored && presented.length > 0 && stored.value === presented;
-      if (!valid) {
+      // Tokens are hashed at rest (SHA-256); a legacy raw value still
+      // authenticates once, then is migrated to the hash on success.
+      const presentedHash = hashSecret(presented);
+      const validHash = !!stored && safeEqual(presentedHash, stored.value);
+      const validLegacy = !!stored && !validHash && safeEqual(presented, stored.value);
+      if (!validHash && !validLegacy) {
         return { status: 401, data: { error: { code: "unauthorized", message: "Invalid remote access token." } } };
       }
-    } else if (authHeader) {
-      return { status: 401, data: { error: { code: "unauthorized", message: "Bearer token required for remote access." } } };
+      if (validLegacy && stored) {
+        await db.run(
+          "UPDATE app_state SET value = ?, updated_at = ? WHERE key = 'remote.agent.token'",
+          presentedHash,
+          new Date().toISOString()
+        );
+      }
+    }
+
+    // Device-lock enforcement at the API layer for IN-APP requests. The
+    // webview UI already shows the PIN pad when locked; this closes the
+    // "compromised webview / direct in-app call" bypass. Remote (bearer)
+    // requests are authorized by the token alone — the agent must be able to
+    // operate while the phone is locked (that is the FGS's whole purpose).
+    // Routes the lock screen itself needs are exempt.
+    if (!isRemote && !LOCK_EXEMPT_PATHS.some((p) => path === p || path.startsWith(p))) {
+      const bootstrapped = await h.solo.isBootstrapped();
+      if (bootstrapped) {
+        const userId = await h.deviceUserId();
+        const lock = await h.deviceLock.state(userId);
+        if (lock.configured && lock.locked) {
+          return { status: 423, data: { error: { code: "locked", message: "This device is locked. Unlock it first." } } };
+        }
+      }
     }
 
     if (method === "POST" && path === "/api/auth/register") {
@@ -379,6 +439,21 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
           : { kind: (["week", "month", "quarter", "year", "period"].includes(frameKind) ? frameKind : "period") as "week" | "month" | "quarter" | "year" | "period" };
       return ok({ budgets: await h.budgets.list(userId, reference, frame, query.get("includePending") !== "0") });
     }
+    const budgetTxnMatch = method === "GET" && path.match(/^\/api\/budgets\/([^/]+)\/transactions$/);
+    if (budgetTxnMatch) {
+      const userId = await h.deviceUserId();
+      const budgetId = decodeURIComponent(budgetTxnMatch[1]);
+      const reference = query.get("referenceDate") ?? query.get("reference") ?? undefined;
+      const frameKind = query.get("frame") ?? "period";
+      const start = query.get("start") ?? undefined;
+      const end = query.get("end") ?? undefined;
+      const frame: BudgetFrame =
+        frameKind === "custom" && start && end
+          ? { kind: "custom", start, end }
+          : { kind: (["week", "month", "quarter", "year", "period"].includes(frameKind) ? frameKind : "period") as "week" | "month" | "quarter" | "year" | "period" };
+      const transactions = await h.budgets.transactions(userId, budgetId, reference, frame, query.get("includePending") !== "0");
+      return ok({ transactions });
+    }
     if (method === "POST" && path === "/api/budgets") {
       const userId = await h.deviceUserId();
       const budget = await h.budgets.create(userId, {
@@ -484,7 +559,7 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
     }
 
     if (method === "GET" && path === "/api/plaid/link-token") {
-      const { getSoloPlaidCreds } = await import("@/lib/solo-plaid-store");
+      const { getSoloPlaidCreds, getSoloPlaidItem } = await import("@/lib/solo-plaid-store");
       const { createNativePlaidClient } = await import("@/server/plaid/native");
       const userId = await h.deviceUserId();
       const creds = getSoloPlaidCreds();
@@ -495,12 +570,20 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       }
       const env = query.get("environment") === "production" ? "production" : creds.environment;
       const client = createNativePlaidClient();
-      const linkToken = await client.createLinkToken({ ...creds, environment: env }, userId);
+      // Update mode: pass the item's existing access token so Link re-auths that
+      // institution (fixes ITEM_LOGIN_REQUIRED) instead of adding a new item.
+      const updateItemId = query.get("updateItemId") ?? undefined;
+      let accessToken: string | undefined;
+      if (updateItemId) {
+        const item = getSoloPlaidItem(updateItemId);
+        if (item) accessToken = item.accessToken;
+      }
+      const linkToken = await client.createLinkToken({ ...creds, environment: env }, userId, accessToken);
       return ok({ linkToken });
     }
 
     if (method === "POST" && path === "/api/plaid/exchange") {
-      const { getSoloPlaidCreds, addSoloPlaidItem } = await import("@/lib/solo-plaid-store");
+      const { getSoloPlaidCreds, addSoloPlaidItem, getSoloPlaidItem, clearSoloPlaidItemLoginRequired } = await import("@/lib/solo-plaid-store");
       const { createNativePlaidClient } = await import("@/server/plaid/native");
       const publicToken = typeof B?.publicToken === "string" ? B.publicToken : "";
       if (!publicToken) throw apiErrors.badRequest("Missing public token.");
@@ -508,10 +591,14 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       if (!creds) throw apiErrors.badRequest("Save your Plaid keys first.");
       const env = B?.environment === "production" ? "production" : creds.environment;
       const client = createNativePlaidClient();
+      // In update mode (reconnect), keep the existing item id so its history,
+      // accounts, and cursor stay tied to the same row (Plaid returns the same id).
+      const updateItemId = typeof B?.updateItemId === "string" ? B.updateItemId : null;
       const { accessToken, itemId } = await client.exchangePublicToken(
         { ...creds, environment: env },
         publicToken
       );
+      const finalItemId = updateItemId && getSoloPlaidItem(updateItemId) ? updateItemId : itemId;
       // Fetch accounts so the item has display data.
       let accounts: Array<{ id: string; name: string; type: string | null; mask: string | null }> = [];
       let accountDetails: Array<{ id: string; currentBalanceCents: number | null; availableBalanceCents: number | null; currency: string }> = [];
@@ -533,13 +620,14 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         // accounts fetch is best-effort; the item is still linked
       }
       addSoloPlaidItem({
-        id: itemId,
+        id: finalItemId,
         institutionName: typeof B?.institutionName === "string" ? B.institutionName : null,
         environment: env,
         accessToken,
         linkedAt: new Date().toISOString(),
         accounts,
       });
+      if (updateItemId) clearSoloPlaidItemLoginRequired(finalItemId);
       // Import transaction history immediately so the wizard's link step
       // populates the Activity log (P23). Best-effort; never fails the link.
       const userId = await h.deviceUserId();
@@ -551,7 +639,7 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         const result = await syncSoloItem({
           db,
           userId,
-          itemId,
+          itemId: finalItemId,
           institutionName: typeof B?.institutionName === "string" ? B.institutionName : null,
           environment: env,
           creds: { ...creds, environment: env },
@@ -563,7 +651,7 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         });
         synced = result.ok ? result.added + result.modified : 0;
         // Persist the cursor so later "Sync now" runs are incremental.
-        if (result.ok) setSoloPlaidItemCursor(itemId, result.nextCursor);
+        if (result.ok) setSoloPlaidItemCursor(finalItemId, result.nextCursor);
       } catch {
         synced = 0;
       }
@@ -574,7 +662,7 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
     // changed transactions since the stored cursor (the Kotlin proxy follows
     // has_more, so the full history is covered even on first link).
     if (method === "POST" && path === "/api/transactions/sync") {
-      const { getSoloPlaidCreds, getSoloPlaidItems, setSoloPlaidItemCursor } = await import("@/lib/solo-plaid-store");
+      const { getSoloPlaidCreds, getSoloPlaidItems, setSoloPlaidItemCursor, markSoloPlaidItemLoginRequired } = await import("@/lib/solo-plaid-store");
       const { createNativePlaidClient, createSoloSyncClient } = await import("@/server/plaid/native");
       const { syncSoloItem } = await import("@/lib/solo-plaid-sync");
       const userId = await h.deviceUserId();
@@ -612,6 +700,10 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
           cursor: item.cursor ?? null,
         });
         if (res.ok) setSoloPlaidItemCursor(item.id, res.nextCursor);
+        // Plaid ITEM_LOGIN_REQUIRED → the user must re-auth this institution.
+        // Flag it so the UI can offer a Reconnect button (Link update mode).
+        const needsLogin = !res.ok && /ITEM_LOGIN_REQUIRED/i.test(res.error ?? "");
+        if (needsLogin) markSoloPlaidItemLoginRequired(item.id);
         results.push({
           itemId: item.id,
           institution_name: item.institutionName,
@@ -631,7 +723,7 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         id: i.id,
         institution_name: i.institutionName,
         environment: i.environment,
-        status: "linked",
+        status: i.status === "login_required" ? "login_required" : "linked",
         accounts: i.accounts,
       }));
       return ok({ items });
@@ -813,16 +905,24 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
     if (path === "/api/agent/remote" || path === "/api/agent/remote/enable" || path === "/api/agent/remote/disable") {
       if (method === "GET") {
         const row = await db.get<{ value: string }>("SELECT value FROM app_state WHERE key = 'remote.agent.token'");
-        return ok({ enabled: !!row, port: 8787, token: row?.value ?? null });
+        // Never return the token itself — only that remote access is on.
+        // The raw token is shown exactly once, in the enable response.
+        return ok({ enabled: !!row, port: 8787 });
       }
       if (method === "POST" && path === "/api/agent/remote/enable") {
-        let row = await db.get<{ value: string }>("SELECT value FROM app_state WHERE key = 'remote.agent.token'");
-        if (!row) {
-          const token = randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
-          await db.run("INSERT INTO app_state (key, value, updated_at) VALUES ('remote.agent.token', ?, ?)", token, new Date().toISOString());
-          row = { value: token };
+        const row = await db.get<{ value: string }>("SELECT value FROM app_state WHERE key = 'remote.agent.token'");
+        if (row) {
+          // Already enabled — do not regenerate (that would break the agent's
+          // stored credential). Nothing new to display.
+          return ok({ enabled: true, port: 8787 });
         }
-        return ok({ token: row.value, port: 8787 });
+        const raw = randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
+        await db.run(
+          "INSERT INTO app_state (key, value, updated_at) VALUES ('remote.agent.token', ?, ?)",
+          hashSecret(raw),
+          new Date().toISOString()
+        );
+        return ok({ token: raw, port: 8787 });
       }
       if (method === "POST" && path === "/api/agent/remote/disable") {
         await db.run("DELETE FROM app_state WHERE key = 'remote.agent.token'");

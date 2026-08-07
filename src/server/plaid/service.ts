@@ -95,9 +95,21 @@ export function createPlaidService(db: Db = getDb(), clientFactory: (creds: Plai
       return { environment: input.environment, updatedAt: now() };
     },
 
-    async createLinkToken(userId: string, environment: PlaidEnvironment) {
+    async createLinkToken(userId: string, environment: PlaidEnvironment, updateItemId?: string) {
       const { creds } = await getCreds(userId, environment);
-      const token = await clientFactory(creds).createLinkToken(creds, userId);
+      // Update mode: pass the item's existing access token so Link re-authenticates
+      // that institution (fixes ITEM_LOGIN_REQUIRED) instead of adding a new one.
+      let accessToken: string | undefined;
+      if (updateItemId) {
+        const item = await db.get<{ access_token_enc: string; environment: string }>(
+          "SELECT access_token_enc, environment FROM plaid_items WHERE id = ? AND user_id = ?",
+          updateItemId,
+          userId
+        );
+        if (!item) throw apiErrors.notFound("Item not found.");
+        accessToken = decrypt(item.access_token_enc, aad(userId, updateItemId));
+      }
+      const token = await clientFactory(creds).createLinkToken(creds, userId, accessToken);
       return { linkToken: token };
     },
 
@@ -106,11 +118,63 @@ export function createPlaidService(db: Db = getDb(), clientFactory: (creds: Plai
       environment: PlaidEnvironment,
       publicToken: string,
       institutionId: string | null,
-      institutionName: string | null
+      institutionName: string | null,
+      updateItemId?: string
     ) {
       const { creds } = await getCreds(userId, environment);
       const client = clientFactory(creds);
       const { accessToken, itemId } = await client.exchangePublicToken(creds, publicToken);
+
+      // Update mode: re-authenticate an existing item (fixes ITEM_LOGIN_REQUIRED).
+      // Plaid returns the same item id, so just refresh its token + mark active.
+      if (updateItemId) {
+        const existing = await db.get<{ id: string }>(
+          "SELECT id FROM plaid_items WHERE id = ? AND user_id = ?",
+          updateItemId,
+          userId
+        );
+        if (existing) {
+          await db.run(
+            "UPDATE plaid_items SET access_token_enc = ?, status = 'active', institution_id = COALESCE(?, institution_id), institution_name = COALESCE(?, institution_name) WHERE id = ? AND user_id = ?",
+            encrypt(accessToken, aad(userId, existing.id)),
+            institutionId,
+            institutionName,
+            existing.id,
+            userId
+          );
+          // Re-pull accounts so balances are fresh.
+          try {
+            const accounts = await client.getAccounts(creds, accessToken);
+            for (const a of accounts) {
+              await db.run(
+                `INSERT INTO accounts (id, user_id, item_id, plaid_account_id, name, official_name, type, subtype, mask,
+                                       current_balance_cents, available_balance_cents, currency, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(plaid_account_id) DO UPDATE SET
+                   name = excluded.name, official_name = excluded.official_name, current_balance_cents = excluded.current_balance_cents,
+                   available_balance_cents = excluded.available_balance_cents, currency = excluded.currency, updated_at = excluded.updated_at`,
+                randomUUID(),
+                userId,
+                existing.id,
+                a.id,
+                a.name,
+                a.officialName,
+                a.type,
+                a.subtype,
+                a.mask,
+                a.currentBalanceCents,
+                a.availableBalanceCents,
+                a.currency,
+                now()
+              );
+            }
+          } catch {
+            // balances refresh is best-effort
+          }
+          return { itemId: existing.id, accountCount: 0, synced: 0, updated: true };
+        }
+        // If the item row is missing, fall through and create a new one.
+      }
 
       const itemRowId = randomUUID();
       await db.run(

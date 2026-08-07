@@ -4,6 +4,7 @@ import "./globals.css";
 import { PreAuthDark } from "@/components/pre-auth-dark";
 import { Providers } from "@/components/providers";
 import { SwRegistration } from "@/components/sw-registration";
+import { InsecureHubWarning } from "@/components/insecure-hub-warning";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 
@@ -48,6 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Providers>{children}</Providers>
         </PreAuthDark>
         <SwRegistration />
+        <InsecureHubWarning />
       </body>
     </html>
   );

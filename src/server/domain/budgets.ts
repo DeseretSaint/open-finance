@@ -2,6 +2,7 @@ import { randomUUID } from "@/lib/uuid";
 import { apiErrors } from "@/lib/api-error";
 import { getDb, type Db } from "@/server/db/registry";
 import { todayISO, addMonthsISO } from "@/server/domain/dates";
+import type { TransactionRow } from "@/server/domain/transactions";
 
 export interface BudgetRow {
   id: string;
@@ -97,6 +98,39 @@ export function frameBounds(frame: BudgetFrame, referenceDate: string = todayISO
   }
 }
 
+/** Shared WHERE-clause for a budget's expense rows (used by spendCents + transactions). */
+async function spendFilter(
+  db: Db,
+  userId: string,
+  budgetId: string,
+  start: string,
+  end: string,
+  includePending: boolean
+): Promise<{ clause: string; params: unknown[] }> {
+  const cats = await db.all<{ category_id: string }>(
+    "SELECT category_id FROM budget_categories WHERE budget_id = ?",
+    budgetId
+  );
+  const catIds = cats.map((c) => c.category_id);
+
+  let categoryClause: string;
+  const params: unknown[] = [userId, start, end];
+  if (catIds.length === 0) {
+    categoryClause = "t.user_category_id IS NULL";
+  } else {
+    categoryClause = `t.user_category_id IN (${catIds.map(() => "?").join(", ")})`;
+    params.push(...catIds);
+  }
+
+  const pendingClause = includePending ? "" : " AND t.pending = 0";
+  return {
+    clause: `a.user_id = ? AND a.deleted_at IS NULL AND t.date >= ? AND t.date < ?
+             AND t.exclude_from_budgets = 0 AND t.is_transfer = 0 AND t.amount_cents < 0${pendingClause}
+             AND ${categoryClause}`,
+    params,
+  };
+}
+
 export function createBudgetsService(db: Db = getDb()) {
   return {
     /**
@@ -150,34 +184,44 @@ export function createBudgetsService(db: Db = getDb()) {
      * (user_category_id IS NULL) — the fallback for manual/uncategorized rows.
      */
     async spendCents(userId: string, budgetId: string, start: string, end: string, includePending = true): Promise<number> {
-      const budget = await db.get<BudgetRow>("SELECT * FROM budgets WHERE id = ? AND user_id = ?", budgetId, userId);
-      if (!budget) throw apiErrors.notFound("Budget");
-      const cats = await db.all<{ category_id: string }>(
-        "SELECT category_id FROM budget_categories WHERE budget_id = ?",
-        budgetId
-      );
-      const catIds = cats.map((c) => c.category_id);
-
-      let categoryClause: string;
-      const params: unknown[] = [userId, start, end];
-      if (catIds.length === 0) {
-        categoryClause = "t.user_category_id IS NULL";
-      } else {
-        categoryClause = `t.user_category_id IN (${catIds.map(() => "?").join(", ")})`;
-        params.push(...catIds);
-      }
-
-      const pendingClause = includePending ? "" : " AND t.pending = 0";
+      const { clause, params } = await spendFilter(db, userId, budgetId, start, end, includePending);
       const row = await db.get<{ s: number }>(
         `SELECT COALESCE(SUM(-t.amount_cents), 0) AS s
           FROM transactions t
           JOIN accounts a ON a.id = t.account_id
-         WHERE a.user_id = ? AND a.deleted_at IS NULL AND t.date >= ? AND t.date < ?
-          AND t.exclude_from_budgets = 0 AND t.is_transfer = 0 AND t.amount_cents < 0${pendingClause}
-           AND ${categoryClause}`,
+         WHERE ${clause}`,
         ...params
       );
       return row?.s ?? 0;
+    },
+
+    /**
+     * The actual transactions behind a budget's spend — same filter as
+     * spendCents, but returns the rows so the UI can show "where the money
+     * went" when a budget card is expanded.
+     */
+    async transactions(
+      userId: string,
+      budgetId: string,
+      referenceDate: string = todayISO(),
+      frame: BudgetFrame = { kind: "period" },
+      includePending = true
+    ): Promise<TransactionRow[]> {
+      const budget = await db.get<BudgetRow>("SELECT * FROM budgets WHERE id = ? AND user_id = ?", budgetId, userId);
+      if (!budget) throw apiErrors.notFound("Budget");
+      const { start, end } =
+        frame.kind === "period" ? periodBounds(budget.period, referenceDate) : frameBounds(frame, referenceDate);
+      const { clause, params } = await spendFilter(db, userId, budgetId, start, end, includePending);
+      return db.all<TransactionRow>(
+        `SELECT t.*, a.name AS account_name, c.name AS category_name, c.color AS category_color
+           FROM transactions t
+           JOIN accounts a ON a.id = t.account_id
+           LEFT JOIN categories c ON c.id = t.user_category_id
+          WHERE ${clause}
+          ORDER BY t.date DESC, t.created_at DESC
+          LIMIT 100`,
+        ...params
+      );
     },
 
     async create(

@@ -26,6 +26,8 @@ export interface SoloPlaidItem {
   environment: string;
   accessToken: string;
   linkedAt: string;
+  /** "active" normally; "login_required" when Plaid reports ITEM_LOGIN_REQUIRED (re-auth needed). */
+  status?: "active" | "login_required";
   /** Transactions-sync cursor (Plaid incremental sync); persisted so re-syncs only pull new/changed rows. */
   cursor?: string | null;
   accounts: Array<{ id: string; name: string; type: string | null; mask: string | null }>;
@@ -63,6 +65,10 @@ export function getSoloPlaidItems(): SoloPlaidItem[] {
   return read<SoloPlaidItem[]>(ITEMS_KEY) ?? [];
 }
 
+export function getSoloPlaidItem(id: string): SoloPlaidItem | null {
+  return getSoloPlaidItems().find((i) => i.id === id) ?? null;
+}
+
 export function addSoloPlaidItem(item: SoloPlaidItem): void {
   const items = getSoloPlaidItems().filter((i) => i.id !== item.id);
   items.unshift(item);
@@ -76,4 +82,14 @@ export function removeSoloPlaidItem(id: string): void {
 /** Persist the sync cursor for an item (incremental sync state). */
 export function setSoloPlaidItemCursor(id: string, cursor: string | null): void {
   write(ITEMS_KEY, getSoloPlaidItems().map((i) => (i.id === id ? { ...i, cursor } : i)));
+}
+
+/** Mark an item as needing re-auth (Plaid ITEM_LOGIN_REQUIRED) so the UI shows Reconnect. */
+export function markSoloPlaidItemLoginRequired(id: string): void {
+  write(ITEMS_KEY, getSoloPlaidItems().map((i) => (i.id === id ? { ...i, status: "login_required" } : i)));
+}
+
+/** Clear the re-auth flag after a successful reconnect. */
+export function clearSoloPlaidItemLoginRequired(id: string): void {
+  write(ITEMS_KEY, getSoloPlaidItems().map((i) => (i.id === id ? { ...i, status: "active" } : i)));
 }

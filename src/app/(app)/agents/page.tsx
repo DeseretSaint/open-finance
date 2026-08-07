@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot, Copy, KeyRound, PlugZap, ShieldCheck, Trash2 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
+import { Disclosure } from "@/components/ui/settings-group";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -216,12 +217,11 @@ function RemoteAgentBriefCard({ endpoint, solo }: { endpoint: string; solo: bool
   const [nativeStatus, setNativeStatus] = useState<{ available: boolean; listening: boolean } | null>(null);
   const remote = useQuery({
     queryKey: ["agent-remote"],
-    queryFn: () => api.get<{ enabled: boolean; port: number; token: string | null }>("/api/agent/remote"),
+    queryFn: () => api.get<{ enabled: boolean; port: number }>("/api/agent/remote"),
     enabled: solo,
     retry: false,
   });
   const remoteEnabled = remote.data?.enabled ?? false;
-  const remoteToken = remote.data?.token ?? "";
 
   useEffect(() => {
     if (!solo || !remoteEnabled) return;
@@ -235,9 +235,9 @@ function RemoteAgentBriefCard({ endpoint, solo }: { endpoint: string; solo: bool
     };
   }, [solo, remoteEnabled, remote.data?.enabled]);
   const target = solo ? "" : endpoint.replace(/\/$/, "");
-  const authLine = remoteToken
-    ? "Authenticate every request with the HTTP header:\n   Authorization: Bearer " + remoteToken
-    : "Authenticate every request with the HTTP header: Authorization: Bearer <remote access token from the Open Finance Agents page>";
+  const authLine = remoteEnabled
+    ? "Authenticate every request with the HTTP header:\n   Authorization: Bearer <the remote-access token shown when you enabled Direct remote access — copy it from the Agents tab, it is displayed once>"
+    : "Authenticate every request with the HTTP header: Authorization: Bearer <access token from the Open Finance Agents page>";
   const brief = solo
     ? `Open Finance remote agent connection request
 
@@ -294,7 +294,7 @@ Complete this setup on the trusted hub:
               <>
                 <span className="font-medium text-success">Remote access enabled</span> — the phone listens on{" "}
                 <span className="font-mono text-accent">port 8787</span> over Tailscale. Token:{" "}
-                <span className="break-all font-mono text-text">{remoteToken || "…"}</span>
+                <span className="break-all font-mono text-text">copy the token from the Direct remote access card (shown once at enable)</span>
               </>
             ) : remoteEnabled ? (
               <>
@@ -313,8 +313,10 @@ Complete this setup on the trusted hub:
         )}
         <Input aria-label="Preferred Hermes model" placeholder="e.g. current Hermes model" value={model} onChange={(e) => setModel(e.target.value)} />
       </div>
-      <textarea aria-label="Remote agent handoff text" readOnly value={brief} className="mt-3 min-h-64 w-full resize-y rounded-xl border border-border bg-background p-3 text-xs leading-5 text-text" />
-      <div className="mt-3 flex flex-wrap items-center gap-2"><Button onClick={copy}><Copy size={14} /> {copied ? "Copied" : "Copy handoff text"}</Button><span className="text-xs text-text-muted">Gateway and model credentials stay in Hermes.</span></div>
+      <Disclosure label="Copy connection handoff text">
+        <textarea aria-label="Remote agent handoff text" readOnly value={brief} className="mt-3 min-h-64 w-full resize-y rounded-xl border border-border bg-background p-3 text-xs leading-5 text-text" />
+        <div className="mt-3 flex flex-wrap items-center gap-2"><Button onClick={copy}><Copy size={14} /> {copied ? "Copied" : "Copy handoff text"}</Button><span className="text-xs text-text-muted">Gateway and model credentials stay in Hermes.</span></div>
+      </Disclosure>
     </Card>
   );
 }
@@ -327,14 +329,15 @@ function RemoteAccessCard() {
   const [msg, setMsg] = useState<string | null>(null);
   const [nativeReady, setNativeReady] = useState<boolean | null>(null);
   const [listening, setListening] = useState(false);
+  const [justEnabledToken, setJustEnabledToken] = useState<string | null>(null);
 
   const remote = useQuery({
     queryKey: ["agent-remote"],
-    queryFn: () => api.get<{ enabled: boolean; port: number; token: string | null }>("/api/agent/remote"),
+    queryFn: () => api.get<{ enabled: boolean; port: number }>("/api/agent/remote"),
     retry: false,
   });
   const enabled = remote.data?.enabled ?? false;
-  const token = remote.data?.token ?? "";
+  const token = justEnabledToken ?? "";
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["agent-remote"] });
 
@@ -370,7 +373,8 @@ function RemoteAccessCard() {
     setStarting(true);
     setMsg(null);
     try {
-      await api.post<{ token: string; port: number }>("/api/agent/remote/enable");
+      const res = await api.post<{ token: string; port: number }>("/api/agent/remote/enable");
+      setJustEnabledToken(res.token);
       await startRemoteServer();
       await refresh();
       await refreshNativeStatus();
@@ -423,6 +427,7 @@ function RemoteAccessCard() {
         <div className="mt-3 rounded-xl bg-surface-muted px-4 py-3 text-xs text-text-muted">
           <p className="font-medium text-text">Bearer token (device-local, like your recovery code):</p>
           <p className="mt-1 break-all font-mono text-text">{token}</p>
+          <p className="mt-2 text-warning">Copy this now — it is shown only once and will not appear again.</p>
           <p className="mt-2">
             Your agent reaches this phone at <span className="font-mono text-accent">http://&lt;phone-tailscale-address&gt;:8787</span>.
             Find the phone in your Tailscale device list — the phone can&apos;t see its own address from here.
@@ -657,27 +662,31 @@ export default function AgentsPage() {
 
               <div className="mt-4 space-y-3">
                 <Input placeholder="Token name — e.g. trading-bot" value={name} onChange={(e) => setName(e.target.value)} />
-                <div>
-                  <p className="mb-1 text-xs font-medium text-text-muted">Scopes</p>
-                  {SCOPE_GROUPS.map((g) => (
-                    <div key={g.group} className="mb-1.5 flex flex-wrap items-center gap-1.5">
-                      <span className="w-12 text-xs text-text-muted">{g.group}</span>
-                      {g.scopes.map((s) => (
-                        <button
-                          key={s}
-                          type="button"
-                          onClick={() => toggleScope(s)}
-                          className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
-                            effectiveScopes.includes(s)
-                              ? "border-accent bg-accent text-[var(--accent-foreground)]"
-                              : "border-border text-text-muted hover:border-accent/50 hover:text-text"
-                          }`}
-                        >
-                          {s}
-                        </button>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="w-12 text-xs text-text-muted">Scopes</span>
+                  <Disclosure label="Choose custom scopes" defaultOpen={preset === "custom"}>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {SCOPE_GROUPS.map((g) => (
+                        <div key={g.group} className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                          <span className="w-12 text-xs text-text-muted">{g.group}</span>
+                          {g.scopes.map((s) => (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={() => toggleScope(s)}
+                              className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+                                effectiveScopes.includes(s)
+                                  ? "border-accent bg-accent text-[var(--accent-foreground)]"
+                                  : "border-border text-text-muted hover:border-accent/50 hover:text-text"
+                              }`}
+                            >
+                              {s}
+                            </button>
+                          ))}
+                        </div>
                       ))}
                     </div>
-                  ))}
+                  </Disclosure>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <CustomSelect
@@ -837,27 +846,31 @@ export default function AgentsPage() {
               </button>
             ))}
           </div>
-          <div>
-            <p className="mb-1 text-xs font-medium text-text-muted">Scopes</p>
-            {SCOPE_GROUPS.map((g) => (
-              <div key={g.group} className="mb-1.5 flex flex-wrap items-center gap-1.5">
-                <span className="w-12 text-xs text-text-muted">{g.group}</span>
-                {g.scopes.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => toggleScope(s)}
-                    className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
-                      effectiveScopes.includes(s)
-                        ? "border-accent bg-accent text-[var(--accent-foreground)]"
-                        : "border-border text-text-muted hover:border-accent/50 hover:text-text"
-                    }`}
-                  >
-                    {s}
-                  </button>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="w-12 text-xs text-text-muted">Scopes</span>
+            <Disclosure label="Choose custom scopes" defaultOpen={preset === "custom"}>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {SCOPE_GROUPS.map((g) => (
+                  <div key={g.group} className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                    <span className="w-12 text-xs text-text-muted">{g.group}</span>
+                    {g.scopes.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => toggleScope(s)}
+                        className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+                          effectiveScopes.includes(s)
+                            ? "border-accent bg-accent text-[var(--accent-foreground)]"
+                            : "border-border text-text-muted hover:border-accent/50 hover:text-text"
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
                 ))}
               </div>
-            ))}
+            </Disclosure>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <CustomSelect
@@ -918,83 +931,86 @@ export default function AgentsPage() {
         </div>
       </Card>
 
-      {/* Permission inbox */}
-      <Card>
-        <CardTitle>Permission requests</CardTitle>
-        <p className="text-sm text-text-muted">
-          When an agent tries something its token cannot do, it asks here. Granting appends the scope (the preset badge then reads
-          “custom”).
-        </p>
-        <div className="mt-3 space-y-2">
-          {(requests.data?.requests ?? []).map((r) => (
-            <div key={r.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2">
-              <div>
-                <p className="text-sm text-text">
-                  <span className="font-medium">{r.tokenName}</span> requested <Badge>{r.scope}</Badge>
-                </p>
-                <p className="text-xs text-text-muted">
-                  {r.tool ?? "unknown tool"} · {new Date(r.created_at).toLocaleString()}
-                </p>
+      {/* Review activity — collapsed by default so the configure view stays focused */}
+      <Disclosure label="Review activity — permission requests, tokens, audit log">
+        {/* Permission inbox */}
+        <Card>
+          <CardTitle>Permission requests</CardTitle>
+          <p className="text-sm text-text-muted">
+            When an agent tries something its token cannot do, it asks here. Granting appends the scope (the preset badge then reads
+            “custom”).
+          </p>
+          <div className="mt-3 space-y-2">
+            {(requests.data?.requests ?? []).map((r) => (
+              <div key={r.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+                <div>
+                  <p className="text-sm text-text">
+                    <span className="font-medium">{r.tokenName}</span> requested <Badge>{r.scope}</Badge>
+                  </p>
+                  <p className="text-xs text-text-muted">
+                    {r.tool ?? "unknown tool"} · {new Date(r.created_at).toLocaleString()}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => resolveRequest.mutate({ id: r.id, decision: "denied" })}>
+                    Deny
+                  </Button>
+                  <Button size="sm" onClick={() => resolveRequest.mutate({ id: r.id, decision: "granted" })}>
+                    Grant
+                  </Button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => resolveRequest.mutate({ id: r.id, decision: "denied" })}>
-                  Deny
-                </Button>
-                <Button size="sm" onClick={() => resolveRequest.mutate({ id: r.id, decision: "granted" })}>
-                  Grant
-                </Button>
-              </div>
-            </div>
-          ))}
-          {(requests.data?.requests ?? []).length === 0 && <p className="text-sm text-text-muted">No pending requests.</p>}
-        </div>
-      </Card>
+            ))}
+            {(requests.data?.requests ?? []).length === 0 && <p className="text-sm text-text-muted">No pending requests.</p>}
+          </div>
+        </Card>
 
-      {/* Token list */}
-      <Card>
-        <CardTitle>Tokens</CardTitle>
-        <div className="mt-3 space-y-2">
-          {(agents.data?.agents ?? []).map((t) => (
-            <div key={t.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2">
-              <div>
-                <p className="flex items-center gap-2 text-sm font-medium text-text">
-                  <KeyRound size={14} className="text-text-muted" aria-hidden />
-                  {t.name} <Badge>{t.custom ? "custom (modified)" : t.preset}</Badge>
-                </p>
-                <p className="text-xs text-text-muted">
-                  {t.tokenPrefix}… · {t.scopes.length} scope{t.scopes.length === 1 ? "" : "s"} · last used{" "}
-                  {t.lastUsedAt ? new Date(t.lastUsedAt).toLocaleString() : "never"} ·{" "}
-                  {t.expiresAt ? `expires ${new Date(t.expiresAt).toLocaleDateString()}` : "no expiry"}
-                </p>
+        {/* Token list */}
+        <Card>
+          <CardTitle>Tokens</CardTitle>
+          <div className="mt-3 space-y-2">
+            {(agents.data?.agents ?? []).map((t) => (
+              <div key={t.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+                <div>
+                  <p className="flex items-center gap-2 text-sm font-medium text-text">
+                    <KeyRound size={14} className="text-text-muted" aria-hidden />
+                    {t.name} <Badge>{t.custom ? "custom (modified)" : t.preset}</Badge>
+                  </p>
+                  <p className="text-xs text-text-muted">
+                    {t.tokenPrefix}… · {t.scopes.length} scope{t.scopes.length === 1 ? "" : "s"} · last used{" "}
+                    {t.lastUsedAt ? new Date(t.lastUsedAt).toLocaleString() : "never"} ·{" "}
+                    {t.expiresAt ? `expires ${new Date(t.expiresAt).toLocaleDateString()}` : "no expiry"}
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" className="text-danger" onClick={() => revoke.mutate(t.id)}>
+                  Revoke
+                </Button>
               </div>
-              <Button size="sm" variant="outline" className="text-danger" onClick={() => revoke.mutate(t.id)}>
-                Revoke
-              </Button>
-            </div>
-          ))}
-          {(agents.data?.agents ?? []).length === 0 && <p className="text-sm text-text-muted">No tokens yet.</p>}
-        </div>
-      </Card>
+            ))}
+            {(agents.data?.agents ?? []).length === 0 && <p className="text-sm text-text-muted">No tokens yet.</p>}
+          </div>
+        </Card>
 
-      {/* Audit */}
-      <Card>
-        <CardTitle>Audit log</CardTitle>
-        <p className="text-sm text-text-muted">Every agent call, including denied ones (403 = scope missing).</p>
-        <div className="mt-3 space-y-1">
-          {(audit.data?.rows ?? []).slice(0, 25).map((r) => (
-            <div key={r.id} className="flex items-center justify-between rounded border border-border px-3 py-1.5 text-sm">
-              <span className="text-text">
-                <span className="font-medium">{r.tokenName}</span> · {r.tool} · {r.method}
-                {r.scope ? ` · ${r.scope}` : ""}
-              </span>
-              <span className={`text-xs ${r.status >= 400 ? "text-danger" : "text-success"}`}>
-                {r.status} · {new Date(r.created_at).toLocaleString()}
-              </span>
-            </div>
-          ))}
-          {(audit.data?.rows ?? []).length === 0 && <p className="text-sm text-text-muted">No calls yet.</p>}
-        </div>
-      </Card>
+        {/* Audit */}
+        <Card>
+          <CardTitle>Audit log</CardTitle>
+          <p className="text-sm text-text-muted">Every agent call, including denied ones (403 = scope missing).</p>
+          <div className="mt-3 space-y-1">
+            {(audit.data?.rows ?? []).slice(0, 25).map((r) => (
+              <div key={r.id} className="flex items-center justify-between rounded border border-border px-3 py-1.5 text-sm">
+                <span className="text-text">
+                  <span className="font-medium">{r.tokenName}</span> · {r.tool} · {r.method}
+                  {r.scope ? ` · ${r.scope}` : ""}
+                </span>
+                <span className={`text-xs ${r.status >= 400 ? "text-danger" : "text-success"}`}>
+                  {r.status} · {new Date(r.created_at).toLocaleString()}
+                </span>
+              </div>
+            ))}
+            {(audit.data?.rows ?? []).length === 0 && <p className="text-sm text-text-muted">No calls yet.</p>}
+          </div>
+        </Card>
+      </Disclosure>
 
       {/* Access summary */}
       <Card>

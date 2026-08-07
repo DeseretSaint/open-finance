@@ -12,6 +12,7 @@ const schema = z.object({
   environment: z.enum(["sandbox", "production"]).default("sandbox"),
   institutionId: z.string().nullable().optional(),
   institutionName: z.string().nullable().optional(),
+  updateItemId: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -24,7 +25,8 @@ export async function POST(req: NextRequest) {
       body.environment,
       body.publicToken,
       body.institutionId ?? null,
-      body.institutionName ?? null
+      body.institutionName ?? null,
+      body.updateItemId
     );
     return ok(result, { status: 201 });
   })(req, { params: Promise.resolve({}) });

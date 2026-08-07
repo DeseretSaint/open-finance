@@ -15,6 +15,7 @@ const listSchema = z.object({
   categoryId: z.string().optional(),
   q: z.string().optional(),
   pending: z.coerce.boolean().optional(),
+  review: z.coerce.boolean().optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
@@ -43,6 +44,7 @@ export async function GET(req: NextRequest) {
     const userId = auth.kind === "agent" ? auth.ctx.userId : auth.userId;
     const filters = {
       ...parsed.data,
+      review: parsed.data.review === true,
       accountIds: auth.kind === "agent" ? auth.ctx.accountIds : undefined,
       pendingOnly: parsed.data.pending === true,
     };

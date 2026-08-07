@@ -132,4 +132,30 @@ describe("budgets", () => {
     const b = await svc.create(u1.id, { name: "Food", amountCents: 5000 });
     await expect(svc.update(u2.id, b.id, { amountCents: 1 })).rejects.toThrow();
   });
+
+  it("transactions() returns the rows behind the spend (period + pending respect)", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const acc = await seedManualAccount(db, user.id);
+    const food = await seedCategory(db, user.id, "Food");
+    await seedTxn(db, user.id, acc, { date: dateIn(0, 3), amountCents: -4000, categoryId: food });
+    await seedTxn(db, user.id, acc, { date: dateIn(0, 20), amountCents: -2500, categoryId: food });
+    await seedTxn(db, user.id, acc, { date: dateIn(1, 1), amountCents: -9999, categoryId: food }); // next month
+    await seedTxn(db, user.id, acc, { date: dateIn(0, 5), amountCents: -5000, categoryId: null }); // uncategorized
+    await seedTxn(db, user.id, acc, { date: dateIn(0, 6), amountCents: 3000, categoryId: food }); // income
+    await seedTxn(db, user.id, acc, { date: dateIn(0, 7), amountCents: -700, categoryId: food, pending: true });
+
+    const svc = createBudgetsService(db);
+    const budget = await svc.create(user.id, { name: "Food", amountCents: 10000, categoryIds: [food] });
+
+    // Defaults: this month, pending included → -4000 -2500 -700 = 3 rows.
+    const withPending = await svc.transactions(user.id, budget.id, dateIn(0, 15));
+    expect(withPending).toHaveLength(3);
+    expect(withPending.map((t) => t.amount_cents).sort((a, b) => a - b)).toEqual([-4000, -2500, -700]);
+
+    // Pending excluded → only the two posted rows.
+    const postedOnly = await svc.transactions(user.id, budget.id, dateIn(0, 15), { kind: "month" }, false);
+    expect(postedOnly).toHaveLength(2);
+    expect(postedOnly.every((t) => t.pending !== 1)).toBe(true);
+  });
 });

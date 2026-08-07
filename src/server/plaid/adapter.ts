@@ -51,7 +51,7 @@ export interface PlaidSyncResult {
 /** All Plaid calls go through this interface so tests can inject a fake and
  *  the Android native plugin can implement the same surface in P8b. */
 export interface PlaidClient {
-  createLinkToken(creds: PlaidCreds, clientUserId: string): Promise<string>;
+  createLinkToken(creds: PlaidCreds, clientUserId: string, accessToken?: string): Promise<string>;
   exchangePublicToken(
     creds: PlaidCreds,
     publicToken: string

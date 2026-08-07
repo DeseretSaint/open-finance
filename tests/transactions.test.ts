@@ -139,4 +139,53 @@ describe("transactions", () => {
     const t = await svc.createManual(u1.id, { accountId: acc, amountCents: 100, date: "2026-01-01", name: "Mine" });
     await expect(svc.get(u2.id, t.id)).rejects.toThrow();
   });
+
+  it("review filter surfaces Plaid-sourced, uncategorized transactions only", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const acc = await seedManualAccount(db, user.id);
+    const svc = createTransactionsService(db);
+    // Plaid-sourced, uncategorized -> should appear in review
+    await db.run(
+      `INSERT INTO transactions (id, account_id, plaid_transaction_id, amount_cents, date, name, source, created_at)
+       VALUES ('pl-1', ?, 'plaid-1', -550, '2026-02-10', 'Grocery Store', 'plaid', '2026-02-10T00:00:00.000Z')`,
+      acc
+    );
+    // Manual-sourced, uncategorized -> should NOT appear (human entered it)
+    await svc.createManual(user.id, { accountId: acc, amountCents: -300, date: "2026-02-11", name: "Cash" });
+    // Plaid-sourced, already categorized -> should NOT appear
+    const cat = await db.run(`INSERT INTO categories (id, user_id, name, created_at) VALUES ('cat-1', ?, 'Food', '2026-01-01T00:00:00.000Z')`, user.id);
+    await db.run(
+      `INSERT INTO transactions (id, account_id, plaid_transaction_id, amount_cents, date, name, user_category_id, source, created_at)
+       VALUES ('pl-2', ?, 'plaid-2', -700, '2026-02-12', 'Restaurant', 'cat-1', 'plaid', '2026-02-12T00:00:00.000Z')`,
+      acc
+    );
+    const review = await svc.list(user.id, { limit: 50, offset: 0, review: true });
+    expect(review.total).toBe(1);
+    expect(review.rows[0].id).toBe("pl-1");
+  });
+
+  it("batchCategorize applies one category to many review items", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const acc = await seedManualAccount(db, user.id);
+    const svc = createTransactionsService(db);
+    await db.run(
+      `INSERT INTO transactions (id, account_id, plaid_transaction_id, amount_cents, date, name, source, created_at)
+       VALUES ('pl-1', ?, 'plaid-1', -550, '2026-02-10', 'Grocery', 'plaid', '2026-02-10T00:00:00.000Z')`,
+      acc
+    );
+    await db.run(
+      `INSERT INTO transactions (id, account_id, plaid_transaction_id, amount_cents, date, name, source, created_at)
+       VALUES ('pl-2', ?, 'plaid-2', -700, '2026-02-12', 'Restaurant', 'plaid', '2026-02-12T00:00:00.000Z')`,
+      acc
+    );
+    const cat = await db.run(`INSERT INTO categories (id, user_id, name, created_at) VALUES ('cat-1', ?, 'Food', '2026-01-01T00:00:00.000Z')`, user.id);
+    const updated = await svc.batchCategorize(user.id, ["pl-1", "pl-2", "does-not-exist"], "cat-1");
+    expect(updated).toBe(2); // only the 2 real, reviewable rows
+    const review = await svc.list(user.id, { limit: 50, offset: 0, review: true });
+    expect(review.total).toBe(0);
+    const after = await svc.list(user.id, { limit: 50, offset: 0 });
+    expect(after.rows.find((r) => r.id === "pl-1")!.user_category_id).toBe("cat-1");
+  });
 });

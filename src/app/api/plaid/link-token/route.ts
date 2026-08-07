@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 
 const querySchema = z.object({
   environment: z.enum(["sandbox", "production"]).default("sandbox"),
+  updateItemId: z.string().optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
     const session = await requireSession(req);
     const q = querySchema.safeParse(Object.fromEntries(new URL(req.url).searchParams));
     if (!q.success) throw apiErrors.badRequest("Invalid environment.");
-    const result = await createPlaidService(getDb()).createLinkToken(session.userId, q.data.environment);
+    const result = await createPlaidService(getDb()).createLinkToken(session.userId, q.data.environment, q.data.updateItemId);
     return ok(result);
   })(req, { params: Promise.resolve({}) });
 }

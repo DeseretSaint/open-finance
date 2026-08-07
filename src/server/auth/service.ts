@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { hashSecret } from "@/lib/crypto";
+import { hashSecret, safeEqual } from "@/lib/crypto";
 import { apiErrors } from "@/lib/api";
 import { createRateLimiter } from "@/lib/rate-limit";
 import { getDb, type Db } from "@/server/db/adapter";
@@ -173,7 +173,7 @@ export function createAuthService(db: Db = getDb()) {
         "SELECT id, recovery_code_hash FROM users WHERE lower(username) = lower(?)",
         username
       );
-      if (!row?.recovery_code_hash || row.recovery_code_hash !== hashSecret(recoveryCode)) {
+      if (!row?.recovery_code_hash || !safeEqual(row.recovery_code_hash, hashSecret(recoveryCode))) {
         throw apiErrors.badRequest("Recovery code is incorrect.");
       }
       await db.run("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?", await hashPassword(newPassword), now(), row.id);
