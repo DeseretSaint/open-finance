@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   return agentRoute(async (req) => {
     const auth = await requireSessionOrAgent(req, ["read:reports"], "get_net_worth");
     const allowlist = auth.kind === "agent" ? auth.ctx.allowlist : null;
-    const netWorth = await createReportsService(getDb()).netWorth(auth.kind === "agent" ? auth.ctx.userId : auth.userId, allowlist, req.nextUrl.searchParams.get("includeExcluded") === "1");
+    const netWorth = await createReportsService(getDb()).netWorth(auth.kind === "agent" ? auth.ctx.userId : auth.userId, allowlist, req.nextUrl.searchParams.get("includeExcluded") === "1", req.nextUrl.searchParams.get("includePending") !== "0");
     return ok({ netWorth });
   })(req, { params: Promise.resolve({}) });
 }

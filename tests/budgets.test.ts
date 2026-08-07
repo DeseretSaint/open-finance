@@ -77,7 +77,7 @@ describe("budgets", () => {
     expect(list[0].spentCents).toBe(3000);
   });
 
-  it("ignores excluded and pending transactions", async () => {
+  it("excludes budget-excluded transactions; pending included by default, excluded on demand", async () => {
     const db = createTestDb();
     const user = await seedUser(db);
     const acc = await seedManualAccount(db, user.id);
@@ -88,8 +88,13 @@ describe("budgets", () => {
 
     const svc = createBudgetsService(db);
     await svc.create(user.id, { name: "Food", amountCents: 10000, categoryIds: [food] });
+    // Pending is counted by default (matches accounts/overview) — only the
+    // budget-excluded txn is skipped.
     const list = await svc.list(user.id, dateIn(0, 15));
-    expect(list[0].spentCents).toBe(3000);
+    expect(list[0].spentCents).toBe(5000);
+    // Explicit opt-out excludes pending.
+    const strict = await svc.list(user.id, dateIn(0, 15), { kind: "period" }, false);
+    expect(strict[0].spentCents).toBe(3000);
   });
 
   it("ignores income (positive amounts) in spend", async () => {

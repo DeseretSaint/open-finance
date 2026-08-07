@@ -52,8 +52,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         const w = window as unknown as { RemoteServer?: { start?: (o: { port: number }) => Promise<unknown>; status?: () => Promise<{ running: boolean }> } };
         const plugin = w.RemoteServer;
         if (!plugin?.start) return;
-        const status = await plugin.status?.().catch(() => ({ running: false }));
-        if (status?.running) return;
+        // Always call start() — it is idempotent and re-registers the native
+        // dispatcher, which is a static and is nulled if the process was killed
+        // and the service restarted via START_STICKY.
         await plugin.start({ port: remote.port });
       } catch {
         /* best-effort */

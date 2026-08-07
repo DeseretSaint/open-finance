@@ -15,11 +15,13 @@ export function createReportsService(db: Db = getDb()) {
       from: string,
       to: string,
       allowlist?: AllowlistCtx | null,
-      includeExcluded = false
+      includeExcluded = false,
+      includePending = true
     ): Promise<Array<{ categoryId: string | null; categoryName: string; color: string | null; spentCents: number }>> {
       await markLinkedTransfers(db, userId);
       const allow = withAllowlist(allowlist ?? null, "a.id");
       const accountHistoryClause = includeExcluded ? "" : " AND a.deleted_at IS NULL";
+      const pendingClause = includePending ? "" : " AND t.pending = 0";
       return db.all(
         `SELECT t.user_category_id AS categoryId, COALESCE(c.name, 'Uncategorized') AS categoryName,
                 c.color AS color, COALESCE(SUM(-t.amount_cents), 0) AS spentCents
@@ -27,7 +29,7 @@ export function createReportsService(db: Db = getDb()) {
           JOIN accounts a ON a.id = t.account_id
           LEFT JOIN categories c ON c.id = t.user_category_id
          WHERE a.user_id = ?${accountHistoryClause} AND t.date >= ? AND t.date < ?
-           AND t.pending = 0 AND t.exclude_from_budgets = 0 AND t.is_transfer = 0 AND t.amount_cents < 0
+           AND t.exclude_from_budgets = 0 AND t.is_transfer = 0 AND t.amount_cents < 0${pendingClause}
             ${allow.clause}
           GROUP BY t.user_category_id, c.name, c.color
           ORDER BY spentCents DESC`,
@@ -39,10 +41,11 @@ export function createReportsService(db: Db = getDb()) {
     },
 
     /** One row per month (oldest → newest) for a bounded calendar window. */
-    async cashflow(userId: string, months: number, allowlist?: AllowlistCtx | null, from?: string, to?: string, includeExcluded = false): Promise<Array<{ month: string; incomeCents: number; expenseCents: number; netCents: number }>> {
+    async cashflow(userId: string, months: number, allowlist?: AllowlistCtx | null, from?: string, to?: string, includeExcluded = false, includePending = true): Promise<Array<{ month: string; incomeCents: number; expenseCents: number; netCents: number }>> {
       await markLinkedTransfers(db, userId);
       const allow = withAllowlist(allowlist ?? null, "a.id");
       const accountHistoryClause = includeExcluded ? "" : " AND a.deleted_at IS NULL";
+      const pendingClause = includePending ? "" : " AND t.pending = 0";
       const end = to ?? addMonthsISO(todayISO().slice(0, 8) + "01", 1);
       const start = from ?? addMonthsISO(end, -months);
       const rows = await db.all<{ month: string; incomeCents: number; expenseCents: number }>(
@@ -51,7 +54,7 @@ export function createReportsService(db: Db = getDb()) {
                 SUM(CASE WHEN t.amount_cents < 0 THEN -t.amount_cents ELSE 0 END) AS expenseCents
           FROM transactions t
           JOIN accounts a ON a.id = t.account_id
-         WHERE a.user_id = ?${accountHistoryClause} AND t.date >= ? AND t.date < ? AND t.pending = 0 AND t.exclude_from_budgets = 0 AND t.is_transfer = 0
+         WHERE a.user_id = ?${accountHistoryClause} AND t.date >= ? AND t.date < ? AND t.exclude_from_budgets = 0 AND t.is_transfer = 0${pendingClause}
            ${allow.clause}
          GROUP BY substr(t.date, 1, 7)
          ORDER BY month ASC`,
@@ -73,7 +76,7 @@ export function createReportsService(db: Db = getDb()) {
       return out;
     },
 
-    async netWorth(userId: string, allowlist?: AllowlistCtx | null, includeExcluded = false): Promise<{
+    async netWorth(userId: string, allowlist?: AllowlistCtx | null, includeExcluded = false, includePending = true): Promise<{
       assetsCents: number;
       liabilitiesCents: number;
       netCents: number;
@@ -81,10 +84,13 @@ export function createReportsService(db: Db = getDb()) {
     }> {
       const allow = withAllowlist(allowlist ?? null, "id");
       const accountHistoryClause = includeExcluded ? "" : " AND deleted_at IS NULL";
+      const pendingClause = includePending
+        ? " + COALESCE((SELECT SUM(t.amount_cents) FROM transactions t WHERE t.account_id = accounts.id AND t.pending = 1 AND t.exclude_from_budgets = 0 AND t.is_transfer = 0), 0)"
+        : "";
       const rows = await db.all<{ type: string | null; balance: number }>(
         `SELECT type,
                   COALESCE(SUM(CASE WHEN type IN ('credit', 'loan') THEN -ABS(COALESCE(current_balance_cents, 0))
-                                   ELSE COALESCE(current_balance_cents, 0) END), 0) AS balance
+                                   ELSE COALESCE(current_balance_cents, 0) END${pendingClause}), 0) AS balance
           FROM accounts WHERE user_id = ? AND hidden = 0${accountHistoryClause} AND include_in_net_worth = 1${allow.clause} GROUP BY type`,
         userId,
         ...allow.params
@@ -109,8 +115,8 @@ export function createReportsService(db: Db = getDb()) {
     },
 
     /** Monthly total expenses for the last `months` months (for spending trend chart). */
-    async spendingTrend(userId: string, months: number, allowlist?: AllowlistCtx | null): Promise<Array<{ month: string; spentCents: number }>> {
-      const flow = await this.cashflow(userId, months, allowlist);
+    async spendingTrend(userId: string, months: number, allowlist?: AllowlistCtx | null, includePending = true): Promise<Array<{ month: string; spentCents: number }>> {
+      const flow = await this.cashflow(userId, months, allowlist, undefined, undefined, false, includePending);
       return flow.map((f) => ({ month: f.month, spentCents: f.expenseCents }));
     },
   };

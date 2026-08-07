@@ -25,6 +25,7 @@ import { Card, CardLabel, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Money } from "@/components/money";
 import { AgentWidgets } from "@/components/agent-widgets";
+import { useIncludePending } from "@/lib/pending-pref";
 
 const CHART_COLORS = [
   "var(--chart-1)",
@@ -86,6 +87,7 @@ export default function ReportsPage() {
   // Selected month: 0 = current (month-to-date), negative = past, positive = future
   const [monthOffset, setMonthOffset] = useState(0);
   const [includeExcluded, setIncludeExcluded] = useState(false);
+  const [includePending] = useIncludePending();
   useEffect(() => {
     setIncludeExcluded(new URLSearchParams(window.location.search).get("includeExcluded") === "1");
   }, []);
@@ -102,27 +104,34 @@ export default function ReportsPage() {
   }, [monthOffset]);
 
   const byCategory = useQuery({
-    queryKey: ["reports", "by-category", monthOffset],
+    queryKey: ["reports", "by-category", monthOffset, includePending],
     queryFn: () => {
       const from = monthStart(monthOffset);
       const to = monthStart(monthOffset + 1);
+      const p = new URLSearchParams({ from, to });
+      if (includeExcluded) p.set("includeExcluded", "1");
+      if (!includePending) p.set("includePending", "0");
       return api.get<{ rows: Array<{ categoryName: string; spentCents: number; color: string | null }> }>(
-        `/api/reports/spending-by-category?from=${from}&to=${to}${includeExcluded ? "&includeExcluded=1" : ""}`
+        `/api/reports/spending-by-category?${p.toString()}`
       );
     },
   });
 
   // Month summary (income / expense / net) for the selected month
   const monthSummary = useQuery({
-    queryKey: ["summary", "ref", monthOffset, includeExcluded],
-    queryFn: () =>
-      api.get<{ summary: { monthIncomeCents: number; monthExpenseCents: number; monthNetCents: number } }>(
-        `/api/summary?ref=${refDate(monthOffset)}${includeExcluded ? "&includeExcluded=1" : ""}`
-      ),
+    queryKey: ["summary", "ref", monthOffset, includeExcluded, includePending],
+    queryFn: () => {
+      const p = new URLSearchParams({ ref: refDate(monthOffset) });
+      if (includeExcluded) p.set("includeExcluded", "1");
+      if (!includePending) p.set("includePending", "0");
+      return api.get<{ summary: { monthIncomeCents: number; monthExpenseCents: number; monthNetCents: number } }>(
+        `/api/summary?${p.toString()}`
+      );
+    },
   });
 
   const cashflow = useQuery({
-    queryKey: ["reports", "cashflow", monthOffset, includeExcluded],
+    queryKey: ["reports", "cashflow", monthOffset, includeExcluded, includePending],
     queryFn: () => {
       // Anchor the six-month chart to the selected month, not whichever clock
       // the hub/server happens to use. This keeps phone and hub reports aligned.
@@ -136,18 +145,27 @@ export default function ReportsPage() {
       const d = new Date(`${selectedStart}T00:00:00Z`);
       d.setUTCMonth(d.getUTCMonth() + 1);
       const to = d.toISOString().slice(0, 10);
+      const p = new URLSearchParams({ months: "6", from, to });
+      if (includeExcluded) p.set("includeExcluded", "1");
+      if (!includePending) p.set("includePending", "0");
       return api.get<{ rows: Array<{ month: string; incomeCents: number; expenseCents: number; netCents: number }> }>(
-        `/api/reports/cashflow?months=6&from=${from}&to=${to}${includeExcluded ? "&includeExcluded=1" : ""}`
+        `/api/reports/cashflow?${p.toString()}`
       );
     },
   });
   const netWorth = useQuery({
-    queryKey: ["reports", "net-worth", includeExcluded],
-    queryFn: () => api.get<{ netWorth: { assetsCents: number; liabilitiesCents: number; netCents: number } }>(`/api/reports/net-worth${includeExcluded ? "?includeExcluded=1" : ""}`),
+    queryKey: ["reports", "net-worth", includeExcluded, includePending],
+    queryFn: () => {
+      const p = new URLSearchParams();
+      if (includeExcluded) p.set("includeExcluded", "1");
+      if (!includePending) p.set("includePending", "0");
+      const qs = p.toString();
+      return api.get<{ netWorth: { assetsCents: number; liabilitiesCents: number; netCents: number } }>(`/api/reports/net-worth${qs ? `?${qs}` : ""}`);
+    },
   });
   const projection = useQuery({
-    queryKey: ["planning", "projection"],
-    queryFn: () => api.get<Projection>("/api/planning/projection?months=12"),
+    queryKey: ["planning", "projection", includePending],
+    queryFn: () => api.get<Projection>(`/api/planning/projection?months=12${includePending ? "" : "&includePending=0"}`),
   });
 
   const pieData = (byCategory.data?.rows ?? []).map((r) => ({

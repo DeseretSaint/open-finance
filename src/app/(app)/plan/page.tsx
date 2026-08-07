@@ -14,6 +14,7 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
+import { useIncludePending } from "@/lib/pending-pref";
 import { Money } from "@/components/money";
 
 interface Bill {
@@ -97,6 +98,7 @@ function addDays(d: Date, n: number): Date {
 export default function PlanPage() {
   const qc = useQueryClient();
   const kbdHeight = useKeyboardHeight();
+  const [includePending] = useIncludePending();
 
   // ── Digest horizon (issue #9: user-selectable look-ahead) ──────────────
   const [horizon, setHorizon] = useState<Horizon>("30d");
@@ -211,8 +213,8 @@ export default function PlanPage() {
   const debts = useQuery({ queryKey: ["planning", "debts"], queryFn: () => api.get<{ debts: Debt[] }>("/api/planning/debts") });
   const goals = useQuery({ queryKey: ["planning", "goals"], queryFn: () => api.get<{ goals: Goal[] }>("/api/planning/goals") });
   const projection = useQuery({
-    queryKey: ["planning", "projection"],
-    queryFn: () => api.get<Projection>("/api/planning/projection?months=12"),
+    queryKey: ["planning", "projection", includePending],
+    queryFn: () => api.get<Projection>(`/api/planning/projection?months=12${includePending ? "" : "&includePending=0"}`),
   });
 
   const invalidate = () => {

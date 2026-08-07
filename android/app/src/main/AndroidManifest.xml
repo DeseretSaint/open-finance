@@ -42,6 +42,20 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- Remote agent server (share-to-agent): keeps the 8787 socket alive
+             while remote access is enabled, surviving backgrounding/Doze via a
+             foreground service + wake lock. specialUse has no 6h/day cap (unlike
+             dataSync on Android 15+), so the server can stay up indefinitely. -->
+        <service
+            android:name=".RemoteServerService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Local HTTP server on port 8787 so an agent hub can reach the user's Open Finance data directly over Tailscale while the app is backgrounded." />
+        </service>
+
     </application>
 
     <!-- Permissions -->
@@ -50,4 +64,6 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-</manifest>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />

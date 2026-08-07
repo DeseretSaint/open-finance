@@ -26,7 +26,8 @@ export async function GET(req: NextRequest) {
     const projection = await createProjectionService(getDb()).project(
       auth.kind === "agent" ? auth.ctx.userId : auth.userId,
       parsed.data.months,
-      parsed.data.includeGoals
+      parsed.data.includeGoals,
+      req.nextUrl.searchParams.get("includePending") !== "0"
     );
     return ok(projection);
   })(req, { params: Promise.resolve({}) });

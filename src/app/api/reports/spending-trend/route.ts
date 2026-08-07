@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     if (!parsed.success) throw apiErrors.badRequest(parsed.error.issues.map((i) => i.message).join("; "));
     const userId = auth.kind === "agent" ? auth.ctx.userId : auth.userId;
     const allowlist = auth.kind === "agent" ? auth.ctx.allowlist : null;
-    const rows = await createReportsService(getDb()).spendingTrend(userId, parsed.data.months, allowlist);
+    const rows = await createReportsService(getDb()).spendingTrend(userId, parsed.data.months, allowlist, req.nextUrl.searchParams.get("includePending") !== "0");
     return ok({ rows });
   })(req, { params: Promise.resolve({}) });
 }

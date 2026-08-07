@@ -402,6 +402,7 @@ function RemoteAccessCard() {
       <p className="mt-1 text-sm text-text-muted">
         Lets your agent hub connect <strong className="text-text">directly to this phone</strong> over Tailscale on port
         8787 — the phone itself serves Open Finance, no hub install required. Requests must present the bearer token.
+        A foreground service keeps the server reachable even when the app is backgrounded or the screen is off.
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <Button onClick={enabled ? disable : enable} disabled={starting || remote.isLoading}>
@@ -415,7 +416,7 @@ function RemoteAccessCard() {
         )}
       </div>
       {enabled && !listening && nativeReady !== false && (
-        <p className="mt-2 text-sm text-warning">Token saved, but the server isn’t listening yet — keep the app open on this page (it starts on launch and on Enable).</p>
+        <p className="mt-2 text-sm text-warning">Token saved, but the server isn’t listening yet — try tapping Enable again, or restart the app.</p>
       )}
       {msg && <p role="alert" className="mt-2 text-sm text-danger">{msg}</p>}
       {enabled && token && (

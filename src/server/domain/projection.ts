@@ -43,14 +43,17 @@ export function createProjectionService(db: Db = getDb()) {
      * @param months how many months to project (default 12)
      * @param includeGoals include auto-contribution toward dated goals (default true, toggleable)
      */
-    async project(userId: string, months = 12, includeGoals = true): Promise<Projection> {
+    async project(userId: string, months = 12, includeGoals = true, includePending = true): Promise<Projection> {
       const today = todayISO();
       const currentMonthStart = today.slice(0, 8) + "01";
       const planning = createPlanningService(db);
 
       // Baseline: current total balance across all accounts (allowlist-aware from P7).
+      const pendingClause = includePending
+        ? " + COALESCE((SELECT SUM(t.amount_cents) FROM transactions t WHERE t.account_id = accounts.id AND t.pending = 1 AND t.exclude_from_budgets = 0 AND t.is_transfer = 0), 0)"
+        : "";
       const total = await db.get<{ s: number }>(
-        "SELECT COALESCE(SUM(CASE WHEN type IN ('credit', 'loan') THEN -ABS(COALESCE(current_balance_cents, 0)) ELSE COALESCE(current_balance_cents, 0) END), 0) AS s FROM accounts WHERE user_id = ? AND hidden = 0 AND deleted_at IS NULL AND include_in_net_worth = 1",
+        `SELECT COALESCE(SUM(CASE WHEN type IN ('credit', 'loan') THEN -ABS(COALESCE(current_balance_cents, 0)) ELSE COALESCE(current_balance_cents, 0) END${pendingClause}), 0) AS s FROM accounts WHERE user_id = ? AND hidden = 0 AND deleted_at IS NULL AND include_in_net_worth = 1`,
         userId
       );
       const baselineCents = total?.s ?? 0;
@@ -69,7 +72,7 @@ export function createProjectionService(db: Db = getDb()) {
              JOIN accounts a ON a.id = t.account_id
              LEFT JOIN categories c ON c.id = t.user_category_id
             WHERE a.user_id = ? AND a.deleted_at IS NULL AND t.is_transfer = 0 AND t.amount_cents > 0 AND t.date >= ? AND t.date < ?
-              AND t.pending = 0 AND c.name = 'Income'`,
+              ${includePending ? "" : "AND t.pending = 0"} AND c.name = 'Income'`,
           userId,
           r.start,
           r.end

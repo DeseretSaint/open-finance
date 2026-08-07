@@ -377,7 +377,7 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         frameKind === "custom" && start && end
           ? { kind: "custom", start, end }
           : { kind: (["week", "month", "quarter", "year", "period"].includes(frameKind) ? frameKind : "period") as "week" | "month" | "quarter" | "year" | "period" };
-      return ok({ budgets: await h.budgets.list(userId, reference, frame) });
+      return ok({ budgets: await h.budgets.list(userId, reference, frame, query.get("includePending") !== "0") });
     }
     if (method === "POST" && path === "/api/budgets") {
       const userId = await h.deviceUserId();
@@ -415,7 +415,8 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         query.get("from") ?? firstOfMonth,
         query.get("to") ?? today,
         undefined,
-        query.get("includeExcluded") === "1"
+        query.get("includeExcluded") === "1",
+        query.get("includePending") !== "0"
       );
       return ok({ rows });
     }
@@ -427,18 +428,19 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         null,
         query.get("from") ?? undefined,
         query.get("to") ?? undefined,
-        query.get("includeExcluded") === "1"
+        query.get("includeExcluded") === "1",
+        query.get("includePending") !== "0"
       );
       return ok({ rows });
     }
     if (method === "GET" && path === "/api/reports/net-worth") {
       const userId = await h.deviceUserId();
-      const netWorth = await h.reports.netWorth(userId, null, query.get("includeExcluded") === "1");
+      const netWorth = await h.reports.netWorth(userId, null, query.get("includeExcluded") === "1", query.get("includePending") !== "0");
       return ok({ netWorth });
     }
     if (method === "GET" && path === "/api/reports/spending-trend") {
       const userId = await h.deviceUserId();
-      const rows = await h.reports.spendingTrend(userId, Number(query.get("months") ?? 6));
+      const rows = await h.reports.spendingTrend(userId, Number(query.get("months") ?? 6), null, query.get("includePending") !== "0");
       return ok({ rows });
     }
 
@@ -785,7 +787,7 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
     }
     if (method === "GET" && path === "/api/planning/projection") {
       const userId = await h.deviceUserId();
-      return ok(await h.projection.project(userId));
+      return ok(await h.projection.project(userId, 12, true, query.get("includePending") !== "0"));
     }
     if (method === "GET" && path === "/api/planning/digest") {
       const userId = await h.deviceUserId();

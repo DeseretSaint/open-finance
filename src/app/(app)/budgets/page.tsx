@@ -15,6 +15,7 @@ import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { Money } from "@/components/money";
 import { AgentWidgets } from "@/components/agent-widgets";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
+import { useIncludePending } from "@/lib/pending-pref";
 
 interface Budget {
   id: string;
@@ -69,20 +70,22 @@ export default function BudgetsPage() {
   const [frame, setFrame] = useState<FrameKind>("period");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
+  const [includePending] = useIncludePending();
 
   const params = new URLSearchParams({ frame });
   if (frame === "custom") {
     if (customStart) params.set("start", customStart);
     if (customEnd) params.set("end", customEnd);
   }
+  if (!includePending) params.set("includePending", "0");
 
   const { data, isLoading } = useQuery({
-    queryKey: ["budgets", frame, customStart, customEnd],
+    queryKey: ["budgets", frame, customStart, customEnd, includePending],
     queryFn: () => api.get<{ budgets: Budget[] }>(`/api/budgets?${params.toString()}`),
   });
   const categories = useQuery({ queryKey: ["categories"], queryFn: () => api.get<{ categories: Category[] }>("/api/categories") });
   const summary = useQuery({
-    queryKey: ["summary", frame, customStart, customEnd],
+    queryKey: ["summary", frame, customStart, customEnd, includePending],
     queryFn: () =>
       api.get<{ summary: { monthIncomeCents: number; monthExpenseCents: number; monthNetCents: number } }>(
         `/api/summary?${params.toString()}`

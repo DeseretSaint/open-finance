@@ -113,7 +113,8 @@ export function createBudgetsService(db: Db = getDb()) {
     async list(
       userId: string,
       referenceDate: string = todayISO(),
-      frame: BudgetFrame = { kind: "period" }
+      frame: BudgetFrame = { kind: "period" },
+      includePending = true
     ): Promise<BudgetWithProgress[]> {
       const budgets = await db.all<BudgetRow>(
         "SELECT * FROM budgets WHERE user_id = ? ORDER BY created_at DESC",
@@ -130,7 +131,7 @@ export function createBudgetsService(db: Db = getDb()) {
         );
         const { start, end } =
           frame.kind === "period" ? periodBounds(b.period, referenceDate) : frameBounds(frame, referenceDate);
-        const spent = await this.spendCents(userId, b.id, start, end);
+        const spent = await this.spendCents(userId, b.id, start, end, includePending);
         result.push({
           ...b,
           categoryIds: cats.map((c) => c.category_id),
@@ -148,7 +149,7 @@ export function createBudgetsService(db: Db = getDb()) {
      * budget's categories. A budget with no categories tracks "Uncategorized"
      * (user_category_id IS NULL) — the fallback for manual/uncategorized rows.
      */
-    async spendCents(userId: string, budgetId: string, start: string, end: string): Promise<number> {
+    async spendCents(userId: string, budgetId: string, start: string, end: string, includePending = true): Promise<number> {
       const budget = await db.get<BudgetRow>("SELECT * FROM budgets WHERE id = ? AND user_id = ?", budgetId, userId);
       if (!budget) throw apiErrors.notFound("Budget");
       const cats = await db.all<{ category_id: string }>(
@@ -166,12 +167,13 @@ export function createBudgetsService(db: Db = getDb()) {
         params.push(...catIds);
       }
 
+      const pendingClause = includePending ? "" : " AND t.pending = 0";
       const row = await db.get<{ s: number }>(
         `SELECT COALESCE(SUM(-t.amount_cents), 0) AS s
           FROM transactions t
           JOIN accounts a ON a.id = t.account_id
          WHERE a.user_id = ? AND a.deleted_at IS NULL AND t.date >= ? AND t.date < ?
-          AND t.pending = 0 AND t.exclude_from_budgets = 0 AND t.is_transfer = 0 AND t.amount_cents < 0
+          AND t.exclude_from_budgets = 0 AND t.is_transfer = 0 AND t.amount_cents < 0${pendingClause}
            AND ${categoryClause}`,
         ...params
       );
