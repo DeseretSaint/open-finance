@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { isSoloCandidate } from "@/lib/mobile-mode";
+import { getRemoteServerStatus } from "@/lib/native-plugins";
 
 /* ── types ─────────────────────────────────────────────────────────────── */
 
@@ -212,6 +213,7 @@ function RemoteAgentBriefCard({ endpoint, solo }: { endpoint: string; solo: bool
   const [chat, setChat] = useState("");
   const [model, setModel] = useState("Keep the current Hermes model");
   const [copied, setCopied] = useState(false);
+  const [nativeStatus, setNativeStatus] = useState<{ available: boolean; listening: boolean } | null>(null);
   const remote = useQuery({
     queryKey: ["agent-remote"],
     queryFn: () => api.get<{ enabled: boolean; port: number; token: string | null }>("/api/agent/remote"),
@@ -220,6 +222,18 @@ function RemoteAgentBriefCard({ endpoint, solo }: { endpoint: string; solo: bool
   });
   const remoteEnabled = remote.data?.enabled ?? false;
   const remoteToken = remote.data?.token ?? "";
+
+  useEffect(() => {
+    if (!solo || !remoteEnabled) return;
+    let cancelled = false;
+    (async () => {
+      const s = await getRemoteServerStatus();
+      if (!cancelled) setNativeStatus(s);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [solo, remoteEnabled, remote.data?.enabled]);
   const target = solo ? "" : endpoint.replace(/\/$/, "");
   const authLine = remoteToken
     ? "Authenticate every request with the HTTP header:\n   Authorization: Bearer " + remoteToken
@@ -276,11 +290,17 @@ Complete this setup on the trusted hub:
         <Input aria-label="Gateway chat or topic ID" placeholder="Chat/topic ID" value={chat} onChange={(e) => setChat(e.target.value)} />
         {solo && (
           <div className="rounded-lg border border-border bg-surface-muted/40 px-3 py-2 text-xs text-text-muted sm:col-span-2">
-            {remoteEnabled ? (
+            {remoteEnabled && nativeStatus?.listening ? (
               <>
-                <span className="font-medium text-text">Remote access enabled</span> — the phone listens on{" "}
+                <span className="font-medium text-success">Remote access enabled</span> — the phone listens on{" "}
                 <span className="font-mono text-accent">port 8787</span> over Tailscale. Token:{" "}
                 <span className="break-all font-mono text-text">{remoteToken || "…"}</span>
+              </>
+            ) : remoteEnabled ? (
+              <>
+                Remote access is <span className="font-medium text-text">on</span>, but the server{" "}
+                <span className="font-medium text-text">isn&apos;t listening yet</span>. Keep the Open Finance app open
+                on this page — it starts on launch and on Enable.
               </>
             ) : (
               <>
@@ -305,6 +325,8 @@ function RemoteAccessCard() {
   const qc = useQueryClient();
   const [starting, setStarting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [nativeReady, setNativeReady] = useState<boolean | null>(null);
+  const [listening, setListening] = useState(false);
 
   const remote = useQuery({
     queryKey: ["agent-remote"],
@@ -316,23 +338,32 @@ function RemoteAccessCard() {
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["agent-remote"] });
 
+  async function refreshNativeStatus() {
+    const s = await getRemoteServerStatus();
+    setNativeReady(s.available);
+    setListening(s.listening);
+  }
+
+  useEffect(() => {
+    void refreshNativeStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remote.data?.enabled]);
+
   async function startRemoteServer() {
-    try {
-      const w = window as unknown as { RemoteServer?: { start?: (o: { port: number }) => Promise<unknown> } };
-      const plugin = w.RemoteServer;
-      if (plugin?.start) await plugin.start({ port: 8787 });
-    } catch {
-      // Native plugin missing (plain web) — the token still works for tests.
+    const s = await getRemoteServerStatus();
+    if (!s.available) {
+      setNativeReady(false);
+      throw new Error("This build has no native remote server — install the APK release.");
     }
+    const w = window as unknown as { RemoteServer?: { start?: (o: { port: number }) => Promise<unknown> } };
+    await (w.RemoteServer?.start ?? (async () => {
+      throw new Error("Remote server plugin not available on this build.");
+    }))({ port: 8787 });
+    setNativeReady(true);
   }
   async function stopRemoteServer() {
-    try {
-      const w = window as unknown as { RemoteServer?: { stop?: () => Promise<unknown> } };
-      const plugin = w.RemoteServer;
-      if (plugin?.stop) await plugin.stop();
-    } catch {
-      // ignore
-    }
+    const w = window as unknown as { RemoteServer?: { stop?: () => Promise<unknown> } };
+    if (w.RemoteServer?.stop) await w.RemoteServer.stop();
   }
 
   async function enable() {
@@ -342,6 +373,7 @@ function RemoteAccessCard() {
       await api.post<{ token: string; port: number }>("/api/agent/remote/enable");
       await startRemoteServer();
       await refresh();
+      await refreshNativeStatus();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Failed to enable remote access.");
     } finally {
@@ -356,6 +388,7 @@ function RemoteAccessCard() {
       await api.post("/api/agent/remote/disable");
       await stopRemoteServer();
       await refresh();
+      setListening(false);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Failed to disable remote access.");
     } finally {
@@ -374,10 +407,16 @@ function RemoteAccessCard() {
         <Button onClick={enabled ? disable : enable} disabled={starting || remote.isLoading}>
           {starting ? "Working…" : enabled ? "Disable remote access" : "Enable remote access"}
         </Button>
-        {enabled && (
+        {enabled && listening && (
           <span className="rounded-full bg-accent/10 px-3 py-1 text-xs font-medium text-accent">● Listening on 8787</span>
         )}
+        {enabled && !listening && nativeReady === false && (
+          <span className="rounded-full bg-danger/10 px-3 py-1 text-xs font-medium text-danger">● Not listening — rebuild APK</span>
+        )}
       </div>
+      {enabled && !listening && nativeReady !== false && (
+        <p className="mt-2 text-sm text-warning">Token saved, but the server isn’t listening yet — keep the app open on this page (it starts on launch and on Enable).</p>
+      )}
       {msg && <p role="alert" className="mt-2 text-sm text-danger">{msg}</p>}
       {enabled && token && (
         <div className="mt-3 rounded-xl bg-surface-muted px-4 py-3 text-xs text-text-muted">

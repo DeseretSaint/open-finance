@@ -36,3 +36,23 @@ export function ensureNativePlugins(): void {
     };
   }
 }
+
+/**
+ * Returns whether the native remote HTTP server is available and listening.
+ * `available` is false on plain web/PWA (no bridge registered); `listening` is
+ * the live server state on the device. Returns nulls if it can't be probed.
+ */
+export async function getRemoteServerStatus(): Promise<{ available: boolean; listening: boolean }> {
+  if (typeof window === "undefined") return { available: false, listening: false };
+  const w = window as unknown as {
+    RemoteServer?: { start?: unknown; status?: () => Promise<{ running: boolean } | null> };
+  };
+  const plugin = w.RemoteServer;
+  if (!plugin?.status) return { available: false, listening: false };
+  try {
+    const s = await plugin.status();
+    return { available: true, listening: s?.running === true };
+  } catch {
+    return { available: true, listening: false };
+  }
+}

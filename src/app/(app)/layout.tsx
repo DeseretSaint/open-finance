@@ -37,6 +37,34 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return () => stop?.();
   }, [data, onboarding.data?.completed]);
 
+  // Remote access (share-to-agent): if a remote-access token exists, make sure
+  // the native HTTP server on port 8787 is actually listening — it must
+  // survive app restarts, not just the toggle moment. No-op on plain web.
+  useEffect(() => {
+    if (!data || onboarding.data?.completed === false || typeof window === "undefined") return;
+    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    if (!cap?.isNativePlatform?.()) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const remote = await api.get<{ enabled: boolean; port: number }>("/api/agent/remote");
+        if (cancelled || !remote.enabled) return;
+        const w = window as unknown as { RemoteServer?: { start?: (o: { port: number }) => Promise<unknown>; status?: () => Promise<{ running: boolean }> } };
+        const plugin = w.RemoteServer;
+        if (!plugin?.start) return;
+        const status = await plugin.status?.().catch(() => ({ running: false }));
+        if (status?.running) return;
+        await plugin.start({ port: remote.port });
+      } catch {
+        /* best-effort */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.user.display_name, onboarding.data?.completed]);
+
   // P11: keep the on-device status notification schedule fresh on every launch
   // (native only — the plugin is a no-op elsewhere).
   useEffect(() => {
