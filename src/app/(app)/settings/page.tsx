@@ -879,6 +879,15 @@ function AgentWiringCard({ setMsg, setErr }: { setMsg: (s: string | null) => voi
     retry: false,
   });
   const soloUnsupported = agents.isError;
+  // Solo phones have no agent_tokens rows — the agent connects via remote
+  // access (app_state token). Gate the "Apply" button on that instead.
+  const remote = useQuery({
+    queryKey: ["agent-remote"],
+    queryFn: () => api.get<{ enabled: boolean; port: number; token: string | null }>("/api/agent/remote"),
+    retry: false,
+    enabled: soloUnsupported,
+  });
+  const agentConnected = soloUnsupported ? !!remote.data?.enabled : (agents.data?.agents?.length ?? 0) > 0;
 
   const prefs = useQuery({
     queryKey: ["agent-prefs"],
@@ -1091,12 +1100,12 @@ function AgentWiringCard({ setMsg, setErr }: { setMsg: (s: string | null) => voi
                   <Button
                     size="sm"
                     onClick={() => categorizeNow.mutate()}
-                    disabled={categorizeNow.isPending || !agents.data?.agents?.length}
-                    title={!agents.data?.agents?.length ? "Connect an agent in the Agents tab first" : "Start categorizing the backlog now"}
+                    disabled={categorizeNow.isPending || !agentConnected}
+                    title={!agentConnected ? "Connect an agent in the Agents tab first" : "Start categorizing the backlog now"}
                   >
                     {categorizeNow.isPending ? "Categorizing…" : "Apply — start categorizing now"}
                   </Button>
-                  {!agents.data?.agents?.length && (
+                  {!agentConnected && (
                     <span className="text-xs text-text-muted">Connect an agent in the Agents tab first.</span>
                   )}
                 </div>

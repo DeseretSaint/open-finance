@@ -43,6 +43,22 @@ class RemoteServerPlugin : Plugin() {
         }
         // The service owns the socket; this lambda is what it calls per request.
         RemoteServerService.dispatcher = { requestJson -> dispatchToJs(requestJson) }
+        // Keep the WebView renderer (JS) alive in background: dispatch relies on
+        // evaluateJavascript, whose renderer process Android otherwise suspends
+        // when the app is backgrounded / screen off (the agent's "WebView bridge
+        // is suspended" symptom). IMPORTANT + waiveWaitingToRender keeps it.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            bridge?.webView?.let { wv ->
+                try {
+                    wv.setRendererPriorityPolicy(
+                        android.webkit.WebView.RENDERER_PRIORITY_IMPORTANT,
+                        true
+                    )
+                } catch (_: Exception) {
+                    /* best-effort — some OEM WebViews lack this API */
+                }
+            }
+        }
         val intent = Intent(context, RemoteServerService::class.java).putExtra("port", port)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

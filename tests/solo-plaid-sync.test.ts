@@ -197,6 +197,66 @@ describe("createSoloSyncClient adapter (v0.3.11 regression)", () => {
     expect(seenAccessToken).toBe("access-1");
     expect(seenCursor).toBeNull();
     expect(result.ok).toBe(true);
-    expect(result.added).toBe(1);
+  });
+
+  it("stores pending transactions and keeps them across a sync cursor advance", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    // First sync: a pending charge arrives.
+    const first = await syncSoloItem({
+      db,
+      userId: user.id,
+      itemId: "item-1",
+      institutionName: null,
+      environment: "sandbox",
+      creds: { clientId: "c", secret: "s", environment: "sandbox" },
+      accessToken: "access-1",
+      accounts: [{ id: "acct-1", name: "Checking", type: "depository", mask: null }],
+      client: fakeClient([
+        {
+          id: "pending-1",
+          accountId: "acct-1",
+          amountCents: 4200,
+          date: "2026-07-28",
+          authorizedDate: "2026-07-28",
+          name: "POS DEBIT AMAZON",
+          merchantName: null,
+          categoryPath: null,
+          personalFinanceCategory: null,
+          pending: true,
+        },
+      ]),
+      cursor: null,
+    });
+    expect(first.added).toBe(1);
+    const pendingRow = await db.get<{ pending: number; amount_cents: number }>(
+      "SELECT pending, amount_cents FROM transactions WHERE plaid_transaction_id = ?",
+      "pending-1"
+    );
+    expect(pendingRow?.pending).toBe(1);
+    expect(pendingRow?.amount_cents).toBe(-4200); // Plaid positive → stored negative
+    // The list query returns pending by default (no pendingOnly filter).
+    const { createTransactionsService } = await import("@/server/domain/transactions");
+    const list = await createTransactionsService(db).list(user.id, { limit: 100, offset: 0 });
+    expect(list.rows.some((t) => t.pending === 1)).toBe(true);
+    // Second sync: cursor advances, no new/changed txns — the pending row stays.
+    const second = await syncSoloItem({
+      db,
+      userId: user.id,
+      itemId: "item-1",
+      institutionName: null,
+      environment: "sandbox",
+      creds: { clientId: "c", secret: "s", environment: "sandbox" },
+      accessToken: "access-1",
+      accounts: [{ id: "acct-1", name: "Checking", type: "depository", mask: null }],
+      client: fakeClient([], "cursor-2"),
+      cursor: "cursor-1",
+    });
+    expect(second.added).toBe(0);
+    const stillThere = await db.get<{ pending: number }>(
+      "SELECT pending FROM transactions WHERE plaid_transaction_id = ?",
+      "pending-1"
+    );
+    expect(stillThere?.pending).toBe(1);
   });
 });

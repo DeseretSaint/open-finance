@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search, X, Trash2, ChevronDown } from "lucide-react";
+import { Search, X, Trash2, ChevronDown, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -60,6 +60,7 @@ export default function TransactionsPage() {
   const [pendingOnly, setPendingOnly] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
 
@@ -100,6 +101,29 @@ export default function TransactionsPage() {
   const remove = useMutation({
     mutationFn: (id: string) => api.del(`/api/transactions/${id}`),
     onSuccess: invalidate,
+  });
+
+  // Manual refresh: pull posted + pending transactions straight from the bank.
+  // Works in solo mode (native Plaid proxy) and on the hub. In solo mode the
+  // sync also fires the global "of:data-synced" event, but we invalidate here
+  // too so hub-mode refreshes update the list immediately.
+  const syncNow = useMutation({
+    mutationFn: () => api.post<{ results: Array<{ institution_name: string | null; added: number; modified: number; removed: number; ok: boolean; error?: string }> }>("/api/transactions/sync"),
+    onSuccess: (d) => {
+      const changed = d.results.reduce((n, r) => n + r.added + r.modified, 0);
+      const failed = d.results.filter((r) => !r.ok);
+      if (failed.length > 0) {
+        setError(`Refresh finished with errors: ${failed.map((f) => `${f.institution_name ?? "an institution"}${f.error ? `: ${f.error}` : ""}`).join("; ")}`);
+      } else {
+        setError(null);
+        setRefreshMsg(changed === 0 ? "Up to date — nothing new." : `Synced — ${changed} transaction${changed === 1 ? "" : "s"} updated.`);
+      }
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["reports"] });
+      qc.invalidateQueries({ queryKey: ["planning"] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : "Refresh failed."),
   });
 
   // Manual add form
@@ -181,8 +205,30 @@ export default function TransactionsPage() {
             )}
             Pending
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              setRefreshMsg(null);
+              syncNow.mutate();
+            }}
+            disabled={syncNow.isPending}
+            title="Refresh from your bank (posted + pending)"
+            className={`flex h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors ${
+              syncNow.isPending
+                ? "cursor-wait border-border bg-surface text-text-muted"
+                : "border-border bg-surface text-text-muted hover:text-text"
+            }`}
+          >
+            <RefreshCw size={14} className={syncNow.isPending ? "animate-spin" : ""} />
+            {syncNow.isPending ? "Refreshing…" : "Refresh"}
+          </button>
           <span className="text-sm text-text-muted">{data ? `${data.total} transaction${data.total === 1 ? "" : "s"}` : "…"}</span>
         </div>
+        {(refreshMsg || error) && (
+          <div className={`mt-2 px-1 text-xs ${error ? "text-red-500" : "text-text-muted"}`}>
+            {error ?? refreshMsg}
+          </div>
+        )}
       </Card>
 
       {/* Add-transaction modal */}

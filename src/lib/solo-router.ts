@@ -715,6 +715,16 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       }
     }
 
+    // ── Agent one-call briefing (solo) ──────────────────────────────────
+    // The agent's get_financial_summary hits this; missing it made the agent
+    // fall back to summing transactions by hand (interrupted by bridge
+    // suspension → incomplete income for budget builds).
+    if (method === "GET" && path === "/api/agent/summary") {
+      const userId = await h.deviceUserId();
+      const summary = await h.summary.get(userId, undefined, null, { kind: "month" }, false, true);
+      return ok({ scope: "all allowed accounts", summary });
+    }
+
     // ── Agent preferences (smart categorization) ────────────────────────
     if (path === "/api/agent/prefs") {
       const userId = await h.deviceUserId();
@@ -969,7 +979,12 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         "SELECT COUNT(*) AS n FROM agent_tokens WHERE user_id = ? AND revoked = 0",
         userId
       );
-      if (!connected || connected.n === 0) {
+      // Solo agents connect via the remote-access token (stored in app_state,
+      // not agent_tokens) — count that as connected too.
+      const remoteToken = await db.get<{ value: string }>(
+        "SELECT value FROM app_state WHERE key = 'remote.agent.token'"
+      );
+      if ((!connected || connected.n === 0) && !remoteToken) {
         throw apiErrors.badRequest("No agent connected — wire one in the Agents tab first.");
       }
       const prefs = await createAgentPrefsService(db).get(userId);

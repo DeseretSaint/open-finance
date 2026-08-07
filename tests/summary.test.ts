@@ -82,4 +82,27 @@ describe("summary", () => {
     expect(summary.monthIncomeCents).toBe(10000);
     expect(summary.recentTransactions.map((t) => t.name)).not.toContain("Removed income");
   });
+
+  it("month totals include pending income/expense by default (agent budget input)", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const acc = await seedManualAccount(db, user.id);
+    const now = new Date().toISOString();
+    // Cleared paycheck + pending second paycheck (income = positive).
+    await db.run(
+      `INSERT INTO transactions (id, account_id, amount_cents, date, name, source, pending, created_at) VALUES (?, ?, 120000, ?, 'Paycheck 1', 'manual', 0, ?)`,
+      randomUUID(), acc, dateIn(0, 2), now
+    );
+    await db.run(
+      `INSERT INTO transactions (id, account_id, amount_cents, date, name, source, pending, created_at) VALUES (?, ?, 120000, ?, 'Paycheck 2 (pending)', 'manual', 1, ?)`,
+      randomUUID(), acc, dateIn(0, 20), now
+    );
+    const summary = await createSummaryService(db).get(user.id, dateIn(0, 25));
+    // Default includePending=true → full month income is what the agent sees
+    // via /api/agent/summary when building budgets.
+    expect(summary.monthIncomeCents).toBe(240000);
+    // Opt-out excludes pending.
+    const strict = await createSummaryService(db).get(user.id, dateIn(0, 25), null, { kind: "month" }, false, false);
+    expect(strict.monthIncomeCents).toBe(120000);
+  });
 });

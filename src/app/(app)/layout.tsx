@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Building2 } from "lucide-react";
@@ -36,6 +36,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }).catch(() => {});
     return () => stop?.();
   }, [data, onboarding.data?.completed]);
+
+  // When any sync completes (auto or manual), refetch every money query so a
+  // freshly-synced pending transaction shows up in the Activity tab without
+  // needing a manual page refresh (was: DB updated, UI stayed stale).
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onSynced = () => {
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      qc.invalidateQueries({ queryKey: ["summary"] });
+      qc.invalidateQueries({ queryKey: ["budgets"] });
+      qc.invalidateQueries({ queryKey: ["reports"] });
+      qc.invalidateQueries({ queryKey: ["planning"] });
+    };
+    window.addEventListener("of:data-synced", onSynced);
+    return () => window.removeEventListener("of:data-synced", onSynced);
+  }, [qc]);
 
   // Remote access (share-to-agent): if a remote-access token exists, make sure
   // the native HTTP server on port 8787 is actually listening — it must
