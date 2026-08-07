@@ -11,6 +11,8 @@ interface UpdateStatus {
   currentVersion: string;
   latestVersion: string | null;
   latestUrl: string | null;
+  apkUrl?: string | null;
+  apkSha256?: string | null;
   updateAvailable: boolean;
   dismissed: string | null;
   scheduledAt: string | null;
@@ -33,6 +35,52 @@ export function UpdatesCard() {
   const [scheduledAt, setScheduledAt] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [installing, setInstalling] = useState(false);
+  const [installMsg, setInstallMsg] = useState<string | null>(null);
+
+  function updaterPlugin() {
+    const w = window as unknown as {
+      Updater?: {
+        downloadAndInstall?: (o: { url: string; sha256?: string | null; fileName?: string }) => Promise<unknown>;
+        canInstallUnknownApps?: () => Promise<{ canInstall: boolean }>;
+        openInstallSettings?: () => Promise<unknown>;
+      };
+    };
+    return w.Updater ?? null;
+  }
+
+  /** Native in-app update: grant install permission once, then download+install. */
+  async function downloadAndInstall() {
+    const st = status.data;
+    const plugin = updaterPlugin();
+    if (!plugin?.downloadAndInstall || !st?.apkUrl) {
+      if (st?.latestUrl) window.open(st.latestUrl, "_blank");
+      return;
+    }
+    setInstalling(true);
+    setInstallMsg(null);
+    try {
+      if (plugin.canInstallUnknownApps) {
+        const perm = await plugin.canInstallUnknownApps();
+        if (!perm.canInstall && plugin.openInstallSettings) {
+          setInstallMsg("Allow Open Finance to install apps, then tap Update again.");
+          await plugin.openInstallSettings();
+          setInstalling(false);
+          return;
+        }
+      }
+      await plugin.downloadAndInstall({
+        url: st.apkUrl,
+        sha256: st.apkSha256 ?? null,
+        fileName: `openfinance-${st.latestVersion}.apk`,
+      });
+      setInstallMsg("Downloaded — the installer should open now. Finish it to apply the update.");
+    } catch (e) {
+      setInstallMsg(e instanceof Error ? e.message : "Update failed — try again or download from the release page.");
+    } finally {
+      setInstalling(false);
+    }
+  }
 
   const status = useQuery({
     queryKey: ["updates"],
@@ -134,6 +182,14 @@ export function UpdatesCard() {
                 </Button>
               </div>
             </>
+          ) : native ? (
+            <Button
+              onClick={downloadAndInstall}
+              disabled={installing || !s.apkUrl}
+              title={s.apkUrl ? "" : "Checking for the downloadable APK…"}
+            >
+              {installing ? "Updating…" : `Update now (v${s.latestVersion})`}
+            </Button>
           ) : s.latestUrl ? (
             <a
               href={s.latestUrl}
@@ -154,7 +210,17 @@ export function UpdatesCard() {
             Cancel schedule
           </Button>
         )}
-        {s?.latestUrl && (
+        {s?.latestUrl && !native && (
+          <a
+            href={s.latestUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-sm text-text-muted underline underline-offset-2 hover:text-text"
+          >
+            Release notes
+          </a>
+        )}
+        {s?.latestUrl && native && (
           <a
             href={s.latestUrl}
             target="_blank"
@@ -168,6 +234,7 @@ export function UpdatesCard() {
 
       {msg && <p className="mt-3 text-sm text-emerald-600">{msg}</p>}
       {err && <p className="mt-3 text-sm text-red-600">{err}</p>}
+      {installMsg && <p className="mt-3 text-sm text-text-muted">{installMsg}</p>}
     </Card>
   );
 }

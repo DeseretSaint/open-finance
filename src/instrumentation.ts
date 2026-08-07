@@ -6,6 +6,16 @@
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  // Generate stable ENCRYPTION_KEY / AUTH_SECRET on first run if absent, so a
+  // self-hosted operator isn't required to hand-provision secrets (and the app
+  // no longer bricks itself when they aren't set). Must run before anything
+  // reads env.
+  try {
+    const { bootstrapServerEnv } = await import("@/server/env-bootstrap");
+    bootstrapServerEnv();
+  } catch (e) {
+    console.error("Env bootstrap failed:", e);
+  }
   try {
     const { startUpdateScheduler } = await import("@/server/domain/updates");
     const { getDb } = await import("@/server/db/adapter");
