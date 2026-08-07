@@ -60,7 +60,7 @@ export default function DashboardPage() {
   const netPositive = s.monthNetCents >= 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-x-clip">
       {/* Widgets your AI added (dev:ui) — removable inline */}
       <AgentWidgets tab="dashboard" />
 
@@ -120,7 +120,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
+        <Card className="min-w-0">
           <div className="flex items-center justify-between">
             <CardTitle>Budgets</CardTitle>
             <Link href="/budgets" className="text-sm font-medium text-accent hover:underline">
@@ -137,9 +137,9 @@ export default function DashboardPage() {
               </div>
             )}
             {s.budgetOverview.map((b) => (
-              <div key={b.id}>
+              <div key={b.id} className="min-w-0">
                 <div className="mb-1 flex items-center justify-between gap-2 text-sm">
-                  <span className="truncate font-medium text-text">{b.name}</span>
+                  <span className="min-w-0 truncate font-medium text-text">{b.name}</span>
                   <span className={`money shrink-0 ${b.pct > 1 ? "font-medium text-danger" : "text-text-muted"}`}>
                     <Money cents={b.spentCents} /> / <Money cents={b.amountCents} />
                   </span>
@@ -150,7 +150,7 @@ export default function DashboardPage() {
           </div>
         </Card>
 
-        <Card>
+        <Card className="min-w-0">
           <div className="flex items-center justify-between">
             <CardTitle>Recent transactions</CardTitle>
             <Link href="/transactions" className="text-sm font-medium text-accent hover:underline">
@@ -173,7 +173,7 @@ export default function DashboardPage() {
               </div>
             )}
             {s.recentTransactions.map((t) => (
-              <div key={t.id} className="flex items-center justify-between gap-3 py-2.5">
+              <div key={t.id} className="flex min-w-0 items-center justify-between gap-3 py-2.5">
                 <div className="flex min-w-0 items-center gap-3">
                   <span
                     className="h-2 w-2 shrink-0 rounded-full"

@@ -212,18 +212,14 @@ function RemoteAgentBriefCard({ endpoint, solo }: { endpoint: string; solo: bool
   const [chat, setChat] = useState("");
   const [model, setModel] = useState("Keep the current Hermes model");
   const [copied, setCopied] = useState(false);
-  const [remoteToken, setRemoteToken] = useState("");
-  const [remoteEnabled, setRemoteEnabled] = useState(false);
-  useEffect(() => {
-    if (!solo) return;
-    api
-      .get<{ enabled: boolean; port: number; token: string | null }>("/api/agent/remote")
-      .then((r) => {
-        setRemoteEnabled(r.enabled);
-        setRemoteToken(r.token ?? "");
-      })
-      .catch(() => {});
-  }, [solo]);
+  const remote = useQuery({
+    queryKey: ["agent-remote"],
+    queryFn: () => api.get<{ enabled: boolean; port: number; token: string | null }>("/api/agent/remote"),
+    enabled: solo,
+    retry: false,
+  });
+  const remoteEnabled = remote.data?.enabled ?? false;
+  const remoteToken = remote.data?.token ?? "";
   const target = solo ? "" : endpoint.replace(/\/$/, "");
   const authLine = remoteToken
     ? "Authenticate every request with the HTTP header:\n   Authorization: Bearer " + remoteToken
@@ -288,8 +284,9 @@ Complete this setup on the trusted hub:
               </>
             ) : (
               <>
-                Remote access is <span className="font-medium text-text">off</span>. Turn it on below to let your agent
-                reach this phone directly over Tailscale.
+                Remote access is <span className="font-medium text-text">off</span>. Turn on{" "}
+                <span className="font-medium text-text">Direct remote access above</span> to let your agent reach this
+                phone directly over Tailscale.
               </>
             )}
           </div>
@@ -305,23 +302,19 @@ Complete this setup on the trusted hub:
 /* ── Remote access control (solo phone → agent hub over Tailscale) ───── */
 
 function RemoteAccessCard() {
-  const [enabled, setEnabled] = useState<boolean | null>(null);
-  const [token, setToken] = useState("");
+  const qc = useQueryClient();
   const [starting, setStarting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const refresh = () =>
-    api
-      .get<{ enabled: boolean; port: number; token: string | null }>("/api/agent/remote")
-      .then((r) => {
-        setEnabled(r.enabled);
-        setToken(r.token ?? "");
-      })
-      .catch(() => setEnabled(false));
+  const remote = useQuery({
+    queryKey: ["agent-remote"],
+    queryFn: () => api.get<{ enabled: boolean; port: number; token: string | null }>("/api/agent/remote"),
+    retry: false,
+  });
+  const enabled = remote.data?.enabled ?? false;
+  const token = remote.data?.token ?? "";
 
-  useEffect(() => {
-    void refresh();
-  }, []);
+  const refresh = () => qc.invalidateQueries({ queryKey: ["agent-remote"] });
 
   async function startRemoteServer() {
     try {
@@ -346,10 +339,9 @@ function RemoteAccessCard() {
     setStarting(true);
     setMsg(null);
     try {
-      const r = await api.post<{ token: string; port: number }>("/api/agent/remote/enable");
-      setToken(r.token);
+      await api.post<{ token: string; port: number }>("/api/agent/remote/enable");
       await startRemoteServer();
-      setEnabled(true);
+      await refresh();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Failed to enable remote access.");
     } finally {
@@ -363,8 +355,7 @@ function RemoteAccessCard() {
     try {
       await api.post("/api/agent/remote/disable");
       await stopRemoteServer();
-      setEnabled(false);
-      setToken("");
+      await refresh();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Failed to disable remote access.");
     } finally {
@@ -380,7 +371,7 @@ function RemoteAccessCard() {
         8787 — the phone itself serves Open Finance, no hub install required. Requests must present the bearer token.
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <Button onClick={enabled ? disable : enable} disabled={starting || enabled === null}>
+        <Button onClick={enabled ? disable : enable} disabled={starting || remote.isLoading}>
           {starting ? "Working…" : enabled ? "Disable remote access" : "Enable remote access"}
         </Button>
         {enabled && (

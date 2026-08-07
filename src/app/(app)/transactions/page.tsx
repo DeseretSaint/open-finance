@@ -367,15 +367,15 @@ export default function TransactionsPage() {
                     />
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center justify-between gap-3">
-                        <span className="min-w-0 truncate text-[15px] font-medium text-text">
-                          {t.name}
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className="min-w-0 truncate text-[15px] font-medium text-text">{t.name}</span>
                           {t.pending === 1 && (
-                            <span className="ml-2 rounded bg-[var(--warning-soft)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--warning)]">
+                            <span className="shrink-0 rounded bg-[var(--warning-soft)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--warning)]">
                               pending
                             </span>
                           )}
                           {t.exclude_from_budgets === 1 && (
-                            <span className="ml-2 rounded bg-surface-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-muted">
+                            <span className="shrink-0 rounded bg-surface-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-muted">
                               excluded
                             </span>
                           )}
