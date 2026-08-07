@@ -21,7 +21,14 @@ export async function GET(req: NextRequest) {
       frameKind === "custom" && start && end
         ? { kind: "custom", start, end }
         : { kind: (["week", "month", "quarter", "year", "period"].includes(frameKind) ? frameKind : "month") as "week" | "month" | "quarter" | "year" | "period" };
-    const summary = await createSummaryService(getDb()).get(session.userId, referenceDate, null, frame);
+    const summary = await createSummaryService(getDb()).get(
+      session.userId,
+      referenceDate,
+      null,
+      frame,
+      sp.get("includeExcluded") === "1",
+      sp.get("includePending") !== "0"
+    );
     return ok({ summary });
   })(req, { params: Promise.resolve({}) });
 }

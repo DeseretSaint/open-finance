@@ -25,6 +25,10 @@ export interface AccountRow {
   description: string | null;
   deleted_at: string | null;
   created_at: string;
+  /** Sum of pending transaction amounts for this account (positive = income). */
+  pending_balance_cents?: number;
+  /** current_balance_cents + pending_balance_cents (sign-aware). */
+  balance_with_pending_cents?: number;
 }
 
 function now(): string {
@@ -37,13 +41,20 @@ export function createAccountsService(db: Db = getDb()) {
   return {
     async list(userId: string): Promise<AccountRow[]> {
       return db.all<AccountRow>(
-        `SELECT a.*, i.institution_name, u.is_demo
+        `SELECT a.*, i.institution_name, u.is_demo,
+                COALESCE((SELECT SUM(t.amount_cents) FROM transactions t WHERE t.account_id = a.id AND t.pending = 1 AND t.exclude_from_budgets = 0 AND t.is_transfer = 0), 0) AS pending_balance_cents
            FROM accounts a
            LEFT JOIN plaid_items i ON i.id = a.item_id
            JOIN users u ON u.id = a.user_id
           WHERE a.user_id = ? AND a.hidden = 0 AND a.deleted_at IS NULL
           ORDER BY a.sort_order, a.type, a.name COLLATE NOCASE`,
         userId
+      ).then((rows) =>
+        rows.map((a) => ({
+          ...a,
+          balance_with_pending_cents:
+            (a.current_balance_cents ?? 0) + (a.pending_balance_cents ?? 0),
+        }))
       );
     },
 

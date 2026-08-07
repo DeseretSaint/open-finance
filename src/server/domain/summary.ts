@@ -33,7 +33,8 @@ export function createSummaryService(db: Db = getDb()) {
       referenceDate: string = new Date().toISOString().slice(0, 10),
       allowlist?: AllowlistCtx | null,
       frame: BudgetFrame = { kind: "month" },
-      includeExcluded = false
+      includeExcluded = false,
+      includePending = true
     ): Promise<Summary> {
       // Backfill linked card-payment transfers before calculating totals. This
       // also corrects transactions imported before transfer detection existed.
@@ -43,10 +44,16 @@ export function createSummaryService(db: Db = getDb()) {
       const allowTxns = withAllowlist(allowlist ?? null, "a.id");
       const accountHistoryClause = includeExcluded ? "" : " AND a.deleted_at IS NULL";
 
+      // Net worth: each account's stored balance, plus any pending transactions
+      // (pending amounts are sign-aware income/expense). Excluded by default and
+      // toggled on via includePending (defaults true).
+      const pendingClause = includePending
+        ? " + COALESCE((SELECT SUM(t.amount_cents) FROM transactions t WHERE t.account_id = accounts.id AND t.pending = 1 AND t.exclude_from_budgets = 0 AND t.is_transfer = 0), 0)"
+        : "";
       const totals = await db.all<{ type: string | null; balance: number }>(
         `SELECT type,
                   COALESCE(SUM(CASE WHEN type IN ('credit', 'loan') THEN -ABS(COALESCE(current_balance_cents, 0))
-                                   ELSE COALESCE(current_balance_cents, 0) END), 0) AS balance
+                                   ELSE COALESCE(current_balance_cents, 0) END${pendingClause}), 0) AS balance
           FROM accounts WHERE user_id = ? AND hidden = 0 AND deleted_at IS NULL AND include_in_net_worth = 1${allowAccounts.clause} GROUP BY type`,
         userId,
         ...allowAccounts.params

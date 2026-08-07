@@ -402,7 +402,7 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         frameKind === "custom" && start && end
           ? { kind: "custom", start, end }
           : { kind: (["week", "month", "quarter", "year", "period"].includes(frameKind) ? frameKind : "month") as "week" | "month" | "quarter" | "year" | "period" };
-      return ok({ summary: await h.summary.get(userId, referenceDate, null, frame, query.get("includeExcluded") === "1") });
+      return ok({ summary: await h.summary.get(userId, referenceDate, null, frame, query.get("includeExcluded") === "1", query.get("includePending") !== "0") });
     }
     if (method === "GET" && path === "/api/reports/spending-by-category") {
       const userId = await h.deviceUserId();

@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Money } from "@/components/money";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
+import { useIncludePending } from "@/lib/pending-pref";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { FloatingAddButton } from "@/components/ui/floating-add-button";
 
@@ -32,6 +33,8 @@ interface Account {
   sort_order: number;
   description: string | null;
   deleted_at: string | null;
+  pending_balance_cents?: number;
+  balance_with_pending_cents?: number;
 }
 
 const TYPES = ["depository", "credit", "investment", "loan", "other"];
@@ -91,6 +94,7 @@ export default function AccountsPage() {
   const [descDraft, setDescDraft] = useState("");
   const [editingName, setEditingName] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState("");
+  const [includePending, setIncludePending] = useIncludePending();
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["accounts"] });
@@ -175,6 +179,24 @@ export default function AccountsPage() {
 
   return (
     <div className="min-w-0 space-y-6 overflow-x-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-text">Accounts</h1>
+          <p className="mt-0.5 text-sm text-text-muted">
+            Running balances {includePending ? "include pending transactions" : "exclude pending transactions"}.
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={includePending}
+          onClick={() => setIncludePending(!includePending)}
+          className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors ${includePending ? "border-accent/40 bg-accent/10 text-accent" : "border-border bg-surface-muted text-text-muted"}`}
+        >
+          <span className={`inline-block h-3 w-3 rounded-full ${includePending ? "bg-accent" : "bg-text-muted/40"}`} />
+          Include pending
+        </button>
+      </div>
     {isLoading || !data ? (
         <AccountsSkeleton />
       ) : (
@@ -230,9 +252,24 @@ export default function AccountsPage() {
                   </div>
                 </div>
                 <div className="mt-4 flex items-end justify-between gap-2">
-                  <p className={`money text-2xl font-bold ${isLiability(a) && (a.current_balance_cents ?? 0) < 0 ? "text-danger" : "text-text"}`}>
-                    <Money cents={a.current_balance_cents ?? 0} currency={a.currency} signed={isLiability(a)} />
-                  </p>
+                  <div className="min-w-0">
+                    <p className={`money text-2xl font-bold ${isLiability(a) && (a.current_balance_cents ?? 0) < 0 ? "text-danger" : "text-text"}`}>
+                      <Money cents={includePending ? (a.balance_with_pending_cents ?? a.current_balance_cents ?? 0) : (a.current_balance_cents ?? 0)} currency={a.currency} signed={isLiability(a)} />
+                    </p>
+                    {includePending && (a.pending_balance_cents ?? 0) !== 0 && (
+                      <p className="money mt-0.5 text-xs text-text-muted">
+                        <Money cents={a.current_balance_cents ?? 0} currency={a.currency} signed={isLiability(a)} /> cleared
+                        {a.pending_balance_cents != null && (
+                          <>
+                            {" · "}
+                            <span className={(a.pending_balance_cents ?? 0) < 0 ? "text-warning" : "text-success"}>
+                              <Money cents={a.pending_balance_cents} currency={a.currency} signed /> pending
+                            </span>
+                          </>
+                        )}
+                      </p>
+                    )}
+                  </div>
                   <Button
                     variant="ghost"
                     size="sm"

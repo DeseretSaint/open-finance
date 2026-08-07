@@ -8,6 +8,7 @@ import { Card, CardLabel, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/badge";
 import { Money } from "@/components/money";
 import { AgentWidgets } from "@/components/agent-widgets";
+import { useIncludePending } from "@/lib/pending-pref";
 
 interface Summary {
   totalBalanceCents: number;
@@ -50,9 +51,11 @@ function formatShortDate(iso: string) {
 }
 
 export default function DashboardPage() {
+  const [includePending] = useIncludePending();
   const { data, isLoading } = useQuery({
-    queryKey: ["summary"],
-    queryFn: () => api.get<{ summary: Summary }>("/api/summary"),
+    queryKey: ["summary", includePending],
+    queryFn: () =>
+      api.get<{ summary: Summary }>(`/api/summary${includePending ? "" : "?includePending=0"}`),
   });
 
   if (isLoading || !data) return <DashboardSkeleton />;
