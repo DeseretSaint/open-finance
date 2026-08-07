@@ -24,6 +24,7 @@ interface Budget {
   period: string;
   spentCents: number;
   remainingCents: number;
+  frameAmountCents: number;
   pct: number;
   categoryIds: string[];
   categoryNames: string[];
@@ -44,7 +45,7 @@ interface Category {
   name: string;
 }
 
-type FrameKind = "period" | "week" | "month" | "quarter" | "year" | "custom";
+type FrameKind = "period" | "week" | "month" | "quarter" | "year" | "30d" | "custom";
 
 const FRAME_LABELS: Record<FrameKind, string> = {
   period: "Per-budget period",
@@ -52,6 +53,7 @@ const FRAME_LABELS: Record<FrameKind, string> = {
   month: "This month",
   quarter: "This quarter",
   year: "This year",
+  "30d": "Past 30 days",
   custom: "Custom range",
 };
 
@@ -62,6 +64,7 @@ const FRAME_PILLS: Array<{ kind: FrameKind; label: string }> = [
   { kind: "month", label: "Month" },
   { kind: "quarter", label: "Quarter" },
   { kind: "year", label: "Year" },
+  { kind: "30d", label: "30d" },
 ];
 
 function BudgetsSkeleton() {
@@ -113,10 +116,10 @@ function BudgetTxnList({
       <p className="mb-2 text-xs font-medium text-text-muted">Transactions</p>
       <ul className="space-y-1.5">
         {txns.map((t) => (
-          <li key={t.id} className="flex items-center justify-between gap-2 text-sm">
-            <span className="min-w-0">
+          <li key={t.id} className="flex min-w-0 items-center justify-between gap-2 text-sm">
+            <span className="min-w-0 flex-1">
               <span className="block truncate text-text">{t.name}</span>
-              <span className="block text-xs text-text-muted">
+              <span className="block truncate text-xs text-text-muted">
                 {t.date}
                 {t.account_name ? ` · ${t.account_name}` : ""}
                 {t.category_name ? ` · ${t.category_name}` : ""}
@@ -393,27 +396,27 @@ export default function BudgetsPage() {
                   </div>
                 </div>
                 <div className="mt-4">
-                  <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 text-sm">
-                    <span className={`money min-w-0 ${over ? "font-medium text-danger" : near ? "font-medium text-[var(--warning)]" : "text-text"}`}>
-                      <Money cents={b.spentCents} /> of <Money cents={b.amount_cents} />
-                      <span className="text-xs text-text-muted">{periodLabel}</span>
-                    </span>
-                    <span className="money shrink-0 text-text-muted">
-                      {b.remainingCents >= 0 ? (
-                        <>
-                          <Money cents={b.remainingCents} /> left
-                        </>
-                      ) : (
-                        <span className="font-medium text-danger">
-                          <Money cents={-b.remainingCents} /> over
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                  <Progress value={b.pct} />
-                  {near && (
-                    <p className="mt-1.5 text-xs text-[var(--warning)]">Near limit — {Math.round(b.pct * 100)}% used.</p>
-                  )}
+                <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 text-sm">
+                  <span className={`money min-w-0 ${over ? "font-medium text-danger" : near ? "font-medium text-[var(--warning)]" : "text-text"}`}>
+                    <Money cents={b.spentCents} /> of <Money cents={b.frameAmountCents} />
+                    <span className="text-xs text-text-muted">{frame !== "period" ? ` (${b.period} prorated)` : periodLabel}</span>
+                  </span>
+                  <span className="money shrink-0 text-text-muted">
+                    {b.remainingCents >= 0 ? (
+                      <>
+                        <Money cents={b.remainingCents} /> left
+                      </>
+                    ) : (
+                      <span className="font-medium text-danger">
+                        <Money cents={-b.remainingCents} /> over
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <Progress value={b.pct} />
+                {near && (
+                  <p className="mt-1.5 text-xs text-[var(--warning)]">Near limit — {Math.round(b.pct * 100)}% used.</p>
+                )}
                 </div>
                 {expanded && (
                   <BudgetTxnList

@@ -18,7 +18,9 @@ export interface BudgetWithProgress extends BudgetRow {
   categoryNames: string[];
   spentCents: number;
   remainingCents: number;
-  pct: number; // 0..1+ (over budget > 1)
+  /** The budget's limit, prorated to the requested view frame when frame ≠ "period". Equals amount_cents for "period". */
+  frameAmountCents: number;
+  pct: number; // 0..1+ (over budget > 1), against frameAmountCents
 }
 
 /** View frame for budget progress: a named period or a custom date range. */
@@ -28,10 +30,18 @@ export type BudgetFrame =
   | { kind: "month" }
   | { kind: "quarter" }
   | { kind: "year" }
+  | { kind: "30d" } // rolling past 30 days
   | { kind: "custom"; start: string; end: string }; // [start, end)
 
 function now(): string {
   return new Date().toISOString();
+}
+
+/** Whole-day count in [start, end) (exclusive end), used to prorate limits. */
+function daysBetween(start: string, end: string): number {
+  const s = new Date(start + "T00:00:00").getTime();
+  const e = new Date(end + "T00:00:00").getTime();
+  return Math.max(0, Math.round((e - s) / (24 * 3600 * 1000)));
 }
 
 /** Calendar-month bounds for a reference date. */
@@ -70,6 +80,14 @@ export function yearBounds(dateISO: string = todayISO()): { start: string; end: 
   return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
 }
 
+/** Rolling past-30-days bounds for a reference date (exclusive end = reference day). */
+export function last30DaysBounds(referenceDate: string = todayISO()): { start: string; end: string } {
+  const d = new Date(referenceDate + "T00:00:00");
+  const start = new Date(d);
+  start.setDate(d.getDate() - 30);
+  return { start: start.toISOString().slice(0, 10), end: new Date(d.getTime() + 24 * 3600 * 1000).toISOString().slice(0, 10) };
+}
+
 /** Bounds for a budget's own period relative to a reference date. */
 export function periodBounds(period: string, referenceDate: string = todayISO()): { start: string; end: string } {
   switch (period) {
@@ -91,6 +109,8 @@ export function frameBounds(frame: BudgetFrame, referenceDate: string = todayISO
       return quarterBounds(referenceDate);
     case "year":
       return yearBounds(referenceDate);
+    case "30d":
+      return last30DaysBounds(referenceDate);
     case "custom":
       return { start: frame.start, end: frame.end };
     default:
@@ -163,16 +183,30 @@ export function createBudgetsService(db: Db = getDb()) {
             WHERE bc.budget_id = ? AND c.enabled = 1`,
           b.id
         );
+        const periodWindow = periodBounds(b.period, referenceDate);
         const { start, end } =
-          frame.kind === "period" ? periodBounds(b.period, referenceDate) : frameBounds(frame, referenceDate);
+          frame.kind === "period" ? periodWindow : frameBounds(frame, referenceDate);
         const spent = await this.spendCents(userId, b.id, start, end, includePending);
+        // When viewing a frame other than the budget's own period, prorate the
+        // limit to that window so "spent vs limit" is honest (a monthly budget
+        // viewed over a week shouldn't show a $500 limit with $20 spent as if
+        // you're on track). frame = "period" keeps the full period limit.
+        let frameAmountCents = b.amount_cents;
+        if (frame.kind !== "period") {
+          const periodDays = daysBetween(periodWindow.start, periodWindow.end);
+          const frameDays = daysBetween(start, end);
+          if (periodDays > 0) {
+            frameAmountCents = Math.round((b.amount_cents * frameDays) / periodDays);
+          }
+        }
         result.push({
           ...b,
           categoryIds: cats.map((c) => c.category_id),
           categoryNames: cats.map((c) => c.name),
           spentCents: spent,
-          remainingCents: b.amount_cents - spent,
-          pct: b.amount_cents > 0 ? spent / b.amount_cents : spent > 0 ? 1 : 0,
+          frameAmountCents,
+          remainingCents: frameAmountCents - spent,
+          pct: frameAmountCents > 0 ? spent / frameAmountCents : spent > 0 ? 1 : 0,
         });
       }
       return result;

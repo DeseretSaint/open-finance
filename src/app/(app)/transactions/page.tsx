@@ -113,7 +113,16 @@ export default function TransactionsPage() {
       const changed = d.results.reduce((n, r) => n + r.added + r.modified, 0);
       const failed = d.results.filter((r) => !r.ok);
       if (failed.length > 0) {
-        setError(`Refresh finished with errors: ${failed.map((f) => `${f.institution_name ?? "an institution"}${f.error ? `: ${f.error}` : ""}`).join("; ")}`);
+        const needsLogin = failed.some((f) => /ITEM_LOGIN_REQUIRED/i.test(f.error ?? ""));
+        if (needsLogin) {
+          setError(
+            `Some banks need you to sign in again. Go to Settings → Bank connections and tap “Reconnect” on the institution that needs it, then sync again. (${
+              failed.map((f) => f.institution_name ?? "an institution").join("; ")
+            })`
+          );
+        } else {
+          setError(`Refresh finished with errors: ${failed.map((f) => `${f.institution_name ?? "an institution"}${f.error ? `: ${f.error}` : ""}`).join("; ")}`);
+        }
       } else {
         setError(null);
         setRefreshMsg(changed === 0 ? "Up to date — nothing new." : `Synced — ${changed} transaction${changed === 1 ? "" : "s"} updated.`);

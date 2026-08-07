@@ -110,6 +110,35 @@ describe("budgets", () => {
     expect(list[0].spentCents).toBe(0);
   });
 
+  it("prorates the limit to the selected frame (monthly budget, week view)", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const acc = await seedManualAccount(db, user.id);
+    const food = await seedCategory(db, user.id, "Food");
+    await seedTxn(db, user.id, acc, { date: dateIn(0, 10), amountCents: -2000, categoryId: food });
+
+    const svc = createBudgetsService(db);
+    const budget = await svc.create(user.id, { name: "Food", amountCents: 10000, categoryIds: [food] });
+
+    // Default "period" (monthly) → full limit, full spend.
+    const month = await svc.list(user.id, dateIn(0, 15));
+    const m = month.find((b) => b.id === budget.id)!;
+    expect(m.frameAmountCents).toBe(10000);
+    expect(m.spentCents).toBe(2000);
+    expect(m.pct).toBeCloseTo(0.2);
+
+    // "week" view → limit prorated to ~7/30 of the monthly amount (≈2333),
+    // spend stays the same window's spend. This is the bug-3 fix: the limit
+    // must scale to the chosen time span instead of always showing the full
+    // monthly cap.
+    const week = await svc.list(user.id, dateIn(0, 15), { kind: "week" });
+    const w = week.find((b) => b.id === budget.id)!;
+    expect(w.frameAmountCents).toBeGreaterThan(0);
+    expect(w.frameAmountCents).toBeLessThan(10000);
+    expect(w.spentCents).toBe(2000);
+    expect(w.pct).toBeCloseTo(w.spentCents / w.frameAmountCents);
+  });
+
   it("updates and deletes budgets", async () => {
     const db = createTestDb();
     const user = await seedUser(db);

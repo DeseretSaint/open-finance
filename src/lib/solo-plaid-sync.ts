@@ -91,8 +91,17 @@ export async function syncSoloItem(input: SoloSyncInput): Promise<SoloSyncResult
         const override = await db.get<{ name_override: string | null }>("SELECT name_override FROM accounts WHERE id = ?", existing.id);
         // App convention: linked credit/loan balances are stored negative (owed).
         const balanceSign = a.type === "credit" || a.type === "loan" ? -1 : 1;
-        const current = details?.currentBalanceCents == null ? null : details.currentBalanceCents * balanceSign;
-        const available = details?.availableBalanceCents == null ? null : details.availableBalanceCents * balanceSign;
+        // If this sync pass couldn't fetch fresh balances (e.g. the institution
+        // returned ITEM_LOGIN_REQUIRED and getAccounts failed), PRESERVE the
+        // last-known balance instead of overwriting it with null — otherwise a
+        // single failed refresh wipes every balance to $0.
+        const stored = await db.get<{ current_balance_cents: number | null; available_balance_cents: number | null; currency: string | null }>(
+          "SELECT current_balance_cents, available_balance_cents, currency FROM accounts WHERE id = ?",
+          existing.id
+        );
+        const current = details?.currentBalanceCents == null ? (accountDetails && accountDetails.length > 0 ? null : stored?.current_balance_cents ?? null) : details.currentBalanceCents * balanceSign;
+        const available = details?.availableBalanceCents == null ? (accountDetails && accountDetails.length > 0 ? null : stored?.available_balance_cents ?? null) : details.availableBalanceCents * balanceSign;
+        const currency = details?.currency ?? stored?.currency ?? "USD";
         await db.run(
           "UPDATE accounts SET name = ?, type = ?, mask = ?, item_id = ?, current_balance_cents = ?, available_balance_cents = ?, currency = ? WHERE id = ? AND hidden = 0",
           override?.name_override ?? a.name,
@@ -101,7 +110,7 @@ export async function syncSoloItem(input: SoloSyncInput): Promise<SoloSyncResult
           itemId,
           current,
           available,
-          details?.currency ?? "USD",
+          currency,
           existing.id
         );
       } else {

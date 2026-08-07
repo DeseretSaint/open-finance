@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     const frame: BudgetFrame =
       frameKind === "custom" && start && end
         ? { kind: "custom", start, end }
-        : { kind: (["week", "month", "quarter", "year", "period"].includes(frameKind) ? frameKind : "period") as "week" | "month" | "quarter" | "year" | "period" };
+        : { kind: (["week", "month", "quarter", "year", "30d", "period"].includes(frameKind) ? frameKind : "period") as "week" | "month" | "quarter" | "year" | "30d" | "period" };
     const userId = auth.kind === "agent" ? auth.ctx.userId : auth.userId;
     const budgets = await createBudgetsService(getDb()).list(userId, reference, frame, req.nextUrl.searchParams.get("includePending") !== "0");
     return ok({ budgets });
