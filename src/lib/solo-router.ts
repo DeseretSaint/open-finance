@@ -702,7 +702,7 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         if (res.ok) setSoloPlaidItemCursor(item.id, res.nextCursor);
         // Plaid ITEM_LOGIN_REQUIRED → the user must re-auth this institution.
         // Flag it so the UI can offer a Reconnect button (Link update mode).
-        const needsLogin = !res.ok && /ITEM_LOGIN_REQUIRED/i.test(res.error ?? "");
+        const needsLogin = !res.ok && /ITEM_LOGIN_REQUIRED|login details of this item have changed|user login is required/i.test(res.error ?? "");
         if (needsLogin) markSoloPlaidItemLoginRequired(item.id);
         results.push({
           itemId: item.id,

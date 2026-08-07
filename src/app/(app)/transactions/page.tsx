@@ -113,7 +113,7 @@ export default function TransactionsPage() {
       const changed = d.results.reduce((n, r) => n + r.added + r.modified, 0);
       const failed = d.results.filter((r) => !r.ok);
       if (failed.length > 0) {
-        const needsLogin = failed.some((f) => /ITEM_LOGIN_REQUIRED/i.test(f.error ?? ""));
+        const needsLogin = failed.some((f) => /ITEM_LOGIN_REQUIRED|login details of this item have changed|user login is required/i.test(f.error ?? ""));
         if (needsLogin) {
           setError(
             `Some banks need you to sign in again. Go to Settings → Bank connections and tap “Reconnect” on the institution that needs it, then sync again. (${

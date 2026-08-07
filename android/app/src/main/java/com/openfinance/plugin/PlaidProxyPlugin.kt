@@ -47,8 +47,14 @@ class PlaidProxyPlugin : Plugin() {
             val text = resp.body?.string() ?: "{}"
             val parsed = if (text.isBlank()) JSONObject() else JSONObject(text)
             if (!resp.isSuccessful) {
+                // Surface the Plaid error_code in the message (e.g.
+                // "ITEM_LOGIN_REQUIRED: the login details of this item have
+                // changed…"). The JS side matches on the code to detect
+                // re-auth requirements and show the Reconnect path; the bare
+                // human-readable error_message never contained it.
+                val code = parsed.optString("error_code", "")
                 val msg = parsed.optString("error_message", "Plaid error ${resp.code}")
-                throw RuntimeException(msg)
+                throw RuntimeException(if (code.isNotBlank()) "$code: $msg" else msg)
             }
             return parsed
         }
