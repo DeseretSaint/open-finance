@@ -751,6 +751,54 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       }
     }
 
+    // ── Agent handbook + capabilities (solo mirror of the server routes) ──
+    // These were missing ("Route not found in solo mode"): the agent fetches
+    // the guide at connect time and, on 404, falls back to read-only even
+    // when the user's Settings grant write access. Serve the same guide, and
+    // derive capabilities from the user's actual prefs caps so the agent
+    // learns what its settings really allow.
+    if (method === "GET" && path === "/api/agent/guide") {
+      const { buildAgentGuide } = await import("@/server/domain/agent-guide");
+      return ok({ guide: buildAgentGuide() });
+    }
+    if (method === "GET" && path === "/api/agent/capabilities") {
+      const userId = await h.deviceUserId();
+      const { capScopes } = await import("@/server/domain/agent-prefs");
+      const prefs = await createAgentPrefsService(db).get(userId);
+      const scopes = capScopes(prefs);
+      const { buildAgentGuide } = await import("@/server/domain/agent-guide");
+      const guide = buildAgentGuide();
+      // Mirror the server capabilities shape: endpoints the scopes unlock,
+      // derived from the guide's app map (browser-safe; no route-registry).
+      const endpoints: string[] = [];
+      const tools: string[] = [];
+      for (const tab of guide.appMap) {
+        const needRead = tab.readScope ? scopes.includes(tab.readScope) : true;
+        const needWrite = tab.writeScope ? scopes.includes(tab.writeScope) : true;
+        for (const ep of tab.endpoints ?? []) {
+          if (ep.startsWith("GET") || ep.startsWith("POST") || ep.startsWith("PATCH") || ep.startsWith("DELETE")) {
+            if (ep.startsWith("GET") ? needRead : needWrite) {
+              endpoints.push(ep);
+              tools.push(tab.tab);
+            }
+          }
+        }
+      }
+      const uniqueTools = Array.from(new Set(tools));
+      return ok({
+        preset: "solo",
+        scopes,
+        accountCount: "all",
+        accountIds: null,
+        uiTabs: null,
+        expiresAt: null,
+        tools: uniqueTools,
+        endpoints,
+        missing: [],
+        tokenName: "solo remote access",
+      });
+    }
+
     // ── Remote access (agent connects directly to this phone over Tailscale) ──
     if (path === "/api/agent/remote" || path === "/api/agent/remote/enable" || path === "/api/agent/remote/disable") {
       if (method === "GET") {

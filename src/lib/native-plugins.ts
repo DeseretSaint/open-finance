@@ -20,6 +20,7 @@ export function ensureNativePlugins(): void {
   if (!w.PlaidProxy) w.PlaidProxy = cap.registerPlugin("PlaidProxy");
   if (!w.Keystore) w.Keystore = cap.registerPlugin("Keystore");
   if (!w.RemoteServer) w.RemoteServer = cap.registerPlugin("RemoteServer");
+  if (!w.Updater) w.Updater = cap.registerPlugin("Updater");
   // Remote-agent bridge: the native HTTP server calls this with the parsed
   // request; we dispatch it through the same solo router the webview uses.
   if (!w.__ofRemoteDispatch) {

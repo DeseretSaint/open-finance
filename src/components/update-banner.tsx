@@ -9,6 +9,8 @@ interface UpdateStatus {
   currentVersion: string;
   latestVersion: string | null;
   latestUrl: string | null;
+  apkUrl?: string | null;
+  apkSha256?: string | null;
   updateAvailable: boolean;
   dismissed: string | null;
   scheduledAt: string | null;
@@ -19,6 +21,17 @@ interface UpdateStatus {
 
 function isNativeApp(): boolean {
   return typeof window !== "undefined" && !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.();
+}
+
+function updaterPlugin() {
+  const w = window as unknown as {
+    Updater?: {
+      downloadAndInstall?: (o: { url: string; sha256?: string | null; fileName?: string }) => Promise<unknown>;
+      canInstallUnknownApps?: () => Promise<{ canInstall: boolean }>;
+      openInstallSettings?: () => Promise<unknown>;
+    };
+  };
+  return w.Updater ?? null;
 }
 
 /**
@@ -35,6 +48,8 @@ export function UpdateBanner() {
   const qc = useQueryClient();
   const native = isNativeApp();
   const [scheduledFor, setScheduledFor] = useState<string | null>(null);
+  const [installing, setInstalling] = useState(false);
+  const [installMsg, setInstallMsg] = useState<string | null>(null);
 
   const status = useQuery({
     queryKey: ["updates"],
@@ -48,6 +63,40 @@ export function UpdateBanner() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["updates"] }),
     onError: () => qc.invalidateQueries({ queryKey: ["updates"] }),
   });
+
+  /** Native in-app update: grant install permission once, then download+install. */
+  async function downloadAndInstall() {
+    const s = status.data;
+    const plugin = updaterPlugin();
+    if (!plugin?.downloadAndInstall || !s?.apkUrl) {
+      // Fall back to the release page if no native installer / APK URL.
+      if (s?.latestUrl) window.open(s.latestUrl, "_blank");
+      return;
+    }
+    setInstalling(true);
+    setInstallMsg(null);
+    try {
+      if (plugin.canInstallUnknownApps) {
+        const perm = await plugin.canInstallUnknownApps();
+        if (!perm.canInstall && plugin.openInstallSettings) {
+          setInstallMsg("Allow Open Finance to install apps, then tap Update again.");
+          await plugin.openInstallSettings();
+          setInstalling(false);
+          return;
+        }
+      }
+      await plugin.downloadAndInstall({
+        url: s.apkUrl,
+        sha256: s.apkSha256 ?? null,
+        fileName: `openfinance-${s.latestVersion}.apk`,
+      });
+      setInstallMsg("Downloaded — the installer should open now. Finish it to apply the update.");
+    } catch (e) {
+      setInstallMsg(e instanceof Error ? e.message : "Update failed — try again or download from the release page.");
+    } finally {
+      setInstalling(false);
+    }
+  }
 
   const s = status.data;
   if (!s || (!s.updateAvailable && !s.scheduledAt && !s.running)) return null;
@@ -128,6 +177,10 @@ export function UpdateBanner() {
             <Button size="sm" onClick={() => decide.mutate({ action: "now" })}>
               Update now
             </Button>
+          ) : native ? (
+            <Button size="sm" onClick={downloadAndInstall} disabled={installing}>
+              {installing ? "Downloading…" : "Download & install"}
+            </Button>
           ) : s.latestUrl ? (
             <a
               href={s.latestUrl}
@@ -138,6 +191,7 @@ export function UpdateBanner() {
               Download new version
             </a>
           ) : null}
+          {installMsg && <span className="text-xs text-text-muted">{installMsg}</span>}
           {selfUpdate && (
             <Button
               size="sm"

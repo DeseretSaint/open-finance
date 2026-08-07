@@ -4,7 +4,56 @@ import { AGENT_ROUTES, MCP_TOOLS, scopesWithRoutes } from "@/server/authz/route-
 import { createPermissionService } from "@/server/authz/permission-requests";
 import { createAccountsService } from "@/server/domain/accounts";
 import { createSummaryService } from "@/server/domain/summary";
+import { createAgentPrefsService, capScopes, type AgentPrefs } from "@/server/domain/agent-prefs";
+import { buildAgentGuide } from "@/server/domain/agent-guide";
 import { createTestDb, seedManualAccount, seedUser } from "./helpers";
+
+describe("agent guide + solo capabilities (D10/P20)", () => {
+  it("guide builds browser-safely (no node:* imports) and covers write scopes", () => {
+    const guide = buildAgentGuide();
+    expect(guide.version).toBeGreaterThan(0);
+    expect(guide.appMap.length).toBeGreaterThan(0);
+    // The solo router serves this same guide over the Tailscale bridge, so it
+    // must not import node builtins — the webview bundle would fail.
+    const src = buildAgentGuide.toString();
+    expect(src).not.toContain("node:");
+  });
+
+  it("capScopes grants write scopes when the user enables full access", () => {
+    const prefs: AgentPrefs = {
+      tabs: ["dashboard", "accounts", "activity", "budgets", "reports", "planning"],
+      tabsWrite: [],
+      autoCategorize: false,
+      categorizeBacklogMonths: 1,
+      global: false,
+      globalWrite: false,
+      autoApproveReads: false,
+      requireWriteConfirm: true,
+      auditEnabled: true,
+    };
+    expect(capScopes(prefs)).not.toContain("transactions:edit");
+    // The Settings UI's master toggle is `global` — it grants read+write
+    // across the app. This is the exact mismatch that made the live agent
+    // fall back to read-only in solo mode when the guide 404'd.
+    const full = capScopes({ ...prefs, global: true });
+    expect(full).toContain("transactions:edit");
+    expect(full).toContain("budgets:write");
+    // Smart categorization alone grants activity write.
+    const auto = capScopes({ ...prefs, autoCategorize: true });
+    expect(auto).toContain("transactions:edit");
+  });
+
+  it("prefs persist write settings through the service (solo /api/agent/prefs path)", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const svc = createAgentPrefsService(db);
+    await svc.update(user.id, { globalWrite: true, autoCategorize: true });
+    const prefs = await svc.get(user.id);
+    expect(prefs.globalWrite).toBe(true);
+    expect(capScopes(prefs)).toContain("transactions:edit");
+  });
+});
+
 
 describe("route registry completeness (J.5)", () => {
   it("every scope has at least one route", () => {

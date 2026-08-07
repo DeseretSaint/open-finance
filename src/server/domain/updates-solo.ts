@@ -43,6 +43,8 @@ export interface SoloUpdateStatus {
   currentVersion: string;
   latestVersion: string | null;
   latestUrl: string | null;
+  apkUrl: string | null;
+  apkSha256: string | null;
   updateAvailable: boolean;
   dismissed: string | null;
   scheduledAt: string | null;
@@ -57,15 +59,46 @@ export function createSoloUpdatesService(db: Db) {
     async check(): Promise<{ found: boolean; status: SoloUpdateStatus }> {
       let latestVersion: string | null = null;
       let latestUrl: string | null = null;
+      let apkUrl: string | null = null;
+      let apkSha256: string | null = null;
       try {
         const res = await fetch(GITHUB_LATEST, {
           headers: { accept: "application/vnd.github+json", "user-agent": "open-finance-updater" },
           signal: AbortSignal.timeout(10_000),
         });
         if (res.ok) {
-          const data = (await res.json()) as { tag_name?: string; html_url?: string };
+          const data = (await res.json()) as {
+            tag_name?: string;
+            html_url?: string;
+            assets?: Array<{ name?: string; browser_download_url?: string }>;
+          };
           latestVersion = (data.tag_name ?? "").replace(/^v/i, "");
           latestUrl = data.html_url ?? null;
+          const assets = data.assets ?? [];
+          const releaseApk = assets.find((a) => a.name === "app-release.apk");
+          apkUrl = releaseApk?.browser_download_url ?? null;
+          if (apkUrl) {
+            // Best-effort: fetch the release's SHA256SUMS asset.
+            try {
+              const sumsAsset = assets.find((a) => a.name === "SHA256SUMS");
+              const sumsUrl = sumsAsset?.browser_download_url;
+              if (sumsUrl) {
+                const sumsRes = await fetch(sumsUrl, {
+                  headers: { accept: "application/vnd.github+json", "user-agent": "open-finance-updater" },
+                  signal: AbortSignal.timeout(8_000),
+                });
+                if (sumsRes.ok) {
+                  const text = await sumsRes.text();
+                  // The release APK checksum line looks like:
+                  //   <64-hex>  ./release/app-release.apk
+                  const match = text.match(/([0-9a-f]{64})\s+\S*app-release\.apk/);
+                  apkSha256 = match?.[1]?.toLowerCase() ?? null;
+                }
+              }
+            } catch {
+              /* checksum optional */
+            }
+          }
         }
       } catch {
         /* offline or unreachable — keep last known */
@@ -73,14 +106,18 @@ export function createSoloUpdatesService(db: Db) {
       if (latestVersion) {
         await setState(db, "latest_version", latestVersion);
         await setState(db, "latest_url", latestUrl);
+        await setState(db, "apk_url", apkUrl);
+        await setState(db, "apk_sha256", apkSha256);
       }
       return { found: !!latestVersion, status: await this.status() };
     },
 
     async status(): Promise<SoloUpdateStatus> {
-      const [latestVersion, latestUrl, dismissed, scheduledAt, running] = await Promise.all([
+      const [latestVersion, latestUrl, apkUrl, apkSha256, dismissed, scheduledAt, running] = await Promise.all([
         getState(db, "latest_version"),
         getState(db, "latest_url"),
+        getState(db, "apk_url"),
+        getState(db, "apk_sha256"),
         getState(db, "dismissed"),
         getState(db, "scheduled_at"),
         getState(db, "running"),
@@ -90,6 +127,8 @@ export function createSoloUpdatesService(db: Db) {
         currentVersion: current,
         latestVersion,
         latestUrl,
+        apkUrl,
+        apkSha256,
         updateAvailable: !!latestVersion && isNewerVersion(latestVersion, current) && dismissed !== latestVersion,
         dismissed,
         scheduledAt,
