@@ -23,6 +23,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
+import java.net.URI
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
@@ -43,14 +45,17 @@ class UpdaterPlugin : Plugin() {
      * (hex), then launch the system installer on the content URI.
      * Options: { url, sha256?, fileName? }
      *
-     * SECURITY: the URL must be https and its host must be on the trusted
-     * release host allowlist (GitHub releases for this repo). Redirects are
-     * disabled so a malicious 302 cannot send the download to an untrusted
-     * host. The `sha256` is verified against the value supplied here — it is
-     * provided by the same release metadata that supplied the URL, so it
+     * SECURITY: every URL (initial and each redirect hop) must be https and
+     * its host must be on the trusted release host allowlist (GitHub releases
+     * for this repo). OkHttp's auto-redirect is DISABLED — we follow redirects
+     * manually and validate each hop, so a malicious 302 cannot silently send
+     * the download to an untrusted host. GitHub's release download URLs 302 to
+     * a CDN host (release-assets.githubusercontent.com / objects…), which is on
+     * the allowlist. The `sha256` is verified against the value supplied here —
+     * it is provided by the same release metadata that supplied the URL, so it
      * guards against corruption/transposition, not against a fully malicious
-     * endpoint that also ships a matching hash. The trusted source of both
-     * the URL and hash is the app's own update check (api.github.com, or a
+     * endpoint that also ships a matching hash. The trusted source of both the
+     * URL and hash is the app's own update check (api.github.com, or a
      * deploy-controlled UPDATE_CHECK_URL), never an arbitrary caller.
      */
     private val trustedHosts = setOf(
@@ -59,6 +64,39 @@ class UpdaterPlugin : Plugin() {
         "release-assets.githubusercontent.com",
         "github-releases.githubusercontent.com"
     )
+
+    private val MAX_REDIRECTS = 5
+
+    /**
+     * Execute the request, following up to MAX_REDIRECTS HTTP redirects but
+     * only to https URLs whose host is in `trustedHosts`. Returns the first
+     * non-redirect response (caller must close it).
+     */
+    private fun fetchWithRedirects(url: String): okhttp3.Response {
+        var current = url
+        var hops = 0
+        while (true) {
+            val req = Request.Builder().url(current).header("User-Agent", "open-finance-updater").build()
+            val resp = client.newCall(req).execute()
+            if (resp.isRedirect && hops < MAX_REDIRECTS) {
+                val location = resp.header("Location")
+                resp.close()
+                if (location.isNullOrBlank()) throw IOException("Redirect without Location from $current")
+                val next = URI(current).resolve(location).toString()
+                val uri = try {
+                    URI(next)
+                } catch (e: Exception) {
+                    throw IOException("Invalid redirect target: $next")
+                }
+                if (uri.scheme != "https") throw IOException("Redirect target must be https: $next")
+                if (!trustedHosts.contains(uri.host)) throw IOException("Redirect target host is not trusted: ${uri.host}")
+                current = next
+                hops++
+                continue
+            }
+            return resp
+        }
+    }
 
     @PluginMethod
     fun downloadAndInstall(call: PluginCall) {
@@ -75,7 +113,7 @@ class UpdaterPlugin : Plugin() {
 
         // Validate the URL before any network use.
         val uri = try {
-            java.net.URI(url)
+            URI(url)
         } catch (e: Exception) {
             call.reject("Invalid update URL.")
             return
@@ -91,8 +129,7 @@ class UpdaterPlugin : Plugin() {
 
         Thread {
             try {
-                val request = Request.Builder().url(url).header("User-Agent", "open-finance-updater").build()
-                client.newCall(request).execute().use { resp ->
+                fetchWithRedirects(url).use { resp ->
                     if (!resp.isSuccessful) {
                         call.reject("Download failed: HTTP ${resp.code}")
                         return@Thread
