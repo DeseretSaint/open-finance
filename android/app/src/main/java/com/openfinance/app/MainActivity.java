@@ -1,12 +1,12 @@
-package com.openfinance.app
+package com.openfinance.app;
 
-import android.content.Intent
-import android.os.Bundle
-import com.getcapacitor.BridgeActivity
-import com.openfinance.plugin.KeystorePlugin
-import com.openfinance.plugin.PlaidProxyPlugin
-import com.openfinance.plugin.RemoteServerPlugin
-import com.openfinance.plugin.UpdaterPlugin
+import android.content.Intent;
+import android.os.Bundle;
+import com.getcapacitor.BridgeActivity;
+import com.openfinance.plugin.KeystorePlugin;
+import com.openfinance.plugin.PlaidProxyPlugin;
+import com.openfinance.plugin.RemoteServerPlugin;
+import com.openfinance.plugin.UpdaterPlugin;
 
 public class MainActivity extends BridgeActivity {
     @Override
