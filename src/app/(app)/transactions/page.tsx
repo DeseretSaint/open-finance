@@ -137,18 +137,24 @@ export default function TransactionsPage() {
     });
 
     // Pull FULL history from Plaid for every linked bank (cursor reset → Plaid
-    // re-delivers everything it has). The oldest date Plaid returns is reported
-    // back, because Plaid only serves history from when each bank was first
-    // linked — there is no API to retrieve transactions older than that.
+    // re-delivers everything it has). Reports the OLDEST date per bank so the
+    // user can see which banks have deeper history (older link dates) vs which
+    // are genuinely capped by Plaid. Plaid only serves history from when each
+    // bank was first linked — there is no API to retrieve older transactions.
     const [historyMsg, setHistoryMsg] = useState<string | null>(null);
+    const [historyDetail, setHistoryDetail] = useState<Array<{ name: string; oldest: string | null; added: number; ok: boolean }>>([]);
     const pullHistory = useMutation({
       mutationFn: async () => {
         setHistoryMsg(null);
         setError(null);
-        const items = await api.get<{ items: Array<{ id: string }> }>("/api/plaid/items").catch(() => ({ items: [] as Array<{ id: string }> }));
+        setHistoryDetail([]);
+        const items = await api.get<{ items: Array<{ id: string; institution_name: string | null; accounts: Array<{ name: string }> }> }>("/api/plaid/items").catch(() => ({ items: [] as Array<{ id: string; institution_name: string | null; accounts: Array<{ name: string }> }> }));
+        const detail: Array<{ name: string; oldest: string | null; added: number; ok: boolean }> = [];
         let oldest: string | null = null;
         let totalAdded = 0;
+        let failed = 0;
         for (const it of items.items) {
+          const label = it.institution_name ?? it.accounts?.[0]?.name ?? "Bank";
           const r = await api.post<{ ok: boolean; added: number; oldestDate: string | null; error?: string | null }>(
             "/api/plaid/resync",
             { itemId: it.id }
@@ -156,14 +162,18 @@ export default function TransactionsPage() {
           if (r.ok) {
             totalAdded += r.added;
             if (r.oldestDate && (oldest === null || r.oldestDate < oldest)) oldest = r.oldestDate;
+          } else {
+            failed++;
           }
+          detail.push({ name: label, oldest: r.oldestDate ?? null, added: r.added, ok: r.ok });
         }
+        setHistoryDetail(detail);
         setHistoryMsg(
           items.items.length === 0
             ? "No banks linked yet."
             : oldest
-              ? `Pulled full history — earliest transaction available is ${oldest}. (Plaid only returns from when each bank was first linked.)`
-              : `Pulled full history — ${totalAdded} transaction(s) updated.`
+              ? `Full history pulled — earliest across all banks is ${oldest}. Check each bank below: banks with older link dates should reach further back; if one stops early, its re-import may have failed (${failed} failed).`
+              : `Full history pulled — ${totalAdded} transaction(s) updated.`
         );
         invalidate();
         qc.invalidateQueries({ queryKey: ["plaid-items"] });
@@ -286,6 +296,18 @@ export default function TransactionsPage() {
         {(refreshMsg || error || historyMsg) && (
           <div className={`mt-2 px-1 text-xs ${error ? "text-red-500" : "text-text-muted"}`}>
             {error ?? refreshMsg ?? historyMsg}
+            {historyDetail.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {historyDetail.map((d) => (
+                  <li key={d.name} className="flex items-center justify-between gap-2">
+                    <span className="truncate">{d.name}</span>
+                    <span className={d.ok ? "text-text-muted" : "text-red-500"}>
+                      {d.ok ? (d.oldest ? `back to ${d.oldest}` : `${d.added} updated`) : "failed"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
       </Card>
