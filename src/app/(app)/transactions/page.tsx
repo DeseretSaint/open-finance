@@ -142,14 +142,14 @@ export default function TransactionsPage() {
     // are genuinely capped by Plaid. Plaid only serves history from when each
     // bank was first linked — there is no API to retrieve older transactions.
     const [historyMsg, setHistoryMsg] = useState<string | null>(null);
-    const [historyDetail, setHistoryDetail] = useState<Array<{ name: string; oldest: string | null; added: number; ok: boolean }>>([]);
+    const [historyDetail, setHistoryDetail] = useState<Array<{ name: string; oldest: string | null; added: number; ok: boolean; linkedAt: string | null }>>([]);
     const pullHistory = useMutation({
       mutationFn: async () => {
         setHistoryMsg(null);
         setError(null);
         setHistoryDetail([]);
-        const items = await api.get<{ items: Array<{ id: string; institution_name: string | null; accounts: Array<{ name: string }> }> }>("/api/plaid/items").catch(() => ({ items: [] as Array<{ id: string; institution_name: string | null; accounts: Array<{ name: string }> }> }));
-        const detail: Array<{ name: string; oldest: string | null; added: number; ok: boolean }> = [];
+        const items = await api.get<{ items: Array<{ id: string; institution_name: string | null; linkedAt: string | null; accounts: Array<{ name: string }> }> }>("/api/plaid/items").catch(() => ({ items: [] as Array<{ id: string; institution_name: string | null; linkedAt: string | null; accounts: Array<{ name: string }> }> }));
+        const detail: Array<{ name: string; oldest: string | null; added: number; ok: boolean; linkedAt: string | null }> = [];
         let oldest: string | null = null;
         let totalAdded = 0;
         let failed = 0;
@@ -165,7 +165,7 @@ export default function TransactionsPage() {
           } else {
             failed++;
           }
-          detail.push({ name: label, oldest: r.oldestDate ?? null, added: r.added, ok: r.ok });
+          detail.push({ name: label, oldest: r.oldestDate ?? null, added: r.added, ok: r.ok, linkedAt: it.linkedAt ?? null });
         }
         setHistoryDetail(detail);
         setHistoryMsg(
@@ -302,7 +302,11 @@ export default function TransactionsPage() {
                   <li key={d.name} className="flex items-center justify-between gap-2">
                     <span className="truncate">{d.name}</span>
                     <span className={d.ok ? "text-text-muted" : "text-red-500"}>
-                      {d.ok ? (d.oldest ? `back to ${d.oldest}` : `${d.added} updated`) : "failed"}
+                      {d.ok
+                        ? d.oldest
+                          ? `linked ${d.linkedAt ? d.linkedAt.slice(0, 10) : "?"} → back to ${d.oldest}`
+                          : `${d.added} updated`
+                        : "failed"}
                     </span>
                   </li>
                 ))}

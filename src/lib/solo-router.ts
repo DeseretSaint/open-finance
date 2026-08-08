@@ -724,6 +724,7 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         institution_name: i.institutionName,
         environment: i.environment,
         status: i.status === "login_required" ? "login_required" : "linked",
+        linkedAt: i.linkedAt,
         accounts: i.accounts,
       }));
       return ok({ items });
