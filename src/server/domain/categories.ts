@@ -22,6 +22,149 @@ const SYSTEM_COLORS = [
   "#06B6D4", "#84CC16", "#EC4899", "#F97316", "#14B8A6",
 ];
 
+/**
+ * Merchant-name → category-name keyword map for the name fallback in
+ * matchByName(). Keyword is matched case-insensitively as a substring of the
+ * transaction name; the LONGEST matching keyword wins (so "STARBUCKS COFFEE"
+ * beats a generic "COFFEE"). Target names match the seeded system categories
+ * (case-insensitive), so a user-renamed system category still resolves.
+ */
+const NAME_KEYWORDS: Array<[keyword: string, categoryName: string]> = [
+  // Food & dining
+  ["STARBUCKS", "Food & Dining"],
+  ["MCDONALD", "Food & Dining"],
+  ["WENDY", "Food & Dining"],
+  ["TACO BELL", "Food & Dining"],
+  ["CHIPOTLE", "Food & Dining"],
+  ["SUBWAY", "Food & Dining"],
+  ["DOMINO", "Food & Dining"],
+  ["PIZZA HUT", "Food & Dining"],
+  ["KFC", "Food & Dining"],
+  ["BURGER KING", "Food & Dining"],
+  ["IN-N-OUT", "Food & Dining"],
+  ["DUNKIN", "Food & Dining"],
+  ["DOORDASH", "Food & Dining"],
+  ["UBER EATS", "Food & Dining"],
+  ["GRUBHUB", "Food & Dining"],
+  ["RESTAURANT", "Food & Dining"],
+  ["CAFE", "Food & Dining"],
+  ["COFFEE", "Food & Dining"],
+  ["PIZZA", "Food & Dining"],
+  ["SUSHI", "Food & Dining"],
+  ["MEXICAN", "Food & Dining"],
+  ["CHINESE", "Food & Dining"],
+  ["THAI", "Food & Dining"],
+  ["GRILL", "Food & Dining"],
+  ["BURGER", "Food & Dining"],
+  // Groceries
+  ["WALMART", "Groceries"],
+  ["KROGER", "Groceries"],
+  ["ALDI", "Groceries"],
+  ["TRADER JOE", "Groceries"],
+  ["COSTCO", "Groceries"],
+  ["SAFEWAY", "Groceries"],
+  ["WHOLE FOODS", "Groceries"],
+  ["SPROUTS", "Groceries"],
+  ["GROCERY", "Groceries"],
+  // Transportation (fuel, rideshare, transit)
+  ["CHEVRON", "Transportation"],
+  ["SHELL OIL", "Transportation"],
+  ["SHELL", "Transportation"],
+  ["EXXON", "Transportation"],
+  ["MOBIL", "Transportation"],
+  ["76", "Transportation"],
+  ["ARCO", "Transportation"],
+  ["CIRCLE K", "Transportation"],
+  ["MAVERIK", "Transportation"],
+  ["UBER", "Transportation"],
+  ["LYFT", "Transportation"],
+  ["GAS STATION", "Transportation"],
+  ["FUEL", "Transportation"],
+  ["GAS", "Transportation"],
+  ["TOLL", "Transportation"],
+  ["PARKING", "Transportation"],
+  ["GARAGE", "Transportation"],
+  // Housing
+  ["RENT", "Housing"],
+  ["MORTGAGE", "Housing"],
+  ["APARTMENT", "Housing"],
+  ["LANDLORD", "Housing"],
+  ["PROPERTY MANAGEMENT", "Housing"],
+  ["HOA", "Housing"],
+  // Utilities
+  ["COMCAST", "Utilities"],
+  ["XFINITY", "Utilities"],
+  ["VERIZON", "Utilities"],
+  ["AT&T", "Utilities"],
+  ["T-MOBILE", "Utilities"],
+  ["SPECTRUM", "Utilities"],
+  ["ELECTRIC", "Utilities"],
+  ["POWER CO", "Utilities"],
+  ["UTILITY", "Utilities"],
+  ["INTERNET", "Utilities"],
+  ["WATER", "Utilities"],
+  ["GAS BILL", "Utilities"],
+  ["PG&E", "Utilities"],
+  // Income
+  ["PAYCHECK", "Income"],
+  ["PAYROLL", "Income"],
+  ["DIRECT DEPOSIT", "Income"],
+  ["SALARY", "Income"],
+  ["WAGES", "Income"],
+  ["DEPOSIT", "Income"],
+  // Shopping
+  ["AMAZON", "Shopping"],
+  ["EBAY", "Shopping"],
+  ["TARGET", "Shopping"],
+  ["BEST BUY", "Shopping"],
+  ["NORDSTROM", "Shopping"],
+  ["MACY", "Shopping"],
+  ["H&M", "Shopping"],
+  ["HOMEDEPOT", "Shopping"],
+  ["HOME DEPOT", "Shopping"],
+  ["LOWE", "Shopping"],
+  ["SHOPPING", "Shopping"],
+  ["APPLE STORE", "Shopping"],
+  ["APPLE.COM", "Shopping"],
+  // Entertainment
+  ["NETFLIX", "Entertainment"],
+  ["HULU", "Entertainment"],
+  ["SPOTIFY", "Entertainment"],
+  ["DISNEY", "Entertainment"],
+  ["AMC", "Entertainment"],
+  ["CINEMARK", "Entertainment"],
+  ["MOVIE", "Entertainment"],
+  ["THEATER", "Entertainment"],
+  ["PLAYSTATION", "Entertainment"],
+  ["XBOX", "Entertainment"],
+  ["STEAM", "Entertainment"],
+  ["YOUTUBE", "Entertainment"],
+  ["CONCERT", "Entertainment"],
+  ["ENTERTAINMENT", "Entertainment"],
+  // Healthcare
+  ["WALGREENS", "Healthcare"],
+  ["CVS", "Healthcare"],
+  ["PHARMACY", "Healthcare"],
+  ["DOCTOR", "Healthcare"],
+  ["DENTAL", "Healthcare"],
+  ["DENTIST", "Healthcare"],
+  ["HOSPITAL", "Healthcare"],
+  ["URGENT CARE", "Healthcare"],
+  ["CLINIC", "Healthcare"],
+  ["MEDICAL", "Healthcare"],
+  // Travel
+  ["AIRLINE", "Travel"],
+  ["DELTA", "Travel"],
+  ["UNITED AIRLINES", "Travel"],
+  ["SOUTHWEST", "Travel"],
+  ["AMERICAN AIRLINES", "Travel"],
+  ["HOTEL", "Travel"],
+  ["AIRBNB", "Travel"],
+  ["MARRIOTT", "Travel"],
+  ["HILTON", "Travel"],
+  ["TRAVEL", "Travel"],
+];
+
 export function createCategoriesService(db: Db = getDb()) {
   return {
     async list(userId: string): Promise<CategoryRow[]> {
@@ -144,6 +287,34 @@ export function createCategoriesService(db: Db = getDb()) {
         }
       }
       return best;
+    },
+
+    /**
+     * Name-keyword fallback: when a transaction has no Plaid category data
+     * (or none of the user's patterns match), fall back to well-known merchant
+     * keywords so local categorization still resolves the obvious ones instead
+     * of silently punting everything to "the agent". Maps keyword → target
+     * category NAME, then resolves that to the user's category row (so a
+     * renamed system category still matches). Longest keyword wins.
+     */
+    async matchByName(userId: string, name: string | null): Promise<CategoryRow | null> {
+      if (!name) return null;
+      const upper = name.toUpperCase();
+      let bestName: string | null = null;
+      let bestLen = -1;
+      for (const [keyword, categoryName] of NAME_KEYWORDS) {
+        if (upper.includes(keyword) && keyword.length > bestLen) {
+          bestName = categoryName;
+          bestLen = keyword.length;
+        }
+      }
+      if (!bestName) return null;
+      const row = await db.get<CategoryRow>(
+        "SELECT * FROM categories WHERE user_id = ? AND name = ? COLLATE NOCASE AND enabled = 1",
+        userId,
+        bestName
+      );
+      return row ?? null;
     },
 
     /** Seed the standard system categories (idempotent). */

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search, X, Trash2, ChevronDown, RefreshCw, History } from "lucide-react";
+import { Search, X, Trash2, ChevronDown, RefreshCw, Upload } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -143,11 +143,16 @@ export default function TransactionsPage() {
     // bank was first linked — there is no API to retrieve older transactions.
     const [historyMsg, setHistoryMsg] = useState<string | null>(null);
     const [historyDetail, setHistoryDetail] = useState<Array<{ name: string; oldest: string | null; added: number; ok: boolean; linkedAt: string | null }>>([]);
+    // After "Pull full history", if the banks returned nothing new (institution
+    // caps history at ~90 days through Plaid), pop up a suggestion to import
+    // older history from bank-downloaded CSV files instead.
+    const [showCsvSuggestion, setShowCsvSuggestion] = useState(false);
     const pullHistory = useMutation({
       mutationFn: async () => {
         setHistoryMsg(null);
         setError(null);
         setHistoryDetail([]);
+        setShowCsvSuggestion(false);
         const items = await api.get<{ items: Array<{ id: string; institution_name: string | null; linkedAt: string | null; accounts: Array<{ name: string }> }> }>("/api/plaid/items").catch(() => ({ items: [] as Array<{ id: string; institution_name: string | null; linkedAt: string | null; accounts: Array<{ name: string }> }> }));
         const detail: Array<{ name: string; oldest: string | null; added: number; ok: boolean; linkedAt: string | null }> = [];
         let oldest: string | null = null;
@@ -175,54 +180,20 @@ export default function TransactionsPage() {
               ? `Full history pulled — earliest across all banks is ${oldest}. Check each bank below: banks with older link dates should reach further back; if one stops early, its re-import may have failed (${failed} failed).`
               : `Full history pulled — ${totalAdded} transaction(s) updated.`
         );
+        // Nothing new came back from any bank → the institutions are serving
+        // their full window (typically ~90 days). Suggest the CSV import path.
+        if (items.items.length > 0 && totalAdded === 0 && failed === 0) {
+          setShowCsvSuggestion(true);
+        }
         invalidate();
         qc.invalidateQueries({ queryKey: ["plaid-items"] });
       },
       onError: (e) => setError(e instanceof Error ? e.message : "History pull failed."),
     });
 
-    // GLOBAL older-history backfill: uses Plaid's /transactions/get date-range
-    // pull on every linked bank WITHOUT deleting any of them (so no Plaid link
-    // slot is consumed). Bypasses the link-time 90-day sync window lock.
-    const [olderMsg, setOlderMsg] = useState<string | null>(null);
-    const [olderDetail, setOlderDetail] = useState<Array<{ name: string; oldest: string | null; added: number; ok: boolean }>>([]);
-    const pullOlder = useMutation({
-      mutationFn: async () => {
-        setOlderMsg(null);
-        setError(null);
-        setOlderDetail([]);
-        const items = await api.get<{ items: Array<{ id: string; institution_name: string | null; accounts: Array<{ name: string }> }> }>("/api/plaid/items").catch(() => ({ items: [] as Array<{ id: string; institution_name: string | null; accounts: Array<{ name: string }> }> }));
-        const detail: Array<{ name: string; oldest: string | null; added: number; ok: boolean }> = [];
-        let oldest: string | null = null;
-        let totalAdded = 0;
-        let failed = 0;
-        for (const it of items.items) {
-          const label = it.institution_name ?? it.accounts?.[0]?.name ?? "Bank";
-          const r = await api.post<{ ok: boolean; added: number; oldestDate: string | null; error?: string | null }>(
-            "/api/plaid/backfill",
-            { itemId: it.id, monthsBack: 24 }
-          ).catch(() => ({ ok: false, added: 0, oldestDate: null as string | null, error: "request failed" }));
-          if (r.ok) {
-            totalAdded += r.added;
-            if (r.oldestDate && (oldest === null || r.oldestDate < oldest)) oldest = r.oldestDate;
-          } else {
-            failed++;
-          }
-          detail.push({ name: label, oldest: r.oldestDate ?? null, added: r.added, ok: r.ok });
-        }
-        setOlderDetail(detail);
-        setOlderMsg(
-          items.items.length === 0
-            ? "No banks linked yet."
-            : failed === 0
-              ? `Older history pulled — ${totalAdded} new transaction(s); earliest now ${oldest ?? "unchanged"}. If a bank still stops ~90 days back, that institution only serves 90 days via Plaid.`
-              : `Older history pulled with ${failed} failure(s). Earliest now ${oldest ?? "unchanged"}.`
-        );
-        invalidate();
-        qc.invalidateQueries({ queryKey: ["plaid-items"] });
-      },
-      onError: (e) => setError(e instanceof Error ? e.message : "Older-history pull failed."),
-    });
+    // GLOBAL older-history backfill REMOVED (v0.3.39): it duplicated "Pull full
+    // history" — both pull what Plaid has, and institutions that cap at ~90 days
+    // return the same window either way. Kept only "Pull full history".
 
     // Manual add form
     const [addName, setAddName] = useState("");
@@ -251,6 +222,29 @@ export default function TransactionsPage() {
       invalidate();
     },
     onError: (e) => setError(e instanceof Error ? e.message : "Add failed."),
+  });
+
+  // Bank CSV import (manual older-history): user downloads a CSV from their
+  // bank's website, picks the account it belongs to, and we parse + dedupe +
+  // insert. This is the built-in path for history the bank won't serve through
+  // Plaid (institution ~90-day caps).
+  const [showImport, setShowImport] = useState(false);
+  const [importAccount, setImportAccount] = useState("");
+  const [importMsg, setImportMsg] = useState<string | null>(null);
+  const importCsv = useMutation({
+    mutationFn: ({ accountId, contents }: { accountId: string; contents: string }) =>
+      api.post<{ imported: number; skipped: number; totalParsed: number; firstImported: string[] }>("/api/import/csv", {
+        accountId,
+        contents,
+      }),
+    onSuccess: (res) => {
+      setImportMsg(
+        `Imported ${res.imported} transaction${res.imported === 1 ? "" : "s"}${res.skipped > 0 ? ` · ${res.skipped} already in the app (skipped)` : ""}.`
+      );
+      setImportAccount("");
+      invalidate();
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : "CSV import failed."),
   });
 
   return (
@@ -335,17 +329,17 @@ export default function TransactionsPage() {
             {pullHistory.isPending ? "Pulling…" : "Pull full history"}
           </button>
           <button
-            onClick={() => pullOlder.mutate()}
-            disabled={pullOlder.isPending}
-            className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium ${
-              pullOlder.isPending
-                ? "cursor-wait border-border bg-surface text-text-muted"
-                : "border-border bg-surface text-text-muted hover:text-text"
-            }`}
-            title="Pull OLDER history (up to 24 months back) for every bank WITHOUT deleting them — bypasses the 90-day sync window, uses no link slots"
+            type="button"
+            onClick={() => {
+              setError(null);
+              setImportMsg(null);
+              setShowImport(true);
+            }}
+            className="flex h-9 items-center gap-1.5 rounded-lg border border-border bg-surface px-3 text-xs font-medium text-text-muted transition-colors hover:text-text"
+            title="Import older transactions from a bank CSV file (for history your bank won't serve through Plaid)"
           >
-            <History size={14} className={pullOlder.isPending ? "animate-spin" : ""} />
-            {pullOlder.isPending ? "Pulling older…" : "Pull older history"}
+            <Upload size={14} />
+            Import CSV
           </button>
           <span className="text-sm text-text-muted">{data ? `${data.total} transaction${data.total === 1 ? "" : "s"}` : "…"}</span>
         </div>
@@ -362,27 +356,6 @@ export default function TransactionsPage() {
                         ? d.oldest
                           ? `linked ${d.linkedAt ? d.linkedAt.slice(0, 10) : "?"} → back to ${d.oldest}`
                           : `${d.added} updated`
-                        : "failed"}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-        {(olderMsg || error) && (
-          <div className={`mt-2 px-1 text-xs ${error ? "text-red-500" : "text-text-muted"}`}>
-            {error ?? olderMsg}
-            {olderDetail.length > 0 && (
-              <ul className="mt-2 space-y-1">
-                {olderDetail.map((d) => (
-                  <li key={d.name} className="flex items-center justify-between gap-2">
-                    <span className="truncate">{d.name}</span>
-                    <span className={d.ok ? "text-text-muted" : "text-red-500"}>
-                      {d.ok
-                        ? d.oldest
-                          ? `back to ${d.oldest} (${d.added} new)`
-                          : `${d.added} new`
                         : "failed"}
                     </span>
                   </li>
@@ -509,6 +482,149 @@ export default function TransactionsPage() {
                 {add.isPending ? "Adding…" : "Add transaction"}
               </Button>
             </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CSV import modal — the built-in path for older history that banks
+          won't serve through Plaid (~90-day caps). User picks the account,
+          uploads the bank's CSV, and we parse/dedupe/insert. */}
+      {showImport && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm md:items-center md:p-6"
+          onClick={() => !importCsv.isPending && setShowImport(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Import bank CSV"
+            onClick={(e) => e.stopPropagation()}
+            className="flex w-full max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-t-3xl border border-border bg-surface shadow-2xl md:max-h-[calc(100dvh-3rem)] md:max-w-lg md:rounded-3xl"
+            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+          >
+            <div className="overflow-y-auto p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border md:hidden" />
+            <div className="mb-4 flex items-center justify-between">
+              <CardTitle>Import bank CSV</CardTitle>
+              <button
+                aria-label="Close"
+                onClick={() => !importCsv.isPending && setShowImport(false)}
+                className="flex h-9 w-9 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-muted hover:text-text"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form
+              className="flex flex-col gap-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const file = (e.currentTarget.elements.namedItem("csv-file") as HTMLInputElement | null)?.files?.[0];
+                if (!importAccount || !file) return;
+                file.text().then((contents) => {
+                  setImportMsg(null);
+                  importCsv.mutate({ accountId: importAccount, contents });
+                });
+              }}
+            >
+              <p className="text-sm text-text-muted">
+                Download a statement export (CSV) from your bank&apos;s website, then pick the account it
+                belongs to here. We import older transactions your bank won&apos;t serve through Plaid —
+                duplicates are skipped automatically.
+              </p>
+              <div>
+                <label htmlFor="import-account" className="mb-1 block text-xs font-medium text-text-muted">
+                  Account
+                </label>
+                <CustomSelect
+                  ariaLabel="Import account"
+                  value={importAccount}
+                  onChange={setImportAccount}
+                  placeholder="Select…"
+                  options={(accounts.data?.accounts ?? []).map((a) => ({ value: a.id, label: a.name }))}
+                />
+              </div>
+              <div>
+                <label htmlFor="csv-file" className="mb-1 block text-xs font-medium text-text-muted">
+                  Bank CSV file
+                </label>
+                <input
+                  id="csv-file"
+                  name="csv-file"
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="block w-full text-sm text-text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--accent)] file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-[var(--accent-foreground)]"
+                />
+              </div>
+              <p className="text-xs text-text-muted">
+                Works with the common bank layouts: Date, Description, Amount — or Date, Description,
+                Debit/Credit. Pick the right account so totals stay correct.
+              </p>
+              {importMsg && (
+                <p role="status" className="rounded-lg bg-[var(--success-soft)] px-3 py-2 text-sm text-success">
+                  {importMsg}
+                </p>
+              )}
+              {error && (
+                <p role="alert" className="rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-sm text-danger">
+                  {error}
+                </p>
+              )}
+              <Button type="submit" disabled={importCsv.isPending || !importAccount}>
+                {importCsv.isPending ? "Importing…" : "Import transactions"}
+              </Button>
+            </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CSV import suggestion — shown after "Pull full history" when the banks
+          returned nothing new (institution ~90-day Plaid cap). */}
+      {showCsvSuggestion && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm md:items-center md:p-6"
+          onClick={() => setShowCsvSuggestion(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Import older history"
+            onClick={(e) => e.stopPropagation()}
+            className="flex w-full flex-col overflow-hidden rounded-t-3xl border border-border bg-surface shadow-2xl md:max-w-md md:rounded-3xl"
+            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+          >
+            <div className="p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <CardTitle>No older history from your banks</CardTitle>
+                <button
+                  aria-label="Close"
+                  onClick={() => setShowCsvSuggestion(false)}
+                  className="flex h-9 w-9 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-muted hover:text-text"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <p className="text-sm text-text-muted">
+                Your banks only serve the last ~90 days through Plaid, so there&apos;s nothing older to pull.
+                To bring in earlier transactions, download a CSV statement from each bank&apos;s website and
+                import it here — we&apos;ll skip anything already in the app.
+              </p>
+              <div className="mt-5 flex justify-end gap-2">
+                <Button variant="ghost" onClick={() => setShowCsvSuggestion(false)}>
+                  Not now
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowCsvSuggestion(false);
+                    setError(null);
+                    setImportMsg(null);
+                    setShowImport(true);
+                  }}
+                >
+                  Import bank files
+                </Button>
+              </div>
             </div>
           </div>
         </div>

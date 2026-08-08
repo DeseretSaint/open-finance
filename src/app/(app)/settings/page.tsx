@@ -177,34 +177,9 @@ export default function SettingsPage() {
     onError: (e) => setErr(e instanceof Error ? e.message : "Re-import failed."),
   });
 
-  // Backfill OLDER history on an existing item using Plaid's /transactions/get
-  // pull API (explicit date range). Does NOT delete the item, so it consumes no
-  // Plaid link slot. This bypasses the link-time 90-day sync window lock.
-  const [backfillingItem, setBackfillingItem] = useState<string | null>(null);
-  const backfillItem = useMutation({
-    mutationFn: async (id: string) => {
-      setBackfillingItem(id);
-      setErr(null);
-      try {
-        const r = await api.post<{ ok: boolean; added: number; oldestDate: string | null; error?: string | null; note?: string }>(
-          "/api/plaid/backfill",
-          { itemId: id, monthsBack: 24 }
-        );
-        if (r.ok) {
-          setMsg(r.note ?? `Backfilled older history — ${r.added} new transaction(s).`);
-        } else {
-          setErr(r.error ? `Backfill failed: ${r.error}` : "Backfill failed.");
-        }
-      } finally {
-        setBackfillingItem(null);
-      }
-      qc.invalidateQueries({ queryKey: ["transactions"] });
-      qc.invalidateQueries({ queryKey: ["accounts"] });
-      qc.invalidateQueries({ queryKey: ["summary"] });
-      qc.invalidateQueries({ queryKey: ["plaid-items"] });
-    },
-    onError: (e) => setErr(e instanceof Error ? e.message : "Backfill failed."),
-  });
+  // Backfill OLDER history removed (v0.3.39): duplicated "Re-import history"
+  // — both pull what Plaid has, and institutions that cap at ~90 days return
+  // the same window either way. Keep just Re-import + the CSV import panel.
 
   return (
     <div className="space-y-8">
@@ -470,14 +445,6 @@ export default function SettingsPage() {
                   title="Re-import full transaction history from this bank (up to ~24 months)"
                 >
                   {resyncingItem === it.id ? "Importing…" : "Re-import history"}
-                </button>
-                <button
-                  onClick={() => backfillItem.mutate(it.id)}
-                  disabled={backfillingItem === it.id}
-                  className="text-xs text-text-muted hover:text-accent disabled:opacity-50"
-                  title="Pull OLDER transactions (up to 24 months back) without deleting the bank — uses Plaid's date-range pull, bypassing the 90-day sync window"
-                >
-                  {backfillingItem === it.id ? "Pulling…" : "Pull older history"}
                 </button>
                 <button onClick={() => setConfirmRemoveItem(it.id)} className="text-xs text-text-muted hover:text-danger">
                   Remove
@@ -1083,13 +1050,13 @@ function AgentWiringCard({ setMsg, setErr }: { setMsg: (s: string | null) => voi
         setMsg(
           `Categorized ${res.categorized} transaction${res.categorized === 1 ? "" : "s"} in the last ${
             res.backlogMonths === 0 ? "range" : `${res.backlogMonths} month${res.backlogMonths === 1 ? "" : "s"}`
-          }${res.leftForAgent > 0 ? ` — ${res.leftForAgent} left for the agent.` : "."}`
+          }${res.leftForAgent > 0 ? ` — ${res.leftForAgent} need your review in Activity.` : "."}`
         );
       } else {
         setMsg(
           res.totalUncategorized === 0
             ? "Everything in that range is already categorized."
-            : `No confident matches in that range — ${res.leftForAgent} left for the agent.`
+            : `${res.leftForAgent} transaction${res.leftForAgent === 1 ? "" : "s"} need your review — tap any uncategorized transaction in Activity to categorize it.`
         );
       }
       qc.invalidateQueries({ queryKey: ["transactions"] });
@@ -1276,10 +1243,10 @@ function AgentWiringCard({ setMsg, setErr }: { setMsg: (s: string | null) => voi
                   {categorizeNow.isSuccess && catProgress && (
                     <span className="text-xs font-medium text-success">
                       {catProgress.categorized > 0
-                        ? `Categorized ${catProgress.categorized} transaction${catProgress.categorized === 1 ? "" : "s"}${catProgress.leftForAgent > 0 ? ` · ${catProgress.leftForAgent} left for the agent` : ""}.`
+                        ? `Categorized ${catProgress.categorized} transaction${catProgress.categorized === 1 ? "" : "s"}${catProgress.leftForAgent > 0 ? ` · ${catProgress.leftForAgent} left for you to review` : ""}.`
                         : catProgress.totalUncategorized === 0
                           ? "Everything in that range is already categorized."
-                          : `No confident matches — ${catProgress.leftForAgent} left for the agent.`}
+                          : `${catProgress.leftForAgent} need${catProgress.leftForAgent === 1 ? "s" : ""} your review — tap any transaction in Activity to categorize it.`}
                     </span>
                   )}
                 </div>
@@ -1293,7 +1260,7 @@ function AgentWiringCard({ setMsg, setErr }: { setMsg: (s: string | null) => voi
                     </div>
                     <p className="mt-1 text-xs text-text-muted">
                       {catProgress.done} of {catProgress.total} in range categorized
-                      {catProgress.leftForAgent > 0 ? ` · ${catProgress.leftForAgent} left for the agent` : ""}
+                      {catProgress.leftForAgent > 0 ? ` · ${catProgress.leftForAgent} need your review` : ""}
                     </p>
                   </div>
                 )}

@@ -62,4 +62,30 @@ describe("autoCategorize (categorize-now Apply)", () => {
     expect(res.categorized).toBe(1);
     expect(res.backlogMonths).toBe(0);
   });
+
+  it("name-keyword fallback categorizes obvious merchants with no Plaid category data", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const acc = await createAccountsService(db).createManual(user.id, { name: "Checking", type: "depository", currentBalanceCents: 0 });
+    await createCategoriesService(db).ensureSystem(user.id);
+    const txns = createTransactionsService(db);
+    const today = new Date().toISOString().slice(0, 10);
+    // No category_path / pfc set — the old matcher would punt these to the
+    // agent; the name-keyword fallback should resolve the obvious ones.
+    await txns.createManual(user.id, { accountId: acc.id, amountCents: -645, date: today, name: "STARBUCKS" });
+    await txns.createManual(user.id, { accountId: acc.id, amountCents: -2310, date: today, name: "AMAZON" });
+    await txns.createManual(user.id, { accountId: acc.id, amountCents: -999, date: today, name: "POS DEBIT MYSTERY" });
+
+    const res = await autoCategorize(db, user.id, 1);
+    expect(res.categorized).toBe(2); // Starbucks + Amazon
+    expect(res.leftForAgent).toBe(1); // POS DEBIT MYSTERY
+
+    const list = await txns.list(user.id, { limit: 10, offset: 0 });
+    const starbucks = list.rows.find((t) => t.name === "STARBUCKS");
+    const mystery = list.rows.find((t) => t.name === "POS DEBIT MYSTERY");
+    const foodCat = await createCategoriesService(db).list(user.id);
+    const food = foodCat.find((c) => c.name === "Food & Dining");
+    expect(starbucks?.user_category_id).toBe(food?.id);
+    expect(mystery?.user_category_id).toBeNull();
+  });
 });

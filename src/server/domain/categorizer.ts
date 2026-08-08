@@ -67,7 +67,14 @@ export async function autoCategorize(
   let categorized = 0;
   let leftForAgent = 0;
   for (const t of uncategorized) {
-    const match = await cats.match(userId, t.category_path, t.personal_finance_category);
+    // 1) Plaid category-path / personal-finance-category match.
+    // 2) Merchant-name keyword fallback (STARBUCKS → Food & Dining, etc.) so
+    //    obvious merchants get categorized locally even when Plaid's category
+    //    data is missing or doesn't match any pattern — otherwise they'd sit
+    //    forever waiting for an agent that isn't driving categorization.
+    const match =
+      (await cats.match(userId, t.category_path, t.personal_finance_category)) ??
+      (await cats.matchByName(userId, t.name ?? t.merchant_name ?? null));
     if (match) {
       await txns.update(userId, t.id, { userCategoryId: match.id });
       categorized++;
