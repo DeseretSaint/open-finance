@@ -17,7 +17,7 @@
 
 import { ApiError, apiErrors } from "@/lib/api-error";
 import { randomUUID } from "@/lib/uuid";
-import { hashSecret, safeEqual } from "@/lib/crypto";
+import { sha256Hex } from "@/lib/webcrypto-shim";
 import type { Db } from "@/server/db/types";
 import { CapSqliteDb } from "@/server/db/cap-sqlite";
 import { registerDbProvider } from "@/server/db/registry";
@@ -145,6 +145,16 @@ function parseId(path: string, prefix: string): string {
   return rest.replace(/^\//, "").replace(/\/$/, "");
 }
 
+/** Constant-time string compare — browser-safe (no node:crypto dependency). */
+function constEq(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 /** Dispatch a solo API request. Returns the standard envelope. */
 export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
   try {
@@ -180,9 +190,9 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       );
       // Tokens are hashed at rest (SHA-256); a legacy raw value still
       // authenticates once, then is migrated to the hash on success.
-      const presentedHash = hashSecret(presented);
-      const validHash = !!stored && safeEqual(presentedHash, stored.value);
-      const validLegacy = !!stored && !validHash && safeEqual(presented, stored.value);
+      const presentedHash = await sha256Hex(presented);
+      const validHash = !!stored && constEq(presentedHash, stored.value);
+      const validLegacy = !!stored && !validHash && constEq(presented, stored.value);
       if (!validHash && !validLegacy) {
         return { status: 401, data: { error: { code: "unauthorized", message: "Invalid remote access token." } } };
       }
@@ -1054,7 +1064,7 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         const raw = randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
         await db.run(
           "INSERT INTO app_state (key, value, updated_at) VALUES ('remote.agent.token', ?, ?)",
-          hashSecret(raw),
+          await sha256Hex(raw),
           new Date().toISOString()
         );
         return ok({ token: raw, port: 8787 });

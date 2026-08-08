@@ -1056,6 +1056,7 @@ function AgentWiringCard({ setMsg, setErr }: { setMsg: (s: string | null) => voi
     total: number;
     categorized: number;
     leftForAgent: number;
+    totalUncategorized: number;
     backlogMonths: number;
   } | null>(null);
   const categorizeNow = useMutation({
@@ -1075,6 +1076,7 @@ function AgentWiringCard({ setMsg, setErr }: { setMsg: (s: string | null) => voi
         total: res.total,
         categorized: res.categorized,
         leftForAgent: res.leftForAgent,
+        totalUncategorized: res.totalUncategorized,
         backlogMonths: res.backlogMonths,
       });
       if (res.categorized > 0) {
@@ -1267,6 +1269,18 @@ function AgentWiringCard({ setMsg, setErr }: { setMsg: (s: string | null) => voi
                   </Button>
                   {!p?.autoCategorize && (
                     <span className="text-xs text-text-muted">Enable smart categorization above first.</span>
+                  )}
+                  {/* Inline confirmation so the user gets feedback even when
+                      scrolled down on this long page (the global banner renders
+                      at the top and auto-clears). Shows the last run's outcome. */}
+                  {categorizeNow.isSuccess && catProgress && (
+                    <span className="text-xs font-medium text-success">
+                      {catProgress.categorized > 0
+                        ? `Categorized ${catProgress.categorized} transaction${catProgress.categorized === 1 ? "" : "s"}${catProgress.leftForAgent > 0 ? ` · ${catProgress.leftForAgent} left for the agent` : ""}.`
+                        : catProgress.totalUncategorized === 0
+                          ? "Everything in that range is already categorized."
+                          : `No confident matches — ${catProgress.leftForAgent} left for the agent.`}
+                    </span>
                   )}
                 </div>
                 {catProgress && catProgress.total > 0 && (
