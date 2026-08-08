@@ -145,6 +145,10 @@ export async function syncSoloItem(input: SoloSyncInput): Promise<SoloSyncResult
     }
 
     const categories = createCategoriesService(db);
+    // Ensure system categories exist before ingest matching, so transactions
+    // get auto-categorized on their first sync even if the user never opened
+    // the Categories tab.
+    await categories.ensureSystem(userId);
 
     // 3. Sync transactions via the native proxy (cursor-based).
     const res = await client.syncTransactions({

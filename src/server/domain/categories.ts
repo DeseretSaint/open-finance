@@ -98,10 +98,26 @@ export function createCategoriesService(db: Db = getDb()) {
       await db.run("DELETE FROM categories WHERE id = ? AND user_id = ?", id, userId);
     },
 
-    /** Longest-pattern match: plaid_paths is a newline-separated list of hierarchy
-     *  patterns ("Food and Drink" or "Food and Drink|Restaurants"); a transaction
-     *  matches when its personal-finance category or legacy path starts with that
-     *  prefix. Longest matching pattern wins. */
+    /** Normalize Plaid's personal_finance_category (e.g. "FOOD_AND_DRINK" or
+     *  "food_and_drink") into the app's title-case path style ("Food and Drink")
+     *  so it matches the seeded system category paths. Plaid's native proxy
+     *  returns the `.primary` value as UPPER_CASE_WITH_UNDERSCORES; the web
+     *  client uses `.detailed`. Both should map to "Food and Drink". */
+    normalizePfc(raw: string | null): string | null {
+      if (!raw) return null;
+      return raw
+        .toLowerCase()
+        .split("_")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+    },
+
+    /** Longest-pattern match: plaid_paths is a newline-separated list of
+     *  hierarchy patterns ("Food and Drink" or "Food and Drink|Restaurants"); a
+     *  transaction matches when its (normalized) personal-finance category or
+     *  legacy path starts with that prefix. Longest matching pattern wins.
+     *  Matching is case-insensitive so Plaid's "FOOD_AND_DRINK" → "Food and
+     *  Drink" matches the seeded system paths. */
     async match(
       userId: string,
       categoryPath: string | null,
@@ -109,15 +125,18 @@ export function createCategoriesService(db: Db = getDb()) {
     ): Promise<CategoryRow | null> {
       if (!categoryPath && !personalFinanceCategory) return null;
       const cats = await this.list(userId);
+      const pfc = this.normalizePfc(personalFinanceCategory);
+      const pathLc = categoryPath ? categoryPath.toLowerCase() : null;
       let best: CategoryRow | null = null;
       let bestLen = -1;
       for (const c of cats) {
         if (!c.plaid_paths) continue;
         const paths = c.plaid_paths.split("\n").map((p) => p.trim()).filter(Boolean);
         for (const p of paths) {
+          const pl = p.toLowerCase();
           const hit =
-            (personalFinanceCategory !== null && personalFinanceCategory.startsWith(p)) ||
-            (categoryPath !== null && categoryPath.startsWith(p));
+            (pfc !== null && pfc.toLowerCase().startsWith(pl)) ||
+            (pathLc !== null && pathLc.startsWith(pl));
           if (hit && p.length > bestLen) {
             best = c;
             bestLen = p.length;

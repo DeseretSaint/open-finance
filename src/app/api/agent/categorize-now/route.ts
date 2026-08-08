@@ -9,23 +9,20 @@ import { getDb } from "@/server/db/adapter";
 export const runtime = "nodejs";
 
 /**
- * "Apply" for smart categorization: requires a connected agent + the feature
- * enabled, then runs the app-side categorizer over the backlog (same rules
- * the agent would use) so categorization actually starts immediately.
+ * "Apply" for smart categorization: runs the app-side categorizer over the
+ * backlog (same rules the agent would use) so categorization starts immediately.
+ *
+ * NOTE: smart categorization is purely local — it uses the user's own category
+ * rules and does NOT require a connected agent. The original guard required an
+ * agent_tokens row, but solo phones store the agent token in app_state
+ * (remote.agent.token), so the guard returned 400 and the button silently did
+ * nothing. We only require the autoCategorize pref to be enabled.
  */
 export async function POST(req: NextRequest) {
   return route(async (req) => {
     const session = await requireSession(req);
     requireCsrf(req);
     const db = getDb();
-
-    const connected = await db.get<{ n: number }>(
-      "SELECT COUNT(*) AS n FROM agent_tokens WHERE user_id = ? AND revoked = 0",
-      session.userId
-    );
-    if (!connected || connected.n === 0) {
-      throw apiErrors.badRequest("No agent connected — wire one in the Agents tab first.");
-    }
 
     const prefs = await createAgentPrefsService(db).get(session.userId);
     if (!prefs.autoCategorize) {

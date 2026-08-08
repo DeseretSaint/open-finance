@@ -33,7 +33,8 @@ describe("autoCategorize (categorize-now Apply)", () => {
 
     const res = await autoCategorize(db, user.id, 12);
     expect(res.categorized).toBe(1);
-    expect(res.remaining).toBe(1);
+    expect(res.leftForAgent).toBe(1);
+    expect(res.total).toBe(2);
 
     const list = await txns.list(user.id, { limit: 10, offset: 0 });
     const groceriesTxn = list.rows.find((t) => t.name === "Whole Foods");

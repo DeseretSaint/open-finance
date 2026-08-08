@@ -1012,19 +1012,53 @@ function AgentWiringCard({ setMsg, setErr }: { setMsg: (s: string | null) => voi
   });
 
   // "Apply — start categorizing now": runs the app-side categorizer over the
-  // backlog immediately (same rules the agent would use).
+  // backlog immediately (same rules the agent would use). Returns a status
+  // breakdown so we can show a progress bar (categorized vs total).
+  const [catProgress, setCatProgress] = useState<{
+    done: number;
+    total: number;
+    categorized: number;
+    leftForAgent: number;
+    backlogMonths: number;
+  } | null>(null);
   const categorizeNow = useMutation({
     mutationFn: () =>
-      api.post<{ categorized: number; remaining: number; backlogMonths: number }>("/api/agent/categorize-now"),
+      api.post<{
+        alreadyCategorized: number;
+        categorized: number;
+        leftForAgent: number;
+        totalUncategorized: number;
+        total: number;
+        done: number;
+        backlogMonths: number;
+      }>("/api/agent/categorize-now"),
     onSuccess: (res) => {
+      setCatProgress({
+        done: res.done,
+        total: res.total,
+        categorized: res.categorized,
+        leftForAgent: res.leftForAgent,
+        backlogMonths: res.backlogMonths,
+      });
       if (res.categorized > 0) {
-        setMsg(`Categorized ${res.categorized} transaction${res.categorized === 1 ? "" : "s"} — ${res.remaining} left for the agent.`);
+        setMsg(
+          `Categorized ${res.categorized} transaction${res.categorized === 1 ? "" : "s"} in the last ${
+            res.backlogMonths === 0 ? "range" : `${res.backlogMonths} month${res.backlogMonths === 1 ? "" : "s"}`
+          }${res.leftForAgent > 0 ? ` — ${res.leftForAgent} left for the agent.` : "."}`
+        );
       } else {
-        setMsg(res.remaining === 0 ? "Nothing to categorize — everything's already assigned." : `No confident matches found — ${res.remaining} left for the agent.`);
+        setMsg(
+          res.totalUncategorized === 0
+            ? "Everything in that range is already categorized."
+            : `No confident matches in that range — ${res.leftForAgent} left for the agent.`
+        );
       }
       qc.invalidateQueries({ queryKey: ["transactions"] });
     },
-    onError: (e) => setErr(e instanceof Error ? e.message : "Categorization failed."),
+    onError: (e) => {
+      setCatProgress(null);
+      setErr(e instanceof Error ? e.message : "Categorization failed.");
+    },
   });
 
   const [guideCopied, setGuideCopied] = useState(false);
@@ -1181,22 +1215,37 @@ function AgentWiringCard({ setMsg, setErr }: { setMsg: (s: string | null) => voi
                     come in.
                   </span>
                 </label>
-                {/* Apply: fires the connected agent's categorization now (same
-                    rules the agent uses), so it starts immediately instead of
-                    waiting for the agent's next sync. */}
+                {/* Apply: runs the app-side categorizer over the selected range
+                    immediately (same rules the agent would use). It is purely
+                    local — it uses your own category rules and does NOT need an
+                    agent connected, so it is never gated on agent connection. */}
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <Button
                     size="sm"
                     onClick={() => categorizeNow.mutate()}
-                    disabled={categorizeNow.isPending || !agentConnected}
-                    title={!agentConnected ? "Connect an agent in the Agents tab first" : "Start categorizing the backlog now"}
+                    disabled={categorizeNow.isPending || !p?.autoCategorize}
+                    title={!p?.autoCategorize ? "Enable smart categorization above first" : "Start categorizing the backlog now"}
                   >
                     {categorizeNow.isPending ? "Categorizing…" : "Apply — start categorizing now"}
                   </Button>
-                  {!agentConnected && (
-                    <span className="text-xs text-text-muted">Connect an agent in the Agents tab first.</span>
+                  {!p?.autoCategorize && (
+                    <span className="text-xs text-text-muted">Enable smart categorization above first.</span>
                   )}
                 </div>
+                {catProgress && catProgress.total > 0 && (
+                  <div className="mt-2">
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-surface-muted">
+                      <div
+                        className="h-full rounded-full bg-[var(--accent)] transition-all"
+                        style={{ width: `${Math.round((catProgress.done / catProgress.total) * 100)}%` }}
+                      />
+                    </div>
+                    <p className="mt-1 text-xs text-text-muted">
+                      {catProgress.done} of {catProgress.total} in range categorized
+                      {catProgress.leftForAgent > 0 ? ` · ${catProgress.leftForAgent} left for the agent` : ""}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>

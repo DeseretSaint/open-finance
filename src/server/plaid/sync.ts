@@ -76,6 +76,10 @@ export function createSyncService(db: Db = getDb(), clientFactory: (creds: Plaid
 
     const ingest = createIngestService(db);
     const categories = createCategoriesService(db);
+    // Ensure system categories exist before ingest matching, so transactions
+    // get auto-categorized on their first sync even if the user never opened
+    // the Categories tab.
+    await categories.ensureSystem(userId);
 
     let cursor = item.cursor ?? null;
     let added = 0;

@@ -63,14 +63,15 @@ export default function TransactionsPage() {
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+  const [limit, setLimit] = useState(200);
 
   const params = useMemo(() => {
-    const p = new URLSearchParams({ limit: "100" });
+    const p = new URLSearchParams({ limit: String(limit) });
     if (q.trim()) p.set("q", q.trim());
     if (accountId) p.set("accountId", accountId);
     if (pendingOnly) p.set("pending", "1");
     return p.toString();
-  }, [q, accountId, pendingOnly]);
+  }, [q, accountId, pendingOnly, limit]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["transactions", params],
@@ -506,6 +507,15 @@ export default function TransactionsPage() {
                 </div>
               );
             })}
+            {data.rows.length < data.total && (
+              <button
+                type="button"
+                onClick={() => setLimit((l) => l + 200)}
+                className="mt-2 w-full rounded-lg border border-border bg-surface py-2.5 text-sm font-medium text-text-muted transition-colors hover:text-text"
+              >
+                Load more ({data.total - data.rows.length} more)
+              </button>
+            )}
           </div>
         )}
       </Card>
