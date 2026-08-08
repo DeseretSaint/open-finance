@@ -38,6 +38,9 @@ function fakeClient(pages: PlaidSyncResult[]): PlaidClient {
       call++;
       return res;
     },
+    async getTransactions() {
+      return [];
+    },
     async removeItem() {},
     async testCredentials() {
       return { ok: true };
@@ -196,6 +199,9 @@ describe("sync service", () => {
       },
       async syncTransactions() {
         throw new Error("boom");
+      },
+      async getTransactions() {
+        return [];
       },
       async removeItem() {},
       async testCredentials() {

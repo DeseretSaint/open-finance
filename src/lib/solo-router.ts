@@ -822,6 +822,48 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       });
     }
 
+    // Backfill OLDER history on an EXISTING item using Plaid's /transactions/get
+    // pull API (explicit date range). This bypasses the link-time 90-day window
+    // lock that /transactions/sync has, and — crucially — does NOT delete the
+    // item, so it consumes no Plaid link slot. Default window: 24 months.
+    if (method === "POST" && path === "/api/plaid/backfill") {
+      const { getSoloPlaidCreds, getSoloPlaidItem } = await import("@/lib/solo-plaid-store");
+      const { createNativePlaidClient, createSoloSyncClient } = await import("@/server/plaid/native");
+      const { backfillSoloItem } = await import("@/lib/solo-plaid-sync");
+      const userId = await h.deviceUserId();
+      const itemId = typeof B?.itemId === "string" ? B.itemId : "";
+      if (!itemId) throw apiErrors.badRequest("itemId is required.");
+      const creds = getSoloPlaidCreds();
+      if (!creds) throw apiErrors.badRequest("No Plaid keys saved on this phone.");
+      const item = getSoloPlaidItem(itemId);
+      if (!item) throw apiErrors.notFound("Plaid item");
+      const env = item.environment === "production" ? "production" : "sandbox";
+      const res = await backfillSoloItem(
+        {
+          db,
+          userId,
+          itemId: item.id,
+          institutionName: item.institutionName,
+          environment: env,
+          creds: { ...creds, environment: env },
+          accessToken: item.accessToken,
+          accounts: item.accounts,
+          client: createSoloSyncClient(),
+          cursor: null,
+        },
+        typeof B?.monthsBack === "number" && B.monthsBack > 0 ? B.monthsBack : 24
+      );
+      return ok({
+        ok: res.ok,
+        added: res.added,
+        oldestDate: res.oldestDate ?? null,
+        error: res.error ?? null,
+        note: res.ok
+          ? `Backfilled older history — ${res.added} new transaction(s); oldest found is ${res.oldestDate ?? "unknown"}. If that's still ~90 days back, this institution only serves 90 days via Plaid.`
+          : undefined,
+      });
+    }
+
     // ── Phone backup & restore (solo: encrypted JSON dump, PIN-confirmed) ──
     if (method === "POST" && path === "/api/backup") {
       const { createSoloBackupService } = await import("@/server/domain/solo-backup");

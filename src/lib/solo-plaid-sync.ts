@@ -42,6 +42,14 @@ export interface SoloNativeClient {
     accessToken: string;
     cursor: string | null;
   }): Promise<{ added: SoloPlaidTxn[]; modified: SoloPlaidTxn[]; removed: Array<string | { transactionId: string }>; nextCursor: string | null }>;
+  getTransactions(opts: {
+    clientId: string;
+    secret: string;
+    environment: string;
+    accessToken: string;
+    startDate: string;
+    endDate: string;
+  }): Promise<SoloPlaidTxn[]>;
 }
 
 export interface SoloSyncInput {
@@ -265,4 +273,75 @@ async function upsertTxn(
     0,
     new Date().toISOString()
   );
+}
+
+/**
+ * Backfill older history into an EXISTING item WITHOUT deleting it (so we don't
+ * burn a Plaid link slot). Uses Plaid's pull-based /transactions/get with an
+ * explicit date range — this bypasses the link-time 90-day window lock that
+ * /transactions/sync is subject to. Default window: 24 months back to today.
+ * Never throws — the caller surfaces failures.
+ */
+export async function backfillSoloItem(input: SoloSyncInput, monthsBack = 24): Promise<SoloSyncResult> {
+  const { db, userId, itemId, environment, creds, accessToken, client } = input;
+  try {
+    // Map plaid account id → row id (skip hidden accounts).
+    const rows = await db.all<{ id: string; plaid_account_id: string | null; hidden: number }>(
+      "SELECT id, plaid_account_id, hidden FROM accounts WHERE item_id = ?",
+      itemId
+    );
+    const plaidToRow = new Map<string, string>();
+    for (const r of rows) {
+      if (r.plaid_account_id && r.hidden === 0) plaidToRow.set(r.plaid_account_id, r.id);
+    }
+
+    const categories = createCategoriesService(db);
+    await categories.ensureSystem(userId);
+
+    const end = new Date();
+    const start = new Date();
+    start.setMonth(start.getMonth() - monthsBack);
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    const startDate = fmt(start);
+    const endDate = fmt(end);
+
+    const txns = await client.getTransactions({
+      clientId: creds.clientId,
+      secret: creds.secret,
+      environment,
+      accessToken,
+      startDate,
+      endDate,
+    });
+
+    let oldestDate: string | null = null;
+    let added = 0;
+    for (const t of txns) {
+      if (!t.date) continue;
+      if (oldestDate === null || t.date < oldestDate) oldestDate = t.date;
+      const rowId = plaidToRow.get(t.accountId);
+      if (!rowId) continue;
+      const cat = await categories.match(userId, t.categoryPath, t.personalFinanceCategory);
+      const exists = await db.get<{ id: string }>(
+        "SELECT id FROM transactions WHERE plaid_transaction_id = ?",
+        t.id
+      );
+      await upsertTxn(db, rowId, { ...t, amountCents: -t.amountCents }, cat?.id ?? null);
+      if (!exists) added++;
+    }
+
+    await markLinkedTransfers(db, userId);
+
+    return { added, modified: 0, removed: 0, oldestDate, nextCursor: null, ok: true };
+  } catch (err) {
+    return {
+      added: 0,
+      modified: 0,
+      removed: 0,
+      oldestDate: null,
+      nextCursor: null,
+      ok: false,
+      error: err instanceof Error ? err.message : "Backfill failed.",
+    };
+  }
 }

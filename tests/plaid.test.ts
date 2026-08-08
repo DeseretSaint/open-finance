@@ -40,6 +40,9 @@ function fakeClient(overrides: Partial<PlaidClient> = {}): PlaidClient {
     async syncTransactions() {
       return { added: [], modified: [], removed: [], nextCursor: null, hasMore: false };
     },
+    async getTransactions() {
+      return [];
+    },
     async removeItem() {
       calls.removed += 1;
     },

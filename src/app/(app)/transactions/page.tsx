@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search, X, Trash2, ChevronDown, RefreshCw } from "lucide-react";
+import { Search, X, Trash2, ChevronDown, RefreshCw, History } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -181,13 +181,56 @@ export default function TransactionsPage() {
       onError: (e) => setError(e instanceof Error ? e.message : "History pull failed."),
     });
 
-  // Manual add form
-  const [addName, setAddName] = useState("");
-  const [addAmount, setAddAmount] = useState("");
-  const [addDate, setAddDate] = useState(new Date().toISOString().slice(0, 10));
-  const [addAccount, setAddAccount] = useState("");
-  const [addCategory, setAddCategory] = useState("");
-  const [addExclude, setAddExclude] = useState(false);
+    // GLOBAL older-history backfill: uses Plaid's /transactions/get date-range
+    // pull on every linked bank WITHOUT deleting any of them (so no Plaid link
+    // slot is consumed). Bypasses the link-time 90-day sync window lock.
+    const [olderMsg, setOlderMsg] = useState<string | null>(null);
+    const [olderDetail, setOlderDetail] = useState<Array<{ name: string; oldest: string | null; added: number; ok: boolean }>>([]);
+    const pullOlder = useMutation({
+      mutationFn: async () => {
+        setOlderMsg(null);
+        setError(null);
+        setOlderDetail([]);
+        const items = await api.get<{ items: Array<{ id: string; institution_name: string | null; accounts: Array<{ name: string }> }> }>("/api/plaid/items").catch(() => ({ items: [] as Array<{ id: string; institution_name: string | null; accounts: Array<{ name: string }> }> }));
+        const detail: Array<{ name: string; oldest: string | null; added: number; ok: boolean }> = [];
+        let oldest: string | null = null;
+        let totalAdded = 0;
+        let failed = 0;
+        for (const it of items.items) {
+          const label = it.institution_name ?? it.accounts?.[0]?.name ?? "Bank";
+          const r = await api.post<{ ok: boolean; added: number; oldestDate: string | null; error?: string | null }>(
+            "/api/plaid/backfill",
+            { itemId: it.id, monthsBack: 24 }
+          ).catch(() => ({ ok: false, added: 0, oldestDate: null as string | null, error: "request failed" }));
+          if (r.ok) {
+            totalAdded += r.added;
+            if (r.oldestDate && (oldest === null || r.oldestDate < oldest)) oldest = r.oldestDate;
+          } else {
+            failed++;
+          }
+          detail.push({ name: label, oldest: r.oldestDate ?? null, added: r.added, ok: r.ok });
+        }
+        setOlderDetail(detail);
+        setOlderMsg(
+          items.items.length === 0
+            ? "No banks linked yet."
+            : failed === 0
+              ? `Older history pulled — ${totalAdded} new transaction(s); earliest now ${oldest ?? "unchanged"}. If a bank still stops ~90 days back, that institution only serves 90 days via Plaid.`
+              : `Older history pulled with ${failed} failure(s). Earliest now ${oldest ?? "unchanged"}.`
+        );
+        invalidate();
+        qc.invalidateQueries({ queryKey: ["plaid-items"] });
+      },
+      onError: (e) => setError(e instanceof Error ? e.message : "Older-history pull failed."),
+    });
+
+    // Manual add form
+    const [addName, setAddName] = useState("");
+    const [addAmount, setAddAmount] = useState("");
+    const [addDate, setAddDate] = useState(new Date().toISOString().slice(0, 10));
+    const [addAccount, setAddAccount] = useState("");
+    const [addCategory, setAddCategory] = useState("");
+    const [addExclude, setAddExclude] = useState(false);
 
   const add = useMutation({
     mutationFn: () =>
@@ -291,6 +334,19 @@ export default function TransactionsPage() {
             <RefreshCw size={14} className={pullHistory.isPending ? "animate-spin" : ""} />
             {pullHistory.isPending ? "Pulling…" : "Pull full history"}
           </button>
+          <button
+            onClick={() => pullOlder.mutate()}
+            disabled={pullOlder.isPending}
+            className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium ${
+              pullOlder.isPending
+                ? "cursor-wait border-border bg-surface text-text-muted"
+                : "border-border bg-surface text-text-muted hover:text-text"
+            }`}
+            title="Pull OLDER history (up to 24 months back) for every bank WITHOUT deleting them — bypasses the 90-day sync window, uses no link slots"
+          >
+            <History size={14} className={pullOlder.isPending ? "animate-spin" : ""} />
+            {pullOlder.isPending ? "Pulling older…" : "Pull older history"}
+          </button>
           <span className="text-sm text-text-muted">{data ? `${data.total} transaction${data.total === 1 ? "" : "s"}` : "…"}</span>
         </div>
         {(refreshMsg || error || historyMsg) && (
@@ -306,6 +362,27 @@ export default function TransactionsPage() {
                         ? d.oldest
                           ? `linked ${d.linkedAt ? d.linkedAt.slice(0, 10) : "?"} → back to ${d.oldest}`
                           : `${d.added} updated`
+                        : "failed"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+        {(olderMsg || error) && (
+          <div className={`mt-2 px-1 text-xs ${error ? "text-red-500" : "text-text-muted"}`}>
+            {error ?? olderMsg}
+            {olderDetail.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {olderDetail.map((d) => (
+                  <li key={d.name} className="flex items-center justify-between gap-2">
+                    <span className="truncate">{d.name}</span>
+                    <span className={d.ok ? "text-text-muted" : "text-red-500"}>
+                      {d.ok
+                        ? d.oldest
+                          ? `back to ${d.oldest} (${d.added} new)`
+                          : `${d.added} new`
                         : "failed"}
                     </span>
                   </li>

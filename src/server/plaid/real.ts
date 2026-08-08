@@ -142,6 +142,43 @@ export const realPlaidClient: PlaidClient = {
     await client.itemRemove({ access_token: accessToken });
   },
 
+  async getTransactions(creds, accessToken, start, end) {
+    const client = clientFor(creds);
+    const out: PlaidTransaction[] = [];
+    let offset = 0;
+    let hasMore = true;
+    while (hasMore) {
+      const res = await client.transactionsGet({
+        access_token: accessToken,
+        start_date: start,
+        end_date: end,
+        options: { offset, count: 500 },
+      });
+      const map = (t: {
+        transaction_id: string; account_id: string; amount: number; date: string;
+        authorized_date: string | null; name: string; merchant_name: string | null;
+        category: string[] | null; personal_finance_category: { detailed: string } | null;
+        pending: boolean;
+      }): PlaidTransaction => ({
+        id: t.transaction_id,
+        accountId: t.account_id,
+        amountCents: cents(t.amount),
+        date: t.date,
+        authorizedDate: t.authorized_date,
+        name: t.name,
+        merchantName: t.merchant_name,
+        categoryPath: t.category ? t.category.join("|") : null,
+        personalFinanceCategory: t.personal_finance_category?.detailed ?? null,
+        pending: t.pending,
+      });
+      for (const t of res.data.transactions) out.push(map(t as never));
+      hasMore = res.data.transactions.length === 500 && (res.data as unknown as { has_more?: boolean }).has_more === true;
+      offset += res.data.transactions.length;
+      if (res.data.transactions.length === 0) break;
+    }
+    return out;
+  },
+
   async testCredentials(creds) {
     try {
       // Cheapest real call: create a link token in the target environment.

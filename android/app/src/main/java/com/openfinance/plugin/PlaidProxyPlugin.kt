@@ -255,6 +255,62 @@ class PlaidProxyPlugin : Plugin() {
         }
     }
 
+    // getTransactions(accessToken, startDate, endDate) -> {transactions: [...]}
+    // Pull-based history fetch (transactions/get). Unlike transactions/sync,
+    // this honors an explicit date range and returns up to 24 months of history
+    // for the EXISTING item — so we can backfill older transactions WITHOUT
+    // deleting the item (which would burn a Plaid link slot and reset the
+    // 90-day sync window). Plaid's sync window lock does not apply here.
+    @PluginMethod
+    fun getTransactions(call: PluginCall) {
+        val clientId = call.getString("clientId") ?: return call.reject("missing clientId")
+        val secret = call.getString("secret") ?: return call.reject("missing secret")
+        val env = call.getString("environment") ?: "sandbox"
+        val accessToken = call.getString("accessToken") ?: return call.reject("missing accessToken")
+        val startDate = call.getString("startDate") ?: return call.reject("missing startDate")
+        val endDate = call.getString("endDate") ?: return call.reject("missing endDate")
+        try {
+            var offset = 0
+            var hasMore = true
+            var total = 0
+            val all = JSONArray()
+            val mapped = JSONArray()
+            fun mapTxn(t: JSONObject): JSObject {
+                return JSObject()
+                    .put("id", t.optString("transaction_id"))
+                    .put("accountId", t.optString("account_id"))
+                    .put("amountCents", Math.round(t.optDouble("amount") * 100.0))
+                    .put("date", t.optString("date"))
+                    .put("authorizedDate", if (t.isNull("authorized_date")) JSONObject.NULL else t.optString("authorized_date"))
+                    .put("name", t.optString("name"))
+                    .put("merchantName", if (t.isNull("merchant_name")) JSONObject.NULL else t.optString("merchant_name"))
+                    .put("categoryPath", if (t.isNull("category")) JSONObject.NULL else t.optJSONArray("category")?.join("|") ?: JSONObject.NULL)
+                    .put("personalFinanceCategory", if (t.isNull("personal_finance_category")) JSONObject.NULL else t.optJSONObject("personal_finance_category")?.optString("primary"))
+                    .put("pending", t.optBoolean("pending", false))
+            }
+            while (hasMore && total < 100_000) {
+                val body = params(clientId, secret)
+                    .put("access_token", accessToken)
+                    .put("start_date", startDate)
+                    .put("end_date", endDate)
+                    .put("options", JSONObject().put("offset", offset))
+                val resp = post(env, "/transactions/get", body)
+                val raw = resp.optJSONArray("transactions") ?: JSONArray()
+                for (i in 0 until raw.length()) {
+                    val t = raw.optJSONObject(i) ?: continue
+                    mapped.put(mapTxn(t))
+                }
+                total += raw.length()
+                hasMore = resp.optBoolean("has_more", false)
+                offset += raw.length().coerceAtLeast(1)
+                if (raw.length() == 0) break
+            }
+            call.resolve(JSObject().put("transactions", mapped))
+        } catch (e: Exception) {
+            call.reject(e.message ?: "get transactions failed")
+        }
+    }
+
     // removeItem(accessToken) -> {removed: true}
     @PluginMethod
     fun removeItem(call: PluginCall) {

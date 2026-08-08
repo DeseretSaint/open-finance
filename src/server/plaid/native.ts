@@ -63,6 +63,14 @@ interface PlaidProxy {
     environment: string;
     accessToken: string;
   }) => Promise<{ removed: boolean }>;
+  getTransactions: (opts: {
+    clientId: string;
+    secret: string;
+    environment: string;
+    accessToken: string;
+    startDate: string;
+    endDate: string;
+  }) => Promise<{ transactions: PlaidTransaction[] }>;
   launchLink: (opts: { linkToken: string }) => Promise<{
     cancelled: boolean;
     publicToken?: string;
@@ -180,6 +188,29 @@ export function createNativePlaidClient(): PlaidClient {
         accessToken,
       });
     },
+
+    async getTransactions(creds: PlaidCreds, accessToken: string, start: string, end: string) {
+      const r = await p.getTransactions({
+        clientId: creds.clientId,
+        secret: creds.secret,
+        environment: creds.environment,
+        accessToken,
+        startDate: start,
+        endDate: end,
+      });
+      return (r.transactions ?? []).map((t) => ({
+        id: t.id,
+        accountId: t.accountId,
+        amountCents: t.amountCents,
+        date: t.date,
+        authorizedDate: t.authorizedDate,
+        name: t.name,
+        merchantName: t.merchantName,
+        categoryPath: t.categoryPath,
+        personalFinanceCategory: t.personalFinanceCategory,
+        pending: t.pending,
+      }));
+    },
   };
 }
 
@@ -213,6 +244,21 @@ export function createSoloSyncClient(native: PlaidClient = createNativePlaidClie
         removed: res.removed,
         nextCursor: res.nextCursor,
       };
+    },
+    async getTransactions(opts: {
+      clientId: string;
+      secret: string;
+      environment: "sandbox" | "production";
+      accessToken: string;
+      startDate: string;
+      endDate: string;
+    }) {
+      return native.getTransactions(
+        { clientId: opts.clientId, secret: opts.secret, environment: opts.environment },
+        opts.accessToken,
+        opts.startDate,
+        opts.endDate
+      );
     },
   };
 }

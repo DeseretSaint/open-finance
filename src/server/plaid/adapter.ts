@@ -58,6 +58,16 @@ export interface PlaidClient {
   ): Promise<{ accessToken: string; itemId: string }>;
   getAccounts(creds: PlaidCreds, accessToken: string): Promise<PlaidAccount[]>;
   syncTransactions(creds: PlaidCreds, accessToken: string, cursor: string | null): Promise<PlaidSyncResult>;
+  /** Pull-based history fetch (transactions/get). Returns transactions in an
+   *  explicit date range — used to backfill older history on an EXISTING item
+   *  without deleting it (and without burning a Plaid link slot). Unlike
+   *  transactions/sync, the link-time 90-day window lock does not apply. */
+  getTransactions(
+    creds: PlaidCreds,
+    accessToken: string,
+    start: string,
+    end: string
+  ): Promise<PlaidTransaction[]>;
   removeItem(creds: PlaidCreds, accessToken: string): Promise<void>;
   testCredentials(creds: PlaidCreds): Promise<{ ok: boolean; message?: string }>;
 }

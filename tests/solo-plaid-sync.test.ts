@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { syncSoloItem, type SoloPlaidTxn, type SoloNativeClient } from "@/lib/solo-plaid-sync";
+import { syncSoloItem, backfillSoloItem, type SoloPlaidTxn, type SoloNativeClient } from "@/lib/solo-plaid-sync";
 import type { PlaidClient } from "@/server/plaid/adapter";
 import { createTestDb, seedUser } from "./helpers";
 
@@ -11,6 +11,7 @@ function fakeClient(added: SoloPlaidTxn[], cursor: string | null = null) {
       removed: [] as string[],
       nextCursor: cursor,
     }),
+    getTransactions: async () => [],
   } as SoloNativeClient;
 }
 
@@ -130,6 +131,9 @@ describe("solo plaid sync (webview-safe import)", () => {
       client: {
         syncTransactions: async () => {
           throw new Error("boom");
+        },
+        getTransactions: async () => {
+          return [];
         },
       } as SoloNativeClient,
       cursor: null,
@@ -258,5 +262,59 @@ describe("createSoloSyncClient adapter (v0.3.11 regression)", () => {
       "pending-1"
     );
     expect(stillThere?.pending).toBe(1);
+  });
+});
+
+describe("backfillSoloItem (v0.3.37 — pull older history without deleting item)", () => {
+  it("pulls a wider date range via getTransactions and upserts into existing accounts", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    // Pre-seed an account owned by item-1 so the backfill has a place to land.
+    await db.run(
+      `INSERT INTO accounts (id, user_id, item_id, plaid_account_id, name, type, mask, current_balance_cents, currency, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      "acct-row-1", user.id, "item-1", "acct-1", "Checking", "depository", "0000", 0, "USD", new Date().toISOString()
+    );
+    const old: SoloPlaidTxn = {
+      id: "old-txn-1",
+      accountId: "acct-1",
+      amountCents: 5999,
+      date: "2025-09-15", // ~11 months back, well outside the 90-day sync window
+      authorizedDate: null,
+      name: "OLD MERCHANT",
+      merchantName: null,
+      categoryPath: null,
+      personalFinanceCategory: null,
+      pending: false,
+    };
+    const backfillClient = {
+      syncTransactions: async () => ({
+        added: [] as SoloPlaidTxn[],
+        modified: [] as SoloPlaidTxn[],
+        removed: [] as string[],
+        nextCursor: null,
+      }),
+      getTransactions: async () => [old],
+    } as unknown as SoloNativeClient;
+    const result = await backfillSoloItem({
+      db,
+      userId: user.id,
+      itemId: "item-1",
+      institutionName: null,
+      environment: "sandbox",
+      creds: { clientId: "c", secret: "s", environment: "sandbox" },
+      accessToken: "access-1",
+      accounts: [{ id: "acct-1", name: "Checking", type: "depository", mask: null }],
+      client: backfillClient,
+      cursor: null,
+    });
+    expect(result.ok).toBe(true);
+    expect(result.added).toBe(1);
+    expect(result.oldestDate).toBe("2025-09-15");
+    const row = await db.get<{ amount_cents: number }>(
+      "SELECT amount_cents FROM transactions WHERE plaid_transaction_id = ?",
+      "old-txn-1"
+    );
+    expect(row?.amount_cents).toBe(-5999); // Plaid sign flipped on ingest
   });
 });
