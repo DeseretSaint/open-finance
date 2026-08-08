@@ -62,6 +62,9 @@ export interface SoloSyncResult {
   added: number;
   modified: number;
   removed: number;
+  /** Oldest transaction date Plaid returned this sync (YYYY-MM-DD) — tells the
+   *  user the true history floor (Plaid only returns from link time forward). */
+  oldestDate: string | null;
   nextCursor: string | null;
   ok: boolean;
   error?: string;
@@ -159,7 +162,14 @@ export async function syncSoloItem(input: SoloSyncInput): Promise<SoloSyncResult
       cursor: input.cursor ?? null,
     });
 
+    let oldestDate: string | null = null;
+    const considerDate = (d: string | null) => {
+      if (!d) return;
+      if (oldestDate === null || d < oldestDate) oldestDate = d;
+    };
+
     for (const t of res.added) {
+      considerDate(t.date);
       const rowId = plaidToRow.get(t.accountId);
       if (!rowId) continue;
       const cat = await categories.match(userId, t.categoryPath, t.personalFinanceCategory);
@@ -167,6 +177,7 @@ export async function syncSoloItem(input: SoloSyncInput): Promise<SoloSyncResult
       await upsertTxn(db, rowId, { ...t, amountCents: -t.amountCents }, cat?.id ?? null);
     }
     for (const t of res.modified) {
+      considerDate(t.date);
       const rowId = plaidToRow.get(t.accountId);
       if (!rowId) continue;
       const cat = await categories.match(userId, t.categoryPath, t.personalFinanceCategory);
@@ -183,6 +194,7 @@ export async function syncSoloItem(input: SoloSyncInput): Promise<SoloSyncResult
       added: res.added.length,
       modified: res.modified.length,
       removed: res.removed.length,
+      oldestDate,
       nextCursor: res.nextCursor ?? null,
       ok: true,
     };
@@ -191,6 +203,7 @@ export async function syncSoloItem(input: SoloSyncInput): Promise<SoloSyncResult
       added: 0,
       modified: 0,
       removed: 0,
+      oldestDate: null,
       nextCursor: input.cursor ?? null,
       ok: false,
       error: err instanceof Error ? err.message : "Sync failed.",

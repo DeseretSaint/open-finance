@@ -783,8 +783,11 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         added: res.added,
         modified: res.modified,
         removed: res.removed,
+        oldestDate: res.oldestDate ?? null,
         error: res.error ?? null,
-        note: res.ok ? "Full history re-imported — older transactions now appear in Activity." : undefined,
+        note: res.ok
+          ? `Full history re-imported — oldest transaction found is ${res.oldestDate ?? "unknown"}. Plaid only returns history from when the bank was first linked, so this is the earliest available.`
+          : undefined,
       });
     }
 

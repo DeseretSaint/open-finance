@@ -134,7 +134,42 @@ export default function TransactionsPage() {
       qc.invalidateQueries({ queryKey: ["accounts"] });
     },
     onError: (e) => setError(e instanceof Error ? e.message : "Refresh failed."),
-  });
+    });
+
+    // Pull FULL history from Plaid for every linked bank (cursor reset → Plaid
+    // re-delivers everything it has). The oldest date Plaid returns is reported
+    // back, because Plaid only serves history from when each bank was first
+    // linked — there is no API to retrieve transactions older than that.
+    const [historyMsg, setHistoryMsg] = useState<string | null>(null);
+    const pullHistory = useMutation({
+      mutationFn: async () => {
+        setHistoryMsg(null);
+        setError(null);
+        const items = await api.get<{ items: Array<{ id: string }> }>("/api/plaid/items").catch(() => ({ items: [] as Array<{ id: string }> }));
+        let oldest: string | null = null;
+        let totalAdded = 0;
+        for (const it of items.items) {
+          const r = await api.post<{ ok: boolean; added: number; oldestDate: string | null; error?: string | null }>(
+            "/api/plaid/resync",
+            { itemId: it.id }
+          ).catch(() => ({ ok: false, added: 0, oldestDate: null as string | null, error: "request failed" }));
+          if (r.ok) {
+            totalAdded += r.added;
+            if (r.oldestDate && (oldest === null || r.oldestDate < oldest)) oldest = r.oldestDate;
+          }
+        }
+        setHistoryMsg(
+          items.items.length === 0
+            ? "No banks linked yet."
+            : oldest
+              ? `Pulled full history — earliest transaction available is ${oldest}. (Plaid only returns from when each bank was first linked.)`
+              : `Pulled full history — ${totalAdded} transaction(s) updated.`
+        );
+        invalidate();
+        qc.invalidateQueries({ queryKey: ["plaid-items"] });
+      },
+      onError: (e) => setError(e instanceof Error ? e.message : "History pull failed."),
+    });
 
   // Manual add form
   const [addName, setAddName] = useState("");
@@ -232,11 +267,25 @@ export default function TransactionsPage() {
             <RefreshCw size={14} className={syncNow.isPending ? "animate-spin" : ""} />
             {syncNow.isPending ? "Refreshing…" : "Refresh"}
           </button>
+          <button
+            type="button"
+            onClick={() => pullHistory.mutate()}
+            disabled={pullHistory.isPending}
+            className={`flex h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors ${
+              pullHistory.isPending
+                ? "cursor-wait border-border bg-surface text-text-muted"
+                : "border-border bg-surface text-text-muted hover:text-text"
+            }`}
+            title="Re-pull the full history Plaid has for every linked bank (up to ~24 months from link date)"
+          >
+            <RefreshCw size={14} className={pullHistory.isPending ? "animate-spin" : ""} />
+            {pullHistory.isPending ? "Pulling…" : "Pull full history"}
+          </button>
           <span className="text-sm text-text-muted">{data ? `${data.total} transaction${data.total === 1 ? "" : "s"}` : "…"}</span>
         </div>
-        {(refreshMsg || error) && (
+        {(refreshMsg || error || historyMsg) && (
           <div className={`mt-2 px-1 text-xs ${error ? "text-red-500" : "text-text-muted"}`}>
-            {error ?? refreshMsg}
+            {error ?? refreshMsg ?? historyMsg}
           </div>
         )}
       </Card>
