@@ -62,6 +62,7 @@ class RemoteServerService : Service() {
         @Volatile
         var dispatcher: ((String) -> String?)? = null
 
+        @JvmStatic
         fun isRunning(): Boolean =
             serverSocket != null && !serverSocket!!.isClosed
 
