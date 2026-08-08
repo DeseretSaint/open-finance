@@ -109,12 +109,21 @@ class PlaidProxyPlugin : Plugin() {
         val env = call.getString("environment") ?: "sandbox"
         try {
             val config = call.getObject("config") ?: JSONObject()
+            // Request the FULL transaction-history window Plaid offers (up to
+            // 24 months / 730 days). Plaid's default is only 90 days of history
+            // — without days_requested the oldest transactions we ever see are
+            // ~90 days back, which the user experienced as a hard "May" floor.
+            val daysRequested = config.optInt("days_requested", 730)
             val body = params(clientId, secret)
                 .put("client_name", config.optString("client_name", "Open Finance"))
                 .put("language", config.optString("language", "en"))
                 .put("country_codes", JSONArray().put(config.optString("country_codes", "US")))
                 .put("user", JSONObject().put("client_user_id", config.optString("client_user_id", "open-finance")))
                 .put("products", config.optJSONArray("products") ?: JSONArray().put("transactions"))
+                .put(
+                    "transactions",
+                    JSONObject().put("days_requested", daysRequested)
+                )
             // Update mode (reconnect): include the item's access token so Link
             // re-auths the SAME institution instead of creating a new item.
             // Without this, the token is an add-mode token and "Reconnect" is

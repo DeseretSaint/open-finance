@@ -1,6 +1,6 @@
 {
   "name": "open-finance",
-  "version": "0.3.34",
+  "version": "0.3.35",
   "private": true,
   "engines": {
     "node": ">=22 <23",

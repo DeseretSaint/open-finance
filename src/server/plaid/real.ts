@@ -61,6 +61,11 @@ export const realPlaidClient: PlaidClient = {
       country_codes: [CountryCode.Us],
       user: { client_user_id: clientUserId },
       products: [Products.Transactions],
+      // Request the FULL history window Plaid offers (up to 24 months / 730
+      // days). Plaid defaults to only 90 days of transaction history when
+      // days_requested is omitted — which surfaces as a hard ~3-month floor
+      // in the app even though Plaid has more data for the institution.
+      transactions: { days_requested: 730 },
     };
     const res = await client.linkTokenCreate(req);
     return res.data.link_token;
