@@ -1131,21 +1131,13 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       return ok({ paydays });
     }
     if (method === "POST" && path === "/api/agent/categorize-now") {
-      // Smart-categorization "Apply" (solo): mirrors the web route.
+      // Smart-categorization "Apply" (solo): mirrors the web route. The
+      // categorizer is purely local (uses the user's own category rules + Plaid
+      // category paths) — it does NOT need a connected agent. The old guard
+      // required agent_tokens / a remote token and returned 400 on a phone
+      // with no agent wired, making the button look dead.
       const userId = await h.deviceUserId();
       const { autoCategorize } = await import("@/server/domain/categorizer");
-      const connected = await db.get<{ n: number }>(
-        "SELECT COUNT(*) AS n FROM agent_tokens WHERE user_id = ? AND revoked = 0",
-        userId
-      );
-      // Solo agents connect via the remote-access token (stored in app_state,
-      // not agent_tokens) — count that as connected too.
-      const remoteToken = await db.get<{ value: string }>(
-        "SELECT value FROM app_state WHERE key = 'remote.agent.token'"
-      );
-      if ((!connected || connected.n === 0) && !remoteToken) {
-        throw apiErrors.badRequest("No agent connected — wire one in the Agents tab first.");
-      }
       const prefs = await createAgentPrefsService(db).get(userId);
       if (!prefs.autoCategorize) {
         throw apiErrors.badRequest("Smart categorization is off — enable it above, then apply.");
