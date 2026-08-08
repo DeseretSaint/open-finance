@@ -101,7 +101,7 @@ class PlaidProxyPlugin : Plugin() {
         }
     }
 
-    // createLinkToken(clientId, secret, environment, config) -> {linkToken}
+    // createLinkToken(clientId, secret, environment, config, accessToken) -> {linkToken}
     @PluginMethod
     fun createLinkToken(call: PluginCall) {
         val clientId = call.getString("clientId") ?: return call.reject("missing clientId")
@@ -115,6 +115,12 @@ class PlaidProxyPlugin : Plugin() {
                 .put("country_codes", JSONArray().put(config.optString("country_codes", "US")))
                 .put("user", JSONObject().put("client_user_id", config.optString("client_user_id", "open-finance")))
                 .put("products", config.optJSONArray("products") ?: JSONArray().put("transactions"))
+            // Update mode (reconnect): include the item's access token so Link
+            // re-auths the SAME institution instead of creating a new item.
+            // Without this, the token is an add-mode token and "Reconnect" is
+            // silently a no-op for the existing item.
+            val accessToken = call.getString("accessToken")
+            if (!accessToken.isNullOrBlank()) body.put("access_token", accessToken)
             val resp = post(env, "/link/token/create", body)
             call.resolve(JSObject().put("linkToken", resp.optString("link_token")))
         } catch (e: Exception) {

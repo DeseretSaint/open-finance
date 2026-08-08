@@ -894,7 +894,7 @@ function NativeOrWebLink({
       const { launchNativeLink } = await import("@/server/plaid/native");
       const res = await launchNativeLink(token);
       if (res.cancelled) return;
-      if (res.publicToken) await onSuccess(res.publicToken);
+      if (res.publicToken) await onSuccess(res.publicToken, res.institutionName ?? null);
       else setErr(res.exit?.message ?? "Bank linking was cancelled.");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not open bank linking.");

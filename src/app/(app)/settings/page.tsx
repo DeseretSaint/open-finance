@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PlaidLink } from "react-plaid-link";
 import jsQR from "jsqr";
 import { Moon, Sun, ExternalLink } from "lucide-react";
 import { api } from "@/lib/api-client";
@@ -18,6 +17,7 @@ import { useTheme } from "@/components/providers";
 import { isSoloCandidate } from "@/lib/mobile-mode";
 import { storeHubUrl } from "@/lib/mobile-storage";
 import { UpdatesCard } from "@/components/updates-card";
+import { PlaidLinkLauncher } from "@/components/plaid-link-launcher";
 
 interface Me {
   user: { display_name: string; username: string | null; email: string | null };
@@ -31,7 +31,7 @@ export default function SettingsPage() {
   const me = useQuery({ queryKey: ["me"], queryFn: () => api.get<Me>("/api/auth/me") });
   const sessions = useQuery({ queryKey: ["sessions"], queryFn: () => api.get<{ sessions: Array<{ id: string; device_label: string; created_at: string; current: boolean }> }>("/api/auth/sessions") });
   const creds = useQuery({ queryKey: ["plaid-creds"], queryFn: () => api.get<{ environments: Array<{ environment: string; hasKeys: boolean; updatedAt: string }> }>("/api/plaid/credentials") });
-  const items = useQuery({ queryKey: ["plaid-items"], queryFn: () => api.get<{ items: Array<{ id: string; institution_name: string | null; environment: string; status: string; accounts: unknown[] }> }>("/api/plaid/items") });
+  const items = useQuery({ queryKey: ["plaid-items"], queryFn: () => api.get<{ items: Array<{ id: string; institution_name: string | null; environment: string; status: string; accounts: Array<{ name: string }> }> }>("/api/plaid/items") });
 
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -146,6 +146,35 @@ export default function SettingsPage() {
       qc.invalidateQueries({ queryKey: ["plaid-items"] });
     },
     onError: (e) => setErr(e instanceof Error ? e.message : "Sync failed."),
+  });
+
+  // Re-import a single item's FULL transaction history from Plaid (cursor
+  // reset → Plaid re-delivers everything it has, typically up to 24 months).
+  const [resyncingItem, setResyncingItem] = useState<string | null>(null);
+  const resyncItem = useMutation({
+    mutationFn: async (id: string) => {
+      setResyncingItem(id);
+      setErr(null);
+      try {
+        const r = await api.post<{ ok: boolean; added: number; modified: number; removed: number; error?: string | null; note?: string }>(
+          "/api/plaid/resync",
+          { itemId: id }
+        );
+        if (r.ok) {
+          const total = r.added + r.modified;
+          setMsg(r.note ?? `Re-imported — ${total === 0 ? "no new transactions" : `${total} transaction(s) added/updated`}.`);
+        } else {
+          setErr(r.error ? `Re-import failed: ${r.error}` : "Re-import failed.");
+        }
+      } finally {
+        setResyncingItem(null);
+      }
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      qc.invalidateQueries({ queryKey: ["summary"] });
+      qc.invalidateQueries({ queryKey: ["plaid-items"] });
+    },
+    onError: (e) => setErr(e instanceof Error ? e.message : "Re-import failed."),
   });
 
   return (
@@ -335,14 +364,14 @@ export default function SettingsPage() {
             </Button>
           )}
           {linkToken && (
-            <PlaidLink
+            <PlaidLinkLauncher
               token={linkToken}
-              onSuccess={async (publicToken, metadata) => {
+              onSuccess={async (publicToken, institutionName) => {
                 await api.post("/api/plaid/exchange", {
                   publicToken,
                   environment,
-                  institutionId: metadata.institution?.institution_id ?? null,
-                  institutionName: metadata.institution?.name ?? null,
+                  institutionId: null,
+                  institutionName: institutionName ?? null,
                   updateItemId: reconnectItemId ?? undefined,
                 });
                 setLinkToken(null);
@@ -363,20 +392,23 @@ export default function SettingsPage() {
                 setReconnectItemId(null);
                 setLinking(false);
               }}
-              className="hidden"
-            >
-              link
-            </PlaidLink>
+            />
           )}
         </div>
         <div className="mt-4 space-y-2">
           {items.data?.items.map((it) => (
             <div key={it.id} className="flex items-center justify-between rounded-lg bg-surface-muted px-4 py-2.5 text-sm">
-              <span className="text-text">
-                {it.institution_name ?? "Institution"} <span className="text-text-muted">· {it.environment}</span>
+              <span className="min-w-0">
+                <span className="block truncate text-text">
+                  {it.institution_name ?? (it.accounts?.length ? it.accounts.map((a) => a.name).join(", ") : "Institution")}{" "}
+                  <span className="text-text-muted">· {it.environment}</span>
+                </span>
+                {!it.institution_name && it.accounts?.length > 0 && (
+                  <span className="block text-xs text-text-muted">Bank name not captured — shows account names</span>
+                )}
               </span>
-              <span className="flex items-center gap-3">
-                <Badge className={it.status === "active" ? "bg-success/10 text-success" : "bg-danger/10 text-danger"}>
+              <span className="flex shrink-0 items-center gap-3">
+                <Badge className={it.status === "active" || it.status === "linked" ? "bg-success/10 text-success" : "bg-danger/10 text-danger"}>
                   {it.status}
                 </Badge>
                 {it.status !== "active" && it.status !== "linked" && (
@@ -402,6 +434,14 @@ export default function SettingsPage() {
                     {reconnectingItem === it.id ? "Opening…" : "Reconnect"}
                   </button>
                 )}
+                <button
+                  onClick={() => resyncItem.mutate(it.id)}
+                  disabled={resyncingItem === it.id}
+                  className="text-xs text-text-muted hover:text-accent disabled:opacity-50"
+                  title="Re-import full transaction history from this bank (up to ~24 months)"
+                >
+                  {resyncingItem === it.id ? "Importing…" : "Re-import history"}
+                </button>
                 <button onClick={() => setConfirmRemoveItem(it.id)} className="text-xs text-text-muted hover:text-danger">
                   Remove
                 </button>

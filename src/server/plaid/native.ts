@@ -227,10 +227,16 @@ export type SoloNativeClient = import("@/lib/solo-plaid-sync").SoloNativeClient;
 export async function launchNativeLink(linkToken: string): Promise<{
   cancelled: boolean;
   publicToken?: string;
+  institutionName?: string | null;
   exit?: { code?: string; message?: string } | null;
 }> {
   const p = proxy();
   if (!p) throw new Error("PlaidProxy plugin unavailable (solo mode requires the native APK) — launchLink needs the native bridge.");
   const r = await p.launchLink({ linkToken });
-  return { cancelled: r.cancelled, publicToken: r.publicToken, exit: r.exit };
+  return {
+    cancelled: r.cancelled,
+    publicToken: r.publicToken,
+    institutionName: (r as { metadata?: { institutionName?: string | null } }).metadata?.institutionName ?? null,
+    exit: r.exit,
+  };
 }

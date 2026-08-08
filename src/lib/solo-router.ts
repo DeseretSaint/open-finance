@@ -729,6 +729,65 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       return ok({ items });
     }
 
+    // Re-import full transaction history for one item: reset its cursor to
+    // null and re-sync from scratch. Plaid re-delivers everything it has
+    // (typically up to 24 months), which both backfills an item whose early
+    // syncs failed (e.g. ITEM_LOGIN_REQUIRED at link time) and gives agents
+    // a deeper month-to-month picture. Best-effort; never fails the request.
+    if (method === "POST" && path === "/api/plaid/resync") {
+      const { getSoloPlaidCreds, getSoloPlaidItem, setSoloPlaidItemCursor, markSoloPlaidItemLoginRequired } = await import("@/lib/solo-plaid-store");
+      const { createNativePlaidClient, createSoloSyncClient } = await import("@/server/plaid/native");
+      const { syncSoloItem } = await import("@/lib/solo-plaid-sync");
+      const userId = await h.deviceUserId();
+      const itemId = typeof B?.itemId === "string" ? B.itemId : "";
+      if (!itemId) throw apiErrors.badRequest("itemId is required.");
+      const creds = getSoloPlaidCreds();
+      if (!creds) throw apiErrors.badRequest("No Plaid keys saved on this phone.");
+      const item = getSoloPlaidItem(itemId);
+      if (!item) throw apiErrors.notFound("Plaid item");
+      const env = item.environment === "production" ? "production" : "sandbox";
+      const client = createNativePlaidClient();
+      // Fresh balances alongside (best-effort, preserves stored if it fails).
+      let accountDetails: Array<{ id: string; currentBalanceCents: number | null; availableBalanceCents: number | null; currency: string }> = [];
+      try {
+        const fresh = await client.getAccounts({ ...creds, environment: env }, item.accessToken);
+        accountDetails = fresh.map((a) => ({
+          id: a.id,
+          currentBalanceCents: a.currentBalanceCents,
+          availableBalanceCents: a.availableBalanceCents,
+          currency: a.currency,
+        }));
+      } catch {
+        /* balances are best-effort on re-sync */
+      }
+      // cursor: null → full re-pull of all available history.
+      const res = await syncSoloItem({
+        db,
+        userId,
+        itemId: item.id,
+        institutionName: item.institutionName,
+        environment: env,
+        creds: { ...creds, environment: env },
+        accountDetails,
+        accessToken: item.accessToken,
+        accounts: item.accounts,
+        client: createSoloSyncClient(),
+        cursor: null,
+      });
+      if (res.ok) setSoloPlaidItemCursor(item.id, res.nextCursor);
+      if (!res.ok && /ITEM_LOGIN_REQUIRED|login details of this item have changed|user login is required/i.test(res.error ?? "")) {
+        markSoloPlaidItemLoginRequired(item.id);
+      }
+      return ok({
+        ok: res.ok,
+        added: res.added,
+        modified: res.modified,
+        removed: res.removed,
+        error: res.error ?? null,
+        note: res.ok ? "Full history re-imported — older transactions now appear in Activity." : undefined,
+      });
+    }
+
     // ── Phone backup & restore (solo: encrypted JSON dump, PIN-confirmed) ──
     if (method === "POST" && path === "/api/backup") {
       const { createSoloBackupService } = await import("@/server/domain/solo-backup");
