@@ -730,6 +730,36 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       return ok({ items });
     }
 
+    if (method === "DELETE" && path.startsWith("/api/plaid/items/")) {
+      // Solo "Remove bank": revoke the item at Plaid (best-effort), then purge
+      // it + its accounts + transactions from the device. Without this the
+      // Settings "Remove" button silently 404s on a phone — and you can't
+      // re-link a bank fresh, which is the only way to get a wider Plaid
+      // history window (days_requested only applies to NEW items).
+      const { getSoloPlaidCreds, getSoloPlaidItem, removeSoloPlaidItem } = await import("@/lib/solo-plaid-store");
+      const { createNativePlaidClient } = await import("@/server/plaid/native");
+      const itemId = parseId(path, "/api/plaid/items/");
+      const creds = getSoloPlaidCreds();
+      const item = getSoloPlaidItem(itemId);
+      const userId = await h.deviceUserId();
+      if (creds && item) {
+        try {
+          const client = createNativePlaidClient();
+          await client.removeItem(
+            { ...creds, environment: item.environment === "production" ? "production" : "sandbox" },
+            item.accessToken
+          );
+        } catch {
+          /* best-effort revoke; always clean up locally */
+        }
+      }
+      removeSoloPlaidItem(itemId);
+      await db.run("DELETE FROM transactions WHERE account_id IN (SELECT id FROM accounts WHERE item_id = ?)", itemId);
+      await db.run("DELETE FROM balance_history WHERE account_id IN (SELECT id FROM accounts WHERE item_id = ?)", itemId);
+      await db.run("DELETE FROM accounts WHERE item_id = ?", itemId);
+      return { status: 204, data: null };
+    }
+
     // Re-import full transaction history for one item: reset its cursor to
     // null and re-sync from scratch. Plaid re-delivers everything it has
     // (typically up to 24 months), which both backfills an item whose early
