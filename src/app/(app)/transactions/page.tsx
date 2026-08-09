@@ -84,6 +84,9 @@ export default function TransactionsPage() {
     qc.invalidateQueries({ queryKey: ["transactions"] });
     qc.invalidateQueries({ queryKey: ["summary"] });
     qc.invalidateQueries({ queryKey: ["budgets"] });
+    // Categorizing here must refresh the dashboard's review queue — otherwise
+    // "N need a category" shows transactions already categorized in this tab.
+    qc.invalidateQueries({ queryKey: ["review-queue"] });
   };
 
   const setCategory = useMutation({

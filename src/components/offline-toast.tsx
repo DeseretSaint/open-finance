@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { isSoloCandidate } from "@/lib/mobile-mode";
 
 /**
  * Offline honesty (P8a §6.6): connected mode is read-only offline. When the
@@ -26,6 +27,11 @@ export function useOnline(): boolean {
 
 export function OfflineToast() {
   const online = useOnline();
+  // Solo mode (the phone IS the Open Finance server): there is no hub to
+  // connect to, and navigator.onLine reflects the WebView's network — which
+  // can be false (e.g. Tailscale-only, airplane-mode WiFi toggles) while the
+  // app is fully writable. Only connected mode is read-only offline.
+  if (typeof window !== "undefined" && isSoloCandidate(window.location.origin)) return null;
   if (online) return null;
   return (
     <div className="fixed inset-x-0 bottom-4 z-50 flex justify-center">

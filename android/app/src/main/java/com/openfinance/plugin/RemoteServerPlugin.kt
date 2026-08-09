@@ -41,6 +41,10 @@ class RemoteServerPlugin : Plugin() {
             call.reject("Activity not available")
             return
         }
+        // Persist "remote enabled" so the boot receiver restarts the bridge
+        // after a reboot (and so the app can self-heal a killed process).
+        context.getSharedPreferences("remote_server", android.content.Context.MODE_PRIVATE)
+            .edit().putBoolean("enabled", true).apply()
         // The service owns the socket; this lambda is what it calls per request.
         RemoteServerService.dispatcher = { requestJson -> dispatchToJs(requestJson) }
         // Keep the WebView renderer (JS) alive in background: dispatch relies on
@@ -86,6 +90,8 @@ class RemoteServerPlugin : Plugin() {
     fun stop(call: PluginCall) {
         val ctx = activity ?: context
         try {
+            ctx?.getSharedPreferences("remote_server", android.content.Context.MODE_PRIVATE)
+                ?.edit()?.putBoolean("enabled", false)?.apply()
             RemoteServerService.stopServer()
             ctx?.stopService(Intent(ctx, RemoteServerService::class.java))
         } catch (e: Exception) {

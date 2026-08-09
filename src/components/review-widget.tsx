@@ -65,7 +65,7 @@ export function ReviewWidget() {
     },
   });
 
-  const count = list.length;
+  const count = review.data?.total ?? list.length;
   if (!open && count === 0) return null; // nothing to review — stay invisible
 
   return (

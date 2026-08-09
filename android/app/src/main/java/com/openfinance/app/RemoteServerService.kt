@@ -97,6 +97,26 @@ class RemoteServerService : Service() {
             val port = intent?.getIntExtra("port", 8787) ?: 8787
             startAcceptLoop(port)
         }
+        // Self-heal: after a process kill, the WebView + dispatcher are gone
+        // (the static dispatcher is nulled) so every request would 503 "webview
+        // not ready" until the user reopens the app. Try to bring MainActivity
+        // back — its JS re-registers the dispatcher via the layout effect.
+        // Best-effort: Android 15 may block background activity launch, in
+        // which case the user opening the app (or the boot receiver) recovers
+        // the bridge; this covers the common swipe-kill / OEM cases.
+        if (dispatcher == null) {
+            val prefs = getSharedPreferences("remote_server", MODE_PRIVATE)
+            if (prefs.getBoolean("enabled", false)) {
+                try {
+                    val launch = Intent(this, MainActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                    }
+                    startActivity(launch)
+                } catch (_: Exception) {
+                    // Background launch blocked — recover on next app open.
+                }
+            }
+        }
         return START_STICKY
     }
 
