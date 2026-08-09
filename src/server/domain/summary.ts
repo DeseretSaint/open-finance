@@ -20,6 +20,14 @@ export interface Summary {
     categoryName: string | null;
     categoryColor: string | null;
   }>;
+  /** Diagnostic: why the review queue reads what it does. Breaks the raw
+   *  uncategorized total into transfers / pending / real "needs a category". */
+  reviewDebug?: {
+    rawUncategorized: number;
+    transfers: number;
+    pending: number;
+    needsCategory: number;
+  };
 }
 
 export function createSummaryService(db: Db = getDb()) {
@@ -112,6 +120,32 @@ export function createSummaryService(db: Db = getDb()) {
         monthNetCents: monthIncomeCents - monthExpenseCents,
         budgetOverview,
         recentTransactions: recent,
+        reviewDebug: await (async () => {
+          const raw = await db.get<{ c: number }>(
+            `SELECT COUNT(*) AS c FROM transactions t JOIN accounts a ON a.id = t.account_id
+              WHERE a.user_id = ? AND a.deleted_at IS NULL AND t.user_category_id IS NULL AND t.source != 'manual'`,
+            userId
+          );
+          const transfers = await db.get<{ c: number }>(
+            `SELECT COUNT(*) AS c FROM transactions t JOIN accounts a ON a.id = t.account_id
+              WHERE a.user_id = ? AND a.deleted_at IS NULL AND t.user_category_id IS NULL AND t.source != 'manual' AND t.is_transfer = 1`,
+            userId
+          );
+          const pending = await db.get<{ c: number }>(
+            `SELECT COUNT(*) AS c FROM transactions t JOIN accounts a ON a.id = t.account_id
+              WHERE a.user_id = ? AND a.deleted_at IS NULL AND t.user_category_id IS NULL AND t.source != 'manual' AND t.is_transfer = 0 AND t.pending = 1`,
+            userId
+          );
+          const rawC = raw?.c ?? 0;
+          const txC = transfers?.c ?? 0;
+          const pdC = pending?.c ?? 0;
+          return {
+            rawUncategorized: rawC,
+            transfers: txC,
+            pending: pdC,
+            needsCategory: rawC - txC - pdC,
+          };
+        })(),
       };
     },
   };

@@ -40,6 +40,12 @@ export function ReviewWidget() {
   const review = useQuery({
     queryKey: ["review-queue"],
     queryFn: () => api.get<{ rows: ReviewTxn[]; total: number }>("/api/transactions?review=1&limit=50"),
+    // The dashboard number must always reflect reality: refetch when the tab
+    // regains focus and when remounted, so categorizing in the Activity tab
+    // (or anywhere else) is reflected here even if an invalidation was missed.
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    staleTime: 0,
   });
   const cats = useQuery({
     queryKey: ["categories"],
