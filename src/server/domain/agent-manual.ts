@@ -13,6 +13,11 @@ import { getDb } from "@/server/db/registry";
  *   budgeting      — how to build/maintain budgets generally.
  *   general        — anything else (tone, cadence, guardrails beyond the app's).
  *
+ * Change detection: every update bumps `version` (starts at 1). The agent passes
+ * ?since=<version it last saw> and the app replies changed:false with NO manual
+ * payload when the version matches — identical instructions are never re-sent,
+ * so the agent wastes no tokens re-reading them.
+ *
  * Webview-safe: no node:* imports (mirrors agent-prefs.ts).
  */
 
@@ -24,9 +29,12 @@ export interface AgentManual {
   budgeting: string;
   general: string;
   updatedAt: string | null;
+  /** Increments on every user save. 0 = never written (empty manual). */
+  version: number;
 }
 
-const EMPTY: AgentManual = { categorization: "", budgeting: "", general: "", updatedAt: null };
+/** Empty manual with version 0 — the agent treats this as "no custom guidance yet". */
+const EMPTY: AgentManual = { categorization: "", budgeting: "", general: "", updatedAt: null, version: 0 };
 
 export function createAgentManualService(db: Db = getDb()) {
   return {
@@ -36,37 +44,42 @@ export function createAgentManualService(db: Db = getDb()) {
         budgeting: string | null;
         general: string | null;
         updated_at: string | null;
-      }>("SELECT categorization, budgeting, general, updated_at FROM agent_manual WHERE user_id = ?", userId);
+        version: number | null;
+      }>("SELECT categorization, budgeting, general, updated_at, version FROM agent_manual WHERE user_id = ?", userId);
       if (!row) return EMPTY;
       return {
         categorization: row.categorization ?? "",
         budgeting: row.budgeting ?? "",
         general: row.general ?? "",
         updatedAt: row.updated_at ?? null,
+        version: row.version ?? 1,
       };
     },
 
-    async update(userId: string, input: Partial<Omit<AgentManual, "updatedAt">>): Promise<AgentManual> {
+    async update(userId: string, input: Partial<Omit<AgentManual, "updatedAt" | "version">>): Promise<AgentManual> {
       const cur = await this.get(userId);
       const next: AgentManual = {
         categorization: input.categorization ?? cur.categorization,
         budgeting: input.budgeting ?? cur.budgeting,
         general: input.general ?? cur.general,
         updatedAt: new Date().toISOString(),
+        version: cur.version + 1,
       };
       await db.run(
-        `INSERT INTO agent_manual (user_id, categorization, budgeting, general, updated_at)
-         VALUES (?, ?, ?, ?, ?)
+        `INSERT INTO agent_manual (user_id, categorization, budgeting, general, updated_at, version)
+         VALUES (?, ?, ?, ?, ?, ?)
          ON CONFLICT(user_id) DO UPDATE SET
            categorization = excluded.categorization,
            budgeting = excluded.budgeting,
            general = excluded.general,
-           updated_at = excluded.updated_at`,
+           updated_at = excluded.updated_at,
+           version = excluded.version`,
         userId,
         next.categorization,
         next.budgeting,
         next.general,
-        next.updatedAt
+        next.updatedAt,
+        next.version
       );
       return next;
     },

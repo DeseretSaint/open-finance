@@ -56,6 +56,7 @@ const DATA_TABLES = [
   "agent_tokens",
   "agent_permission_requests",
   "agent_access_log",
+  "agent_manual",
   "custom_views",
   "sessions",
   "device_lock",

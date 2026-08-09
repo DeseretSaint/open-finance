@@ -113,7 +113,7 @@ export function buildAgentGuide(): AgentGuide {
       connectHermes:
         "Hermes is an external orchestrator, not a provider credential stored in the app. Run Hermes on the user's hub/Mac, configure its own model provider there, and connect it to this app's /mcp endpoint with a scoped Open Finance bearer token. Prefer a private Tailscale URL; never put provider API keys in the phone APK or Open Finance database.",
       readAgentManual:
-        "On EVERY poll — before any other action — call read_agent_manual and follow its per-domain guidance (categorization, budgeting, general). This is the user's live steering manual and OVERRIDES the defaults in this handbook. If a domain is empty, fall back to the handbook's guidance for that domain.",
+        "On EVERY poll — before any other action — check whether the user changed their steering manual since you last read it, so you never re-read identical text (saves tokens). get_capabilities returns manualVersion; if it equals the version you last saw, do nothing. Otherwise call read_agent_manual with since=<version you last saw>: if the reply is changed:false, nothing moved — keep your cached copy; if changed:true, follow the per-domain guidance (categorization, budgeting, general). The manual OVERRIDES the defaults in this handbook; an empty domain falls back to the handbook.",
       createBudget:
         "1) list_categories → pick category ids (or create_category first). " +
         "2) create_budget { name, amountCents, categoryIds } — cents! " +

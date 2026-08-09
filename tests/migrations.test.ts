@@ -40,6 +40,33 @@ describe("migrations", () => {
     db.close();
   });
 
+  it("no migration may ever overwrite user-owned agent_manual rows", () => {
+    // User-authored AI guidance lives in agent_manual (D11). A migration must
+    // never INSERT/UPDATE/REPLACE/DELETE into it — that would clobber the
+    // user's custom instructions on app update. Only DDL (CREATE TABLE,
+    // ALTER TABLE ADD COLUMN) is permitted. If a future default/seed is ever
+    // wanted, it must be additive and user-merged, never a blind write.
+    const fs = require("fs");
+    const path = require("path");
+    const dir = path.resolve("migrations");
+    const files = fs.readdirSync(dir).filter((f: string) => /^\d+_.*\.sql$/.test(f));
+    const dmlRegex = /\b(INSERT|UPDATE|REPLACE|DELETE|UPSERT)\b[\s\S]*?\bINTO\b|\bUPDATE\b\s+agent_manual|\bINTO\s+agent_manual\b/i;
+    for (const f of files) {
+      const sql = fs.readFileSync(path.join(dir, f), "utf8");
+      // Strip comments and string literals so we only match real DML.
+      const cleaned = sql.replace(/--.*$/gm, "").replace(/'[^']*'/g, "''");
+      const matches = cleaned.match(/INSERT|UPDATE|REPLACE|DELETE|UPSERT/gi) || [];
+      for (const verb of matches) {
+        const near = cleaned.toUpperCase();
+        if (near.includes(` ${verb.toUpperCase()} `) && /AGENT_MANUAL/.test(near)) {
+          throw new Error(
+            `Migration ${f} writes to agent_manual (${verb}) — this would overwrite user instructions. Use DDL only.`
+          );
+        }
+      }
+    }
+  });
+
   it("stores a manual transaction row", () => {
     const db = new Database(":memory:");
     runMigrations(db);

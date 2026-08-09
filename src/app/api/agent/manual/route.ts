@@ -27,8 +27,15 @@ export async function GET(req: NextRequest) {
     if (!raw) throw apiErrors.unauthorized();
     const token = await createAgentTokenService(getDb()).authenticate(raw);
     if (!token) throw apiErrors.unauthorized();
-    const manual = await createAgentManualService(getDb()).get(token.user_id);
-    return ok({ manual });
+    const svc = createAgentManualService(getDb());
+    const manual = await svc.get(token.user_id);
+    // ?since=<version> — cheap change check: unchanged → changed:false, no text.
+    const sinceRaw = req.nextUrl.searchParams.get("since");
+    const since = sinceRaw !== null && !Number.isNaN(Number(sinceRaw)) ? Number(sinceRaw) : undefined;
+    if (since !== undefined && since === manual.version) {
+      return ok({ changed: false, version: manual.version });
+    }
+    return ok({ changed: true, version: manual.version, manual });
   })(req, { params: Promise.resolve({}) });
 }
 

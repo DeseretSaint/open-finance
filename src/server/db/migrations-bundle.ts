@@ -84,5 +84,9 @@ export const SOLO_MIGRATIONS: { version: number; sql: string }[] = [
   {
     version: 19,
     sql: "-- 018: user-editable AI steering manual (in-app agent instructions).\n-- Per-domain guidance the connected agent reads on every poll, so guidance\n-- updates never require editing the agent's own config. One row per user.\nCREATE TABLE agent_manual (\n  user_id      TEXT PRIMARY KEY,\n  categorization TEXT NOT NULL DEFAULT '',\n  budgeting    TEXT NOT NULL DEFAULT '',\n  general      TEXT NOT NULL DEFAULT '',\n  updated_at   TEXT NOT NULL\n);\n",
+  },
+  {
+    version: 20,
+    sql: "-- 020: version counter for the agent manual (D11) — cheap change detection.\n-- The agent passes ?since=<last version it saw> and only receives the manual\n-- text when the version has changed, so identical instructions are never\n-- re-read (no wasted tokens).\nALTER TABLE agent_manual ADD COLUMN version INTEGER NOT NULL DEFAULT 1;\n",
   }
 ];

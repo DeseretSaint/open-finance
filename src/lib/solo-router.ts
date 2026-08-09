@@ -982,12 +982,19 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       return ok({ guide: buildAgentGuide() });
     }
     // GET /api/agent/manual — the user's live AI steering manual (D11), read by
-    // the agent on every poll. PUT is handled below (user edits from the app).
+    // the agent on every poll. ?since=<version> → changed:false, no text when
+    // unchanged (the agent wastes no tokens re-reading identical instructions).
+    // PUT is handled below (user edits from the app).
     if (method === "GET" && path === "/api/agent/manual") {
       const userId = await h.deviceUserId();
       const { createAgentManualService } = await import("@/server/domain/agent-manual");
       const manual = await createAgentManualService(db).get(userId);
-      return ok({ manual });
+      const sinceRaw = query.get("since");
+      const since = sinceRaw !== null && !Number.isNaN(Number(sinceRaw)) ? Number(sinceRaw) : undefined;
+      if (since !== undefined && since === manual.version) {
+        return ok({ changed: false, version: manual.version });
+      }
+      return ok({ changed: true, version: manual.version, manual });
     }
     if (method === "PUT" && path === "/api/agent/manual") {
       const userId = await h.deviceUserId();
@@ -1024,6 +1031,8 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         }
       }
       const uniqueTools = Array.from(new Set(tools));
+      const { createAgentManualService } = await import("@/server/domain/agent-manual");
+      const manualVersion = (await createAgentManualService(db).get(userId)).version;
       return ok({
         preset: "solo",
         scopes,
@@ -1035,6 +1044,10 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         endpoints,
         missing: [],
         tokenName: "solo remote access",
+        // Mirror the server's manual pointers so the agent can cheaply decide
+        // whether to re-read the steering manual (?since= → changed:false).
+        manual: "/api/agent/manual",
+        manualVersion,
       });
     }
 

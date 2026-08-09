@@ -127,19 +127,28 @@ const TOOLS: ToolDef[] = [
         },
         // The agent handbook — fetch it once at connect time.
         guide: "/api/agent/guide",
-        // The user's live steering manual — call read_agent_manual on EVERY poll.
+        // The user's live steering manual — read_agent_manual with ?since=
+        // returns changed:false (no text) unless the version moved.
         manual: "/api/agent/manual",
+        // Current manual version — compare against your last seen value before
+        // calling read_agent_manual to avoid re-reading identical instructions.
+        manualVersion: (await createAgentManualService(getDb()).get(auth.userId)).version,
       };
     },
   },
   {
     name: "read_agent_manual",
-    description: "The user's live AI steering manual — per-domain guidance (categorization, budgeting, general) that overrides or extends this handbook. Call this on EVERY poll, before acting, and follow its instructions. Always available (no scope needed).",
-    inputSchema: jsonSchema({}),
-    parse: () => z.object({}),
-    run: async (auth) => {
+    description: "The user's live AI steering manual — per-domain guidance (categorization, budgeting, general) that overrides or extends this handbook. Pass since=<version you last saw>; when nothing changed you get changed:false and no text (saves tokens). If you have never read it, omit since. Always available (no scope needed).",
+    inputSchema: jsonSchema({ since: z.number().int().min(0).optional() }),
+    parse: () => z.object({ since: z.number().int().min(0).optional() }),
+    run: async (auth, args) => {
+      const { since } = args as { since?: number };
       const manual = await createAgentManualService(getDb()).get(auth.userId);
-      return { manual };
+      if (since !== undefined && since === manual.version) {
+        // Unchanged — nothing to re-read; do not send the manual text.
+        return { changed: false, version: manual.version };
+      }
+      return { changed: true, version: manual.version, manual };
     },
   },
   {
