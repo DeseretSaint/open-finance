@@ -80,5 +80,9 @@ export const SOLO_MIGRATIONS: { version: number; sql: string }[] = [
   {
     version: 18,
     sql: "-- 018: preserve user-defined account names across Plaid refreshes\nALTER TABLE accounts ADD COLUMN name_override TEXT;\n\n-- A non-null override wins over Plaid's institution-provided name.\nCREATE INDEX IF NOT EXISTS idx_accounts_name_override ON accounts(user_id, name_override);\n",
+  },
+  {
+    version: 19,
+    sql: "-- 018: user-editable AI steering manual (in-app agent instructions).\n-- Per-domain guidance the connected agent reads on every poll, so guidance\n-- updates never require editing the agent's own config. One row per user.\nCREATE TABLE agent_manual (\n  user_id      TEXT PRIMARY KEY,\n  categorization TEXT NOT NULL DEFAULT '',\n  budgeting    TEXT NOT NULL DEFAULT '',\n  general      TEXT NOT NULL DEFAULT '',\n  updated_at   TEXT NOT NULL\n);\n",
   }
 ];

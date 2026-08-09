@@ -6,6 +6,7 @@ import { createAccountsService } from "@/server/domain/accounts";
 import { createSummaryService } from "@/server/domain/summary";
 import { createAgentPrefsService, capScopes, type AgentPrefs } from "@/server/domain/agent-prefs";
 import { buildAgentGuide } from "@/server/domain/agent-guide";
+import { createAgentManualService } from "@/server/domain/agent-manual";
 import { createTestDb, seedManualAccount, seedUser } from "./helpers";
 
 describe("agent guide + solo capabilities (D10/P20)", () => {
@@ -63,8 +64,9 @@ describe("route registry completeness (J.5)", () => {
   it("every MCP tool maps to a scope and an endpoint", () => {
     for (const t of MCP_TOOLS) {
       expect(t.endpoint.length).toBeGreaterThan(0);
-      // get_capabilities is intentionally scope-free
-      if (t.tool !== "get_capabilities") {
+      // get_capabilities and read_agent_manual are intentionally scope-free
+      // (always available — the agent reads the manual on every poll).
+      if (t.tool !== "get_capabilities" && t.tool !== "read_agent_manual") {
         expect(t.scopes.length).toBeGreaterThan(0);
       }
     }
@@ -227,5 +229,25 @@ describe("permission requests (ask-to-grant loop)", () => {
     await perms.logDenied(agent.id, "read:investments", "get_net_worth", "GET", null);
     const row = await db.get("SELECT status FROM agent_access_log WHERE token_id = ?", agent.id);
     expect(row?.status).toBe(403);
+  });
+});
+
+describe("agent steering manual (D11)", () => {
+  it("starts empty and persists per-domain guidance", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const svc = createAgentManualService(db);
+    expect((await svc.get(user.id)).categorization).toBe("");
+    const updated = await svc.update(user.id, {
+      categorization: "Pharmacy charges → Healthcare",
+      budgeting: "Groceries under $600/mo",
+    });
+    expect(updated.categorization).toBe("Pharmacy charges → Healthcare");
+    expect(updated.budgeting).toBe("Groceries under $600/mo");
+    // Re-read returns the saved values.
+    const refetched = await svc.get(user.id);
+    expect(refetched.categorization).toBe("Pharmacy charges → Healthcare");
+    expect(refetched.general).toBe("");
+    expect(refetched.updatedAt).not.toBeNull();
   });
 });

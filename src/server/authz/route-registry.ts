@@ -61,6 +61,7 @@ export const AGENT_ROUTES: RouteEntry[] = [
   { method: "GET", path: "/api/agent/capabilities", scopes: [] },
   { method: "GET", path: "/api/agent/events", scopes: [] },
   { method: "GET", path: "/api/agent/guide", scopes: [] },
+  { method: "GET", path: "/api/agent/manual", scopes: [] },
 ];
 
 export const USER_ONLY_ROUTES: string[] = [
@@ -94,6 +95,7 @@ export interface McpToolEntry {
 export const MCP_TOOLS: McpToolEntry[] = [
   { tool: "get_financial_summary", scopes: ["read:summary"], endpoint: "/api/agent/summary" },
   { tool: "get_capabilities", scopes: [], endpoint: "/api/agent/capabilities" },
+  { tool: "read_agent_manual", scopes: [], endpoint: "/api/agent/manual" },
   { tool: "list_accounts", scopes: ["read:banking", "read:investments"], endpoint: "/api/accounts" },
   { tool: "list_transactions", scopes: ["read:banking", "read:investments"], endpoint: "/api/transactions" },
   { tool: "search_transactions", scopes: ["read:banking", "read:investments"], endpoint: "/api/transactions" },

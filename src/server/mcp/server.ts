@@ -17,6 +17,7 @@ import { createPlanningService } from "@/server/domain/planning";
 import { createProjectionService } from "@/server/domain/projection";
 import { createReportsService } from "@/server/domain/reports";
 import { createCategoriesService } from "@/server/domain/categories";
+import { createAgentManualService } from "@/server/domain/agent-manual";
 import { createAgentPrefsService, AGENT_TABS } from "@/server/domain/agent-prefs";
 import { getDb } from "@/server/db/adapter";
 
@@ -126,7 +127,19 @@ const TOOLS: ToolDef[] = [
         },
         // The agent handbook — fetch it once at connect time.
         guide: "/api/agent/guide",
+        // The user's live steering manual — call read_agent_manual on EVERY poll.
+        manual: "/api/agent/manual",
       };
+    },
+  },
+  {
+    name: "read_agent_manual",
+    description: "The user's live AI steering manual — per-domain guidance (categorization, budgeting, general) that overrides or extends this handbook. Call this on EVERY poll, before acting, and follow its instructions. Always available (no scope needed).",
+    inputSchema: jsonSchema({}),
+    parse: () => z.object({}),
+    run: async (auth) => {
+      const manual = await createAgentManualService(getDb()).get(auth.userId);
+      return { manual };
     },
   },
   {

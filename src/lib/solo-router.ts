@@ -981,6 +981,25 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       const { buildAgentGuide } = await import("@/server/domain/agent-guide");
       return ok({ guide: buildAgentGuide() });
     }
+    // GET /api/agent/manual — the user's live AI steering manual (D11), read by
+    // the agent on every poll. PUT is handled below (user edits from the app).
+    if (method === "GET" && path === "/api/agent/manual") {
+      const userId = await h.deviceUserId();
+      const { createAgentManualService } = await import("@/server/domain/agent-manual");
+      const manual = await createAgentManualService(db).get(userId);
+      return ok({ manual });
+    }
+    if (method === "PUT" && path === "/api/agent/manual") {
+      const userId = await h.deviceUserId();
+      const { createAgentManualService } = await import("@/server/domain/agent-manual");
+      const body = (typeof B === "object" && B !== null) ? B as Record<string, unknown> : {};
+      const manual = await createAgentManualService(db).update(userId, {
+        categorization: typeof body.categorization === "string" ? body.categorization : undefined,
+        budgeting: typeof body.budgeting === "string" ? body.budgeting : undefined,
+        general: typeof body.general === "string" ? body.general : undefined,
+      });
+      return ok({ manual });
+    }
     if (method === "GET" && path === "/api/agent/capabilities") {
       const userId = await h.deviceUserId();
       const { capScopes } = await import("@/server/domain/agent-prefs");

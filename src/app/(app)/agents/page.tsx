@@ -481,6 +481,34 @@ export default function AgentsPage() {
     queryFn: () => api.get<{ accounts: Array<{ id: string; name: string; type: string | null }> }>("/api/accounts"),
     enabled: !solo,
   });
+  const manual = useQuery({
+    queryKey: ["agent-manual"],
+    queryFn: () => api.get<{ manual: { categorization: string; budgeting: string; general: string; updatedAt: string | null } }>("/api/agent/manual"),
+  });
+  const [catDraft, setCatDraft] = useState("");
+  const [budDraft, setBudDraft] = useState("");
+  const [genDraft, setGenDraft] = useState("");
+  const [manualMsg, setManualMsg] = useState<string | null>(null);
+  useEffect(() => {
+    if (manual.data?.manual) {
+      setCatDraft(manual.data.manual.categorization ?? "");
+      setBudDraft(manual.data.manual.budgeting ?? "");
+      setGenDraft(manual.data.manual.general ?? "");
+    }
+  }, [manual.data]);
+  const saveManual = useMutation({
+    mutationFn: () =>
+      api.put("/api/agent/manual", {
+        categorization: catDraft,
+        budgeting: budDraft,
+        general: genDraft,
+      }),
+    onSuccess: () => {
+      setManualMsg("Saved — your agent will read these on its next poll.");
+      qc.invalidateQueries({ queryKey: ["agent-manual"] });
+    },
+    onError: (e) => setManualMsg(e instanceof Error ? e.message : "Failed to save."),
+  });
 
   const tokensUnavailable = solo || agents.isError;
   const hasAgent = !tokensUnavailable && (agents.data?.agents.length ?? 0) > 0;
@@ -1025,6 +1053,59 @@ export default function AgentsPage() {
         <p className="mt-3 text-xs text-text-muted">
           To use a different agent later, create a new token and point it at the same endpoint — or disconnect below to start over.
         </p>
+      </Card>
+
+      {/* AI guidance — user-editable steering manual the agent reads every poll */}
+      <Card>
+        <CardTitle>AI guidance</CardTitle>
+        <p className="mt-1 text-sm text-text-muted">
+          Instructions your agent reads on <strong className="text-text">every poll</strong> — change how charges are
+          categorized, how budgets are built, or anything else, without touching the agent&apos;s own config. Leave blank
+          for a domain to let the agent decide.
+        </p>
+        <div className="mt-3 space-y-4">
+          <div>
+            <label className="text-sm font-medium text-text">Categorization</label>
+            <textarea
+              className="mt-1 w-full rounded-lg border border-border bg-surface-muted p-2 text-sm text-text"
+              rows={3}
+              placeholder="e.g. Treat any charge from a pharmacy as Healthcare. Split Costco runs 70% Groceries / 30% Household."
+              value={catDraft}
+              onChange={(e) => setCatDraft(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-text">Budgeting</label>
+            <textarea
+              className="mt-1 w-full rounded-lg border border-border bg-surface-muted p-2 text-sm text-text"
+              rows={3}
+              placeholder="e.g. Keep Groceries under $600/mo; roll overspending into next month's buffer."
+              value={budDraft}
+              onChange={(e) => setBudDraft(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-text">General</label>
+            <textarea
+              className="mt-1 w-full rounded-lg border border-border bg-surface-muted p-2 text-sm text-text"
+              rows={3}
+              placeholder="e.g. Be concise in summaries. Flag any transaction over $500."
+              value={genDraft}
+              onChange={(e) => setGenDraft(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="mt-3 flex items-center gap-3">
+          <Button size="sm" onClick={() => saveManual.mutate()} disabled={saveManual.isPending}>
+            {saveManual.isPending ? "Saving…" : "Save guidance"}
+          </Button>
+          {manual.data?.manual?.updatedAt && (
+            <span className="text-xs text-text-muted">
+              Last updated {new Date(manual.data.manual.updatedAt).toLocaleString()}
+            </span>
+          )}
+        </div>
+        {manualMsg && <p className="mt-2 text-sm font-medium text-success">{manualMsg}</p>}
       </Card>
 
       {/* Disconnect confirmation */}
