@@ -416,6 +416,10 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         categoryId: query.get("categoryId") ?? undefined,
         q: query.get("q") ?? undefined,
         pendingOnly: query.get("pending") === "1" || query.get("pending") === "true",
+        // "Needs your category" queue (dashboard review widget). Must be
+        // forwarded or the widget's ?review=1 is silently dropped in solo mode
+        // and the queue would count EVERY transaction, not just uncategorized.
+        review: query.get("review") === "1" || query.get("review") === "true",
         limit: Number(query.get("limit") ?? 50),
         offset: Number(query.get("offset") ?? 0),
       };

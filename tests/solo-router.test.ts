@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTestDb } from "./helpers";
 import type { Db } from "@/server/db/types";
 import { createSoloBootstrapService } from "@/server/domain/solo-bootstrap";
+import { resetSoloDb, setSoloDbForTest } from "@/lib/solo-router";
 
 /**
  * Solo router tests (P8b): exercise the in-process API surface against a real
@@ -139,5 +140,54 @@ describe("solo flow (P8b) — bootstrap → account → category → transaction
     await txnSvc.update(user.id, txn.id, { userCategoryId: dining.id });
     got = (await txnSvc.list(user.id, { limit: 10, offset: 0 })).rows[0];
     expect(got.user_category_id).toBe(dining.id);
+  });
+
+  it("GET /api/transactions?review=1 counts only uncategorized non-manual rows (solo router forwards review)", async () => {
+    const solo = createSoloBootstrapService(db);
+    const { user } = await solo.bootstrap({});
+    const accounts = await import("@/server/domain/accounts");
+    const account = await accounts
+      .createAccountsService(db)
+      .createManual(user.id, { name: "Checking", type: "depository", currentBalanceCents: 0 });
+    const cats = await import("@/server/domain/categories");
+    const catSvc = cats.createCategoriesService(db);
+    const groceries = await catSvc.create(user.id, { name: "Groceries", color: "#10B981" });
+    const txns = await import("@/server/domain/transactions");
+    const txnSvc = txns.createTransactionsService(db);
+
+    // Uncategorized Plaid row -> reviewable
+    await db.run(
+      `INSERT INTO transactions (id, account_id, plaid_transaction_id, amount_cents, date, name, source, created_at)
+       VALUES ('pl-1', ?, 'plaid-1', -550, '2026-02-10', 'Grocery Store', 'plaid', '2026-02-10T00:00:00.000Z')`,
+      account.id
+    );
+    // Categorized Plaid row -> NOT reviewable
+    await db.run(
+      `INSERT INTO transactions (id, account_id, plaid_transaction_id, amount_cents, date, name, user_category_id, source, created_at)
+       VALUES ('pl-2', ?, 'plaid-2', -700, '2026-02-12', 'Restaurant', ?, 'plaid', '2026-02-12T00:00:00.000Z')`,
+      account.id,
+      groceries.id
+    );
+    // Manual uncategorized -> NOT reviewable (human entered it)
+    await txnSvc.createManual(user.id, { accountId: account.id, amountCents: -300, date: "2026-02-11", name: "Cash" });
+    // Pending Plaid uncategorized -> NOT reviewable (not posted yet)
+    await db.run(
+      `INSERT INTO transactions (id, account_id, plaid_transaction_id, amount_cents, date, name, source, pending, created_at)
+       VALUES ('pd-1', ?, 'plaid-3', -999, '2026-02-10', 'Pending Sub', 'plaid', 1, '2026-02-10T00:00:00.000Z')`,
+      account.id
+    );
+
+    setSoloDbForTest(db);
+    const { soloDispatch } = await import("@/lib/solo-router");
+    const res = await soloDispatch({
+      method: "GET",
+      path: "/api/transactions",
+      query: new URLSearchParams({ review: "1", limit: "50", offset: "0" }),
+      body: undefined,
+    });
+    const data = (res as { data: { rows: unknown[]; total: number } }).data;
+    expect(data.total).toBe(1);
+    expect((data.rows[0] as { id: string }).id).toBe("pl-1");
+    resetSoloDb();
   });
 });
