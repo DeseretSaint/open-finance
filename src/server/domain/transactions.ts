@@ -79,8 +79,12 @@ export function createTransactionsService(db: Db = getDb()) {
         params.push(f.categoryId);
       }
       if (f.review) {
-        // "Needs your review": pulled by Plaid/agent but never confirmed with a human-set category.
-        where.push("t.user_category_id IS NULL AND t.source != 'manual'");
+        // "Needs your review": pulled by Plaid/agent but never confirmed with a
+        // human-set category. Internal transfers (is_transfer) are money moved
+        // between the user's own accounts (already excluded from budgets) and
+        // pending rows aren't posted yet — neither needs a human category, so
+        // both are excluded from the review queue count.
+        where.push("t.user_category_id IS NULL AND t.source != 'manual' AND t.is_transfer = 0 AND t.pending = 0");
       }
       if (f.q) {
         where.push("(t.name LIKE ? OR t.merchant_name LIKE ? OR t.category_path LIKE ?)");

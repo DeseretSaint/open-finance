@@ -165,6 +165,34 @@ describe("transactions", () => {
     expect(review.rows[0].id).toBe("pl-1");
   });
 
+  it("review filter excludes internal transfers and pending rows", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const acc = await seedManualAccount(db, user.id);
+    const svc = createTransactionsService(db);
+    // Posted, non-transfer Plaid uncategorized -> appears
+    await db.run(
+      `INSERT INTO transactions (id, account_id, plaid_transaction_id, amount_cents, date, name, source, created_at)
+       VALUES ('pl-1', ?, 'plaid-1', -550, '2026-02-10', 'Grocery Store', 'plaid', '2026-02-10T00:00:00.000Z')`,
+      acc
+    );
+    // Internal transfer (card payment between own accounts) -> excluded from review
+    await db.run(
+      `INSERT INTO transactions (id, account_id, plaid_transaction_id, amount_cents, date, name, source, is_transfer, created_at)
+       VALUES ('tx-1', ?, 'plaid-2', -200, '2026-02-10', 'Card Payment', 'plaid', 1, '2026-02-10T00:00:00.000Z')`,
+      acc
+    );
+    // Pending Plaid row -> excluded from review
+    await db.run(
+      `INSERT INTO transactions (id, account_id, plaid_transaction_id, amount_cents, date, name, source, pending, created_at)
+       VALUES ('pd-1', ?, 'plaid-3', -999, '2026-02-10', 'Pending Sub', 'plaid', 1, '2026-02-10T00:00:00.000Z')`,
+      acc
+    );
+    const review = await svc.list(user.id, { limit: 50, offset: 0, review: true });
+    expect(review.total).toBe(1);
+    expect(review.rows[0].id).toBe("pl-1");
+  });
+
   it("batchCategorize applies one category to many review items", async () => {
     const db = createTestDb();
     const user = await seedUser(db);
