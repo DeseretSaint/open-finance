@@ -13,6 +13,7 @@ import type { Db } from "@/server/db/types";
 import { randomUUID } from "@/lib/uuid";
 import { createCategoriesService } from "@/server/domain/categories";
 import { markLinkedTransfers } from "@/server/domain/transfers";
+import { findImportedDuplicate } from "@/server/domain/txn-dedupe";
 
 export interface SoloSyncAccount {
   id: string; // plaid account id
@@ -219,13 +220,17 @@ export async function syncSoloItem(input: SoloSyncInput): Promise<SoloSyncResult
   }
 }
 
-/** Upsert on plaid_transaction_id (pending → posted updates the same row). */
+/** Upsert on plaid_transaction_id (pending → posted updates the same row).
+ *  Adopts a CSV/phone-imported row for the same real-world transaction
+ *  instead of inserting a duplicate (cross-source dedupe). Returns what
+ *  happened so callers can count honestly: "updated" (existing Plaid row),
+ *  "adopted" (imported row claimed), or "inserted" (brand-new row). */
 async function upsertTxn(
   db: Db,
   accountRowId: string,
   txn: SoloPlaidTxn & { amountCents: number },
   categoryId: string | null
-): Promise<void> {
+): Promise<"updated" | "adopted" | "inserted"> {
   const existing = await db.get<{ id: string; pending: number }>(
     "SELECT id, pending FROM transactions WHERE plaid_transaction_id = ?",
     txn.id
@@ -250,7 +255,30 @@ async function upsertTxn(
       0,
       txn.id
     );
-    return;
+    return "updated";
+  }
+  const imported = await findImportedDuplicate(db, accountRowId, txn);
+  if (imported) {
+    await db.run(
+      `UPDATE transactions
+         SET plaid_transaction_id = ?, amount_cents = ?, date = ?, authorized_date = ?, name = ?,
+             merchant_name = ?, category_path = ?, personal_finance_category = ?, pending = ?,
+             user_category_id = COALESCE(user_category_id, ?), is_transfer = ?, source = 'plaid'
+       WHERE id = ?`,
+      txn.id,
+      txn.amountCents,
+      txn.date,
+      txn.authorizedDate,
+      txn.name,
+      txn.merchantName,
+      txn.categoryPath,
+      txn.personalFinanceCategory,
+      txn.pending ? 1 : 0,
+      categoryId,
+      0,
+      imported.id
+    );
+    return "adopted";
   }
   await db.run(
     `INSERT INTO transactions
@@ -273,6 +301,7 @@ async function upsertTxn(
     0,
     new Date().toISOString()
   );
+  return "inserted";
 }
 
 /**
@@ -322,12 +351,10 @@ export async function backfillSoloItem(input: SoloSyncInput, monthsBack = 24): P
       const rowId = plaidToRow.get(t.accountId);
       if (!rowId) continue;
       const cat = await categories.match(userId, t.categoryPath, t.personalFinanceCategory);
-      const exists = await db.get<{ id: string }>(
-        "SELECT id FROM transactions WHERE plaid_transaction_id = ?",
-        t.id
-      );
-      await upsertTxn(db, rowId, { ...t, amountCents: -t.amountCents }, cat?.id ?? null);
-      if (!exists) added++;
+      const outcome = await upsertTxn(db, rowId, { ...t, amountCents: -t.amountCents }, cat?.id ?? null);
+      // Only brand-new rows count as added; adopted CSV/phone rows were
+      // already in the app, and updates touch an existing Plaid row.
+      if (outcome === "inserted") added++;
     }
 
     await markLinkedTransfers(db, userId);

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { apiErrors } from "@/lib/api-error";
 import type { Db } from "@/server/db/types";
 import { createCategoriesService } from "@/server/domain/categories";
+import { dedupeName } from "@/server/domain/txn-dedupe";
 
 /**
  * Bank-CSV transaction import. Handles the common bank statement export
@@ -203,7 +204,7 @@ export function createCsvImportService(db: Db) {
     );
     const seen = new Set<string>();
     for (const e of existing) {
-      seen.add(`${e.date}|${e.amount_cents}|${e.name.trim().toLowerCase()}`);
+      seen.add(`${e.date}|${e.amount_cents}|${dedupeName(e.name)}`);
     }
 
     let imported = 0;
@@ -211,7 +212,7 @@ export function createCsvImportService(db: Db) {
     const firstImported: string[] = [];
     await db.transaction(async () => {
       for (const row of rows) {
-        const key = `${row.date}|${row.amountCents}|${row.name.toLowerCase()}`;
+        const key = `${row.date}|${row.amountCents}|${dedupeName(row.name)}`;
         if (seen.has(key)) {
           skipped++;
           continue;
