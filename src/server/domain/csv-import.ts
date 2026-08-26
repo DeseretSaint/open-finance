@@ -11,13 +11,21 @@ import { dedupeName } from "@/server/domain/txn-dedupe";
  * (account_id, date, amount_cents, normalized name) so re-importing the same
  * file never doubles entries.
  *
- * Column detection is header-based and case-insensitive:
- *   date    — "date", "posted date", "transaction date", "trans date"
- *   name    — "description", "name", "payee", "memo", "merchant", "details",
- *             "transaction", "narration"
- *   amount  — single signed column "amount", "value", "total"
- *   debit   — "debit", "withdrawal", "charge", "payment"  (expense, positive)
- *   credit  — "credit", "deposit"                          (income, positive)
+ * Column detection is header-based, case-insensitive, and tolerant of the
+ * common bank/statement export phrasings. Each header is classified by role
+ * (first match wins, checked in priority order):
+ *   date    — any header containing "date" ("Posted Date", "Trans Date", …)
+ *   amount  — a single signed column: exact "amount"/"value"/"total"/"sum",
+ *             any header containing "amount" ("Amount ($)", "Transaction
+ *             Amount"), or a combined "Amount Debit/Credit" column
+ *   debit   — exact "debit"/"withdrawal"/"charge"/"payment"/…, or a header
+ *             starting with "debit" ("Debit Amount") — expense, positive
+ *   credit  — exact "credit"/"deposit"/…, or a header starting with "credit"
+ *             ("Credit Amount") — income, positive
+ *   name    — exact "description"/"name"/"payee"/"memo"/"merchant"/"details"/
+ *             "transaction"/"narration"/"info"/"reference", or a header
+ *             ending in "name"/"description"/"memo"/"payee" ("Merchant Name",
+ *             "Payee Name", "Transaction Description")
  *
  * Sign convention matches the app: expense = negative cents, income = positive.
  * A single "amount" column is treated as signed (negative = expense); debit +
@@ -65,6 +73,42 @@ function parseAmount(raw: string): number | null {
 
 function normHeader(h: string): string {
   return h.toLowerCase().replace(/["'\s]+/g, "");
+}
+
+type HeaderRole = "date" | "name" | "amount" | "debit" | "credit";
+
+const NAME_EXACT = new Set([
+  "description", "name", "payee", "memo", "merchant", "details",
+  "transaction", "narration", "info", "reference",
+]);
+const AMOUNT_EXACT = new Set(["amount", "value", "total", "sum"]);
+const DEBIT_EXACT = new Set(["debit", "withdrawal", "withdrawals", "charge", "payment", "moneyout"]);
+const CREDIT_EXACT = new Set(["credit", "deposit", "moneyin"]);
+
+/** Exact/well-known header spellings (checked first). */
+function classifyExact(h: string): HeaderRole | null {
+  if (h.includes("date") && !h.includes("amount")) return "date";
+  if (AMOUNT_EXACT.has(h)) return "amount";
+  if (DEBIT_EXACT.has(h)) return "debit";
+  if (CREDIT_EXACT.has(h)) return "credit";
+  if (NAME_EXACT.has(h)) return "name";
+  return null;
+}
+
+/**
+ * Tolerant matching for bank-export phrasings ("Merchant Name", "Amount ($)",
+ * "Debit Amount", "Amount Debit/Credit", …). Each header gets at most one
+ * role; priority: combined debit+credit → single signed amount, then
+ * debit/credit, then amount, then name — so "Debit Amount" is a debit
+ * column, never the signed amount column.
+ */
+function classifyFuzzy(h: string): HeaderRole | null {
+  if (h.includes("debit") && h.includes("credit")) return "amount";
+  if (h.includes("debit")) return "debit";
+  if (h.includes("credit")) return "credit";
+  if (h.includes("amount")) return "amount";
+  if (h.endsWith("name") || h.endsWith("description") || h.endsWith("memo") || h.endsWith("payee")) return "name";
+  return null;
 }
 
 /** Split a CSV line into fields, honoring quoted fields ("" escapes a quote). */
@@ -120,13 +164,20 @@ export function createCsvImportService(db: Db) {
     const delimiter = detectDelimiter(lines[0]);
     const header = splitCsvLine(lines[0], delimiter).map(normHeader);
     const columns = header;
-    const idx = (pred: (h: string) => boolean): number => header.findIndex(pred);
+    // Classify each header into a role. Exact/well-known spellings win over
+    // tolerant matches (e.g. "Name" beats "Merchant Name" when both exist).
+    const exact = header.map(classifyExact);
+    const fuzzy = header.map(classifyFuzzy);
+    const idx = (role: HeaderRole): number => {
+      const e = exact.indexOf(role);
+      return e !== -1 ? e : fuzzy.indexOf(role);
+    };
 
-    const dateIdx = idx((h) => /^(post)?date|transdate|transactiondate|posteddate$/.test(h) || (h.includes("date") && !h.includes("amount")));
-    const nameIdx = idx((h) => /^(description|name|payee|memo|merchant|details|transaction|narration|info)$/.test(h));
-    const amountIdx = idx((h) => /^(amount|value|total|sum)$/.test(h));
-    const debitIdx = idx((h) => /^(debit|withdrawal|withdrawals|charge|payment|moneyout)$/.test(h));
-    const creditIdx = idx((h) => /^(credit|deposit|moneyin)$/.test(h));
+    const dateIdx = idx("date");
+    const nameIdx = idx("name");
+    const amountIdx = idx("amount");
+    const debitIdx = idx("debit");
+    const creditIdx = idx("credit");
 
     if (dateIdx === -1 || nameIdx === -1) {
       throw apiErrors.badRequest(

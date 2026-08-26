@@ -79,4 +79,75 @@ describe("csv import (bank statement files)", () => {
     const svc = createCsvImportService(db);
     expect(() => svc.parseCsv("Foo,Bar,Baz\n1,2,3\n")).toThrow();
   });
+
+  describe("tolerant header detection (real bank export phrasings)", () => {
+    it("detects 'Merchant Name' as the name column", () => {
+      const db = createTestDb();
+      const svc = createCsvImportService(db);
+      const { rows } = svc.parseCsv(
+        "Date,Merchant Name,Amount\n2026-02-01,TRADER JOES,-42.13\n"
+      );
+      expect(rows).toEqual([{ date: "2026-02-01", name: "TRADER JOES", amountCents: -4213 }]);
+    });
+
+    it("detects 'Payee Name' + 'Transaction Amount'", () => {
+      const db = createTestDb();
+      const svc = createCsvImportService(db);
+      const { rows } = svc.parseCsv(
+        "Posted Date,Payee Name,Transaction Amount\n02/03/2026,ACME PAYROLL,1800.00\n"
+      );
+      expect(rows).toEqual([{ date: "2026-02-03", name: "ACME PAYROLL", amountCents: 180000 }]);
+    });
+
+    it("detects 'Transaction Description' + 'Amount ($)'", () => {
+      const db = createTestDb();
+      const svc = createCsvImportService(db);
+      const { rows } = svc.parseCsv(
+        "Trans Date,Transaction Description,Amount ($)\n2026-02-04,SHELL GAS,\"-31.50\"\n"
+      );
+      expect(rows).toEqual([{ date: "2026-02-04", name: "SHELL GAS", amountCents: -3150 }]);
+    });
+
+    it("detects 'Reference' as the name column", () => {
+      const db = createTestDb();
+      const svc = createCsvImportService(db);
+      const { rows } = svc.parseCsv(
+        "Date,Reference,Amount\n2026-02-05,ACH TRANSFER 9912,250.00\n"
+      );
+      expect(rows).toEqual([{ date: "2026-02-05", name: "ACH TRANSFER 9912", amountCents: 25000 }]);
+    });
+
+    it("detects a combined 'Amount Debit/Credit' column as one signed amount", () => {
+      const db = createTestDb();
+      const svc = createCsvImportService(db);
+      const { rows } = svc.parseCsv(
+        "Date,Description,Amount Debit/Credit\n2026-02-06,COFFEE SHOP,-4.75\n2026-02-07,REFUND,12.00\n"
+      );
+      expect(rows).toEqual([
+        { date: "2026-02-06", name: "COFFEE SHOP", amountCents: -475 },
+        { date: "2026-02-07", name: "REFUND", amountCents: 1200 },
+      ]);
+    });
+
+    it("detects 'Debit Amount'/'Credit Amount' pairs (and not as a signed amount)", () => {
+      const db = createTestDb();
+      const svc = createCsvImportService(db);
+      const { rows } = svc.parseCsv(
+        "Date,Description,Debit Amount,Credit Amount\n2026-02-08,RENT,1400.00,\n2026-02-09,DEPOSIT,,900.00\n"
+      );
+      expect(rows).toEqual([
+        { date: "2026-02-08", name: "RENT", amountCents: -140000 },
+        { date: "2026-02-09", name: "DEPOSIT", amountCents: 90000 },
+      ]);
+    });
+
+    it("prefers exact 'Name' over fuzzy 'Merchant Name' when both exist", () => {
+      const db = createTestDb();
+      const svc = createCsvImportService(db);
+      const { rows } = svc.parseCsv(
+        "Date,Name,Merchant Name,Amount\n2026-02-10,SHORT NAME,LONG MERCHANT NAME,-1.00\n"
+      );
+      expect(rows).toEqual([{ date: "2026-02-10", name: "SHORT NAME", amountCents: -100 }]);
+    });
+  });
 });
