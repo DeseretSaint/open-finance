@@ -18,7 +18,7 @@ export async function PATCH(req: NextRequest) {
     const session = await requireSession(req);
     requireCsrf(req);
     const body = await parseBody(batchSchema, req);
-    const updated = await createTransactionsService(getDb()).batchCategorize(session.userId, body.ids, body.userCategoryId);
+    await createTransactionsService(getDb()).batchCategorize(session.userId, body.ids, body.userCategoryId);
     return noContent();
   })(req, { params: Promise.resolve({}) });
 }

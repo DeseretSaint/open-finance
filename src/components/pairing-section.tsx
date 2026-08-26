@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import jsQR from "jsqr";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,21 +30,24 @@ export function PairingSection({
 
   /** Remember this hub URL, then load its /pair page (accept runs on the hub's
    *  origin, wiring the phone into connected mode). */
-  function connectToHub(trimmed0: string) {
-    const trimmed = trimmed0.trim().replace(/\/+$/, "");
-    if (!/^https?:\/\/.+\..+/.test(trimmed)) {
-      setScanErr("That doesn't look like a hub URL — it should start with http:// and include the port, e.g. http://192.168.1.20:3000");
-      return;
-    }
-    setScanErr(null);
-    try {
-      localStorage.setItem("of-hub-url", trimmed);
-    } catch {
-      /* storage unavailable — proceed anyway */
-    }
-    onPairing?.(trimmed);
-    window.location.href = `${trimmed}/pair`;
-  }
+  const connectToHub = useCallback(
+    (trimmed0: string) => {
+      const trimmed = trimmed0.trim().replace(/\/+$/, "");
+      if (!/^https?:\/\/.+\..+/.test(trimmed)) {
+        setScanErr("That doesn't look like a hub URL — it should start with http:// and include the port, e.g. http://192.168.1.20:3000");
+        return;
+      }
+      setScanErr(null);
+      try {
+        localStorage.setItem("of-hub-url", trimmed);
+      } catch {
+        /* storage unavailable — proceed anyway */
+      }
+      onPairing?.(trimmed);
+      window.location.href = `${trimmed}/pair`;
+    },
+    [onPairing]
+  );
 
   useEffect(() => {
     if (!scanning) return;
@@ -97,7 +100,7 @@ export function PairingSection({
       cancelAnimationFrame(raf);
       stream?.getTracks().forEach((t) => t.stop());
     };
-  }, [scanning]);
+  }, [scanning, connectToHub]);
 
   return (
     <div className="space-y-3">

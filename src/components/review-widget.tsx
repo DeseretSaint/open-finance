@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ListChecks } from "lucide-react";
 import { api } from "@/lib/api-client";
-import { Card, CardLabel, CardTitle } from "@/components/ui/card";
+import { Card, CardLabel } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Money } from "@/components/money";

@@ -154,7 +154,7 @@ describe("transactions", () => {
     // Manual-sourced, uncategorized -> should NOT appear (human entered it)
     await svc.createManual(user.id, { accountId: acc, amountCents: -300, date: "2026-02-11", name: "Cash" });
     // Plaid-sourced, already categorized -> should NOT appear
-    const cat = await db.run(`INSERT INTO categories (id, user_id, name, created_at) VALUES ('cat-1', ?, 'Food', '2026-01-01T00:00:00.000Z')`, user.id);
+    await db.run(`INSERT INTO categories (id, user_id, name, created_at) VALUES ('cat-1', ?, 'Food', '2026-01-01T00:00:00.000Z')`, user.id);
     await db.run(
       `INSERT INTO transactions (id, account_id, plaid_transaction_id, amount_cents, date, name, user_category_id, source, created_at)
        VALUES ('pl-2', ?, 'plaid-2', -700, '2026-02-12', 'Restaurant', 'cat-1', 'plaid', '2026-02-12T00:00:00.000Z')`,
@@ -208,7 +208,7 @@ describe("transactions", () => {
        VALUES ('pl-2', ?, 'plaid-2', -700, '2026-02-12', 'Restaurant', 'plaid', '2026-02-12T00:00:00.000Z')`,
       acc
     );
-    const cat = await db.run(`INSERT INTO categories (id, user_id, name, created_at) VALUES ('cat-1', ?, 'Food', '2026-01-01T00:00:00.000Z')`, user.id);
+    await db.run(`INSERT INTO categories (id, user_id, name, created_at) VALUES ('cat-1', ?, 'Food', '2026-01-01T00:00:00.000Z')`, user.id);
     const updated = await svc.batchCategorize(user.id, ["pl-1", "pl-2", "does-not-exist"], "cat-1");
     expect(updated).toBe(2); // only the 2 real, reviewable rows
     const review = await svc.list(user.id, { limit: 50, offset: 0, review: true });

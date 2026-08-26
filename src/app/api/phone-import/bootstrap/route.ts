@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { apiErrors, ok, parseBody, route } from "@/lib/api";
+import { ok, parseBody, route } from "@/lib/api";
 import { createAuthService } from "@/server/auth/service";
 import { createSession, isHttps, SESSION_COOKIE, sessionCookieMaxAge } from "@/server/auth/sessions";
 import { getDb } from "@/server/db/adapter";

@@ -349,7 +349,6 @@ function RemoteAccessCard() {
 
   useEffect(() => {
     void refreshNativeStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remote.data?.enabled]);
 
   async function startRemoteServer() {

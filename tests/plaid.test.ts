@@ -121,7 +121,7 @@ describe("plaid service (fake client)", () => {
     const captured: { initial?: string; updateCreate?: string } = {};
     const trackingClient = {
       ...fakeClient(),
-      async exchangePublicToken(_c: PlaidCreds, _p: string) {
+      async exchangePublicToken() {
         return { accessToken: "access-initial-token", itemId: "item-test-1" };
       },
       async createLinkToken(_c: PlaidCreds, _u: string, accessToken?: string) {

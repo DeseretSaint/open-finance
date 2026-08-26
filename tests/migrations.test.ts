@@ -50,7 +50,6 @@ describe("migrations", () => {
     const path = require("path");
     const dir = path.resolve("migrations");
     const files = fs.readdirSync(dir).filter((f: string) => /^\d+_.*\.sql$/.test(f));
-    const dmlRegex = /\b(INSERT|UPDATE|REPLACE|DELETE|UPSERT)\b[\s\S]*?\bINTO\b|\bUPDATE\b\s+agent_manual|\bINTO\s+agent_manual\b/i;
     for (const f of files) {
       const sql = fs.readFileSync(path.join(dir, f), "utf8");
       // Strip comments and string literals so we only match real DML.

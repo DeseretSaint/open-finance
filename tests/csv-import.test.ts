@@ -5,7 +5,7 @@ import { createTestDb, seedManualAccount, seedUser } from "./helpers";
 describe("csv import (bank statement files)", () => {
   it("parses a generic Date, Description, Amount layout (negative = expense)", async () => {
     const db = createTestDb();
-    const userId = (await seedUser(db)).id;
+    await seedUser(db);
     const svc = createCsvImportService(db);
     const { rows } = svc.parseCsv(
       "Date,Description,Amount\n" +

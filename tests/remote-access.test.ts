@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createTestDb } from "./helpers";
 import type { Db } from "@/server/db/types";
 import { createSoloBootstrapService } from "@/server/domain/solo-bootstrap";
-import { soloDispatch, resetSoloDb, setSoloDbForTest } from "@/lib/solo-router";
+import { soloDispatch, setSoloDbForTest } from "@/lib/solo-router";
 import { hashSecret } from "@/lib/crypto";
 
 /**

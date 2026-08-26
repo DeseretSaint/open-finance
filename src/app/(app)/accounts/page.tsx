@@ -6,7 +6,6 @@ import Link from "next/link";
 import { CreditCard, Landmark, PiggyBank, TrendingUp, Wallet, CircleHelp, X, ChevronUp, ChevronDown, Pencil, RotateCcw } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CustomSelect } from "@/components/ui/custom-select";

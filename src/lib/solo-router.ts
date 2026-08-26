@@ -770,7 +770,7 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
       const itemId = parseId(path, "/api/plaid/items/");
       const creds = getSoloPlaidCreds();
       const item = getSoloPlaidItem(itemId);
-      const userId = await h.deviceUserId();
+      await h.deviceUserId(); // authz gate: throws 401 if the device has no user yet
       if (creds && item) {
         try {
           const client = createNativePlaidClient();

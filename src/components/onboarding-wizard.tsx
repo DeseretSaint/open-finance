@@ -27,8 +27,7 @@ import { useKeyboardHeight } from "@/lib/use-keyboard-height";
  * Demo users never see it (the demo route marks onboarding complete).
  */
 
-const STEPS = ["welcome", "paydays", "security", "plaid", "bank", "agent", "done"] as const;
-type Step = (typeof STEPS)[number];
+type Step = "welcome" | "paydays" | "security" | "plaid" | "bank" | "agent" | "done";
 
 const PLAID_SIGNUP_URL = "https://dashboard.plaid.com/signup";
 const PLAID_KEYS_URL = "https://dashboard.plaid.com/developers/keys";

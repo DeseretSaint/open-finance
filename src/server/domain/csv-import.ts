@@ -35,19 +35,19 @@ function parseDate(raw: string): string | null {
   // YYYY-MM-DD or YYYY/MM/DD
   let m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
   if (m) {
-    const [_, y, mo, d] = m;
+    const [, y, mo, d] = m;
     return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
   }
   // MM/DD/YYYY or MM-DD-YYYY (US bank exports), also M/D/YYYY
   m = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
   if (m) {
-    const [_, mo, d, y] = m;
+    const [, mo, d, y] = m;
     return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
   }
   // MM/DD/YY
   m = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2})$/);
   if (m) {
-    const [_, mo, d, yy] = m;
+    const [, mo, d, yy] = m;
     const y = Number(yy) < 70 ? 2000 + Number(yy) : 1900 + Number(yy);
     return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
   }
