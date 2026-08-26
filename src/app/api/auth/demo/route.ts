@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { route, apiErrors } from "@/lib/api";
-import { requireCsrf } from "@/server/auth/service";
+import { clientIp, demoLimiter, requireCsrf } from "@/server/auth/service";
 import { createSession } from "@/server/auth/sessions";
 import { createOnboardingService } from "@/server/domain/onboarding";
 import { getDb } from "@/server/db/adapter";
@@ -19,6 +19,8 @@ export async function POST(req: NextRequest) {
   return route(async (req) => {
     if (!env.DEMO_MODE) throw apiErrors.forbidden("Demo mode is disabled on this install.");
     requireCsrf(req);
+    // Passwordless session creation → throttle per IP (5/min).
+    if (!demoLimiter.check(clientIp(req)).ok) throw apiErrors.rateLimited(60_000);
     const db = getDb();
     const demo = await db.get<{ id: string }>("SELECT id FROM users WHERE username = ? AND is_demo = 1", "demo");
     if (!demo) {

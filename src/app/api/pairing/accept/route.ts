@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { apiErrors, ok, parseBody, route } from "@/lib/api";
-import { requireCsrf } from "@/server/auth/service";
+import { clientIp, pairingLimiter, requireCsrf } from "@/server/auth/service";
 import { hashSecret } from "@/lib/crypto";
 import { getDb } from "@/server/db/adapter";
 import { createSession } from "@/server/auth/sessions";
@@ -18,6 +18,9 @@ const acceptSchema = z.object({
 export async function POST(req: NextRequest) {
   return route(async (req) => {
     requireCsrf(req);
+    // Unauthenticated session-creation endpoint → throttle brute-force attempts
+    // against pairing codes (5/min/IP; codes are single-use + 10-min TTL).
+    if (!pairingLimiter.check(clientIp(req)).ok) throw apiErrors.rateLimited(60_000);
     const body = await parseBody(acceptSchema, req);
     const db = getDb();
     const codeHash = hashSecret(body.code);

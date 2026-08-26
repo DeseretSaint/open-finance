@@ -40,6 +40,12 @@ function now(): string {
 export const loginLimiter = createRateLimiter({ windowMs: 60_000, max: 5 });
 export const registerLimiter = createRateLimiter({ windowMs: 3600_000, max: 5 });
 export const sensitiveLimiter = createRateLimiter({ windowMs: 60_000, max: 5 });
+// Remaining unauthenticated session-creation endpoints (coverage audit 2026-08-26):
+// pairing accept (session from a pairing code), phone-import bootstrap (creates
+// the hub account), and demo login (passwordless session when DEMO_MODE is on).
+export const pairingLimiter = createRateLimiter({ windowMs: 60_000, max: 5 });
+export const bootstrapLimiter = createRateLimiter({ windowMs: 3600_000, max: 5 });
+export const demoLimiter = createRateLimiter({ windowMs: 60_000, max: 5 });
 
 export function createAuthService(db: Db = getDb()) {
   return {

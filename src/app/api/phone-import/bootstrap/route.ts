@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import { ok, parseBody, route } from "@/lib/api";
-import { createAuthService } from "@/server/auth/service";
+import { apiErrors, ok, parseBody, route } from "@/lib/api";
+import { bootstrapLimiter, clientIp, createAuthService } from "@/server/auth/service";
 import { createSession, isHttps, SESSION_COOKIE, sessionCookieMaxAge } from "@/server/auth/sessions";
 import { getDb } from "@/server/db/adapter";
 import { createPhoneImportService } from "@/server/domain/phone-import";
@@ -19,6 +19,8 @@ const schema = z.object({
 /** First-launch hub setup: create the hub login and add the phone backup atomically at the product level. */
 export async function POST(req: NextRequest) {
   return route(async (req) => {
+    // Unauthenticated account-creation endpoint → throttle like /api/auth/register.
+    if (!bootstrapLimiter.check(clientIp(req)).ok) throw apiErrors.rateLimited(60_000);
     const body = await parseBody(schema, req);
     const db = getDb();
     const auth = createAuthService(db);
