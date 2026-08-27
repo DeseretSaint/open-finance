@@ -419,6 +419,7 @@ export function OnboardingWizard() {
                   <Input
                     type="password"
                     inputMode="numeric"
+                    autoComplete="off"
                     pattern="[0-9]*"
                     maxLength={12}
                     placeholder="New PIN (4–12 digits)"
@@ -428,6 +429,7 @@ export function OnboardingWizard() {
                   <Input
                     type="password"
                     inputMode="numeric"
+                    autoComplete="off"
                     pattern="[0-9]*"
                     maxLength={12}
                     placeholder="Confirm PIN"

@@ -884,6 +884,7 @@ function NotificationsSecurityCard({ setMsg, setErr }: { setMsg: (s: string | nu
             <Input
               type="password"
               inputMode="numeric"
+              autoComplete="off"
               placeholder="New PIN (4–12 digits)"
               value={resetPin}
               onChange={(e) => setResetPin(e.target.value.replace(/[^0-9]/g, "").slice(0, 12))}
@@ -2017,7 +2018,7 @@ function PhoneImportPanel({ setMsg, setErr }: { setMsg: (s: string | null) => vo
       <p className="mt-1 text-sm text-text-muted">Already linked your banks on your phone? Export the encrypted phone backup from its Settings, then import it here. This is additive and deduplicates Plaid accounts and transactions. It does not clear the phone, disconnect Plaid, or replace hub data.</p>
       <div className="mt-4 grid gap-3 sm:grid-cols-3 sm:items-end">
         <div className="sm:col-span-1"><label className="mb-1 block text-xs text-text-muted">Phone backup (.ofbak.json)</label><input ref={fileRef} type="file" accept=".json,.ofbak.json" className="w-full text-sm text-text-muted" /></div>
-        <div><label className="mb-1 block text-xs text-text-muted">Phone device PIN</label><Input type="password" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ""))} placeholder="PIN used on phone" /></div>
+        <div><label className="mb-1 block text-xs text-text-muted">Phone device PIN</label><Input type="password" inputMode="numeric" autoComplete="off" value={pin} onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ""))} placeholder="PIN used on phone" /></div>
         <Button onClick={importPhone} disabled={busy || !pin}>{busy ? "Importing…" : "Add phone data"}</Button>
       </div>
     </Card>
@@ -2093,6 +2094,7 @@ function SoloBackupPanel({ setMsg, setErr }: { setMsg: (s: string | null) => voi
           <Input
             type="password"
             inputMode="numeric"
+            autoComplete="off"
             pattern="[0-9]*"
             maxLength={12}
             placeholder="Your unlock PIN"
