@@ -403,6 +403,7 @@ export default function AccountsPage() {
                 <Button
                   variant="secondary"
                   size="sm"
+                  aria-label={`Restore ${a.official_name ?? a.name}`}
                   disabled={restore.isPending}
                   onClick={() => restore.mutate(a.id)}
                 >
