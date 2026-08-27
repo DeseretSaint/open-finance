@@ -66,7 +66,19 @@ git fetch origin main
 git reset --hard origin/main
 
 log "installing dependencies…"
-export PATH="$HOME/.nvm/versions/node/v22.23.2/bin:$HOME/.nvm/versions/node/v24.15.0/bin:$PATH"
+# Portable PATH for node/pnpm: prefer a node on PATH (and its bin dir), then
+# fall back to an nvm-installed node if present. Do NOT hardcode absolute
+# nvm version dirs — they don't exist on most installs (and on macOS the
+# login shell is zsh, so ~/.nvm/nvm.sh isn't sourced by default). Mirrors the
+# resolution already used by start.sh / install.sh.
+if command -v node >/dev/null 2>&1; then
+  export PATH="$(dirname "$(command -v node)"):$PATH"
+elif [ -s "$HOME/.nvm/nvm.sh" ]; then
+  # shellcheck disable=SC1090
+  . "$HOME/.nvm/nvm.sh" >/dev/null 2>&1 || true
+  nvm use 22 >/dev/null 2>&1 || true
+  command -v node >/dev/null 2>&1 && export PATH="$(dirname "$(command -v node)"):$PATH"
+fi
 pnpm install --frozen-lockfile
 
 log "building…"
