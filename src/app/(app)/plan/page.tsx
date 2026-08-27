@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
-import { CalendarClock, X } from "lucide-react";
+import { CalendarClock, CalendarDays, X } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/badge";
@@ -377,7 +377,7 @@ export default function PlanPage() {
       : horizon === "paycheck" && !paycheckDate && paycheckProbe.isLoading
         ? "looking for your next paycheck…"
         : horizon === "paycheck" && !paycheckDate
-          ? "no future income found — showing to end of month (set your paydays 💰)"
+          ? "no future income found — showing to end of month (set your paydays)"
           : horizon === "custom" && !customUntil
             ? "pick an end date below"
             : horizonUntil.until
@@ -417,14 +417,15 @@ export default function PlanPage() {
             <button
               type="button"
               onClick={() => setShowPaydays((s) => !s)}
-              className={`h-8 rounded-full border px-3 text-xs font-medium transition-colors ${
+              className={`flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors ${
                 showPaydays || (paydays.data?.paydays.mode ?? "auto") !== "auto"
                   ? "border-accent bg-accent/10 text-accent-text"
                   : "border-border text-text-muted hover:text-text"
               }`}
               title="Set your payday schedule for accurate projections"
             >
-              💰 Paydays
+              <CalendarDays size={13} aria-hidden />
+              Paydays
             </button>
           </div>
         </div>

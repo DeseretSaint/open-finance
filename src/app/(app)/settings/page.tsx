@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import jsQR from "jsqr";
-import { Moon, Sun, ExternalLink } from "lucide-react";
+import { Moon, Sun, ExternalLink, QrCode } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
 import { SettingsGroup } from "@/components/ui/settings-group";
@@ -1725,7 +1725,7 @@ function HubPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; setE
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <Button onClick={() => setScanning(true)} disabled={scanning}>
-            {scanning ? "Scanning…" : "📷 Scan QR from your computer"}
+            {scanning ? "Scanning…" : (<><QrCode size={15} aria-hidden /> Scan QR from your computer</>)}
           </Button>
           <span className="text-sm text-text-muted">or</span>
           <div className="min-w-64 flex-1">
