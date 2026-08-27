@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
 
+# Least-privilege: this runs on pull_request (incl. fork PRs); pin the token to
+# read-only so a compromised/malicious PR cannot write to the repo or exfiltrate
+# a write-scoped GITHUB_TOKEN. (apk-build.yml sets its own permissions.)
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true

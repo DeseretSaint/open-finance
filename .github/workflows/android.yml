@@ -12,6 +12,13 @@ on:
         required: false
         default: ""
 
+# Least-privilege: this runs on pull_request (incl. fork PRs); pin the token to
+# read-only so a compromised/malicious PR cannot write to the repo or exfiltrate
+# a write-scoped GITHUB_TOKEN. The called apk-build.yml declares its own
+# permissions (contents: read).
+permissions:
+  contents: read
+
 concurrency:
   group: android-${{ github.ref }}
   cancel-in-progress: true
