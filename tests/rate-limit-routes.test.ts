@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 import { getDb, getSqliteDb } from "@/server/db/adapter";
 import {
   bootstrapLimiter,
+  clientIp,
   createAuthService,
   demoLimiter,
   loginLimiter,
@@ -220,4 +221,48 @@ describe("rate limiting on agent detection", () => {
     }
     await expectRateLimited(await call());
   }, 20_000);
+});
+
+describe("clientIp trusts the rightmost x-forwarded-for hop (anti-spoof)", () => {
+  it("uses the rightmost hop, ignoring a spoofed leftmost entry", () => {
+    const req = new NextRequest(BASE, { headers: { "x-forwarded-for": "1.2.3.4, 203.0.113.9" } });
+    expect(clientIp(req)).toBe("203.0.113.9");
+  });
+
+  it("ignores a constant spoofed leftmost while the real hop rotates", () => {
+    // Attacker holds the leftmost entry constant (`evil`) but rotates the real
+    // peer IP. Under the old leftmost behavior all requests collapsed to one
+    // key and the limiter never engaged; the rightmost key must make each
+    // distinct, proving the spoofed leftmost is no longer trusted.
+    for (let i = 0; i < 12; i++) {
+      const req = new NextRequest(BASE, {
+        headers: { "x-forwarded-for": `evil.spoof, 198.51.100.${i}` },
+      });
+      expect(clientIp(req)).toBe(`198.51.100.${i}`);
+    }
+  });
+
+  it("handles a single hop (no comma) and trims whitespace", () => {
+    expect(clientIp(new NextRequest(BASE, { headers: { "x-forwarded-for": "  10.0.0.5  " } }))).toBe("10.0.0.5");
+  });
+
+  it("falls back to 'local' when no header is present", () => {
+    expect(clientIp(new NextRequest(BASE, {}))).toBe("local");
+  });
+
+  it("route-level: XFF spoofing with a constant fake leftmost does NOT defeat the register limiter", async () => {
+    // Each request carries a distinct rightmost real hop behind a constant
+    // spoofed leftmost. None may trip the 429, because the limiter now keys on
+    // the rightmost hop — so an attacker can no longer rotate only the
+    // untrusted leftmost entry to dodge the per-IP budget.
+    let saw429 = false;
+    for (let i = 0; i < 10; i++) {
+      const res = await registerPost(
+        jsonReq(`${BASE}/api/auth/register`, {}, { "x-forwarded-for": `spoofed.attacker, 203.0.113.${i}` })
+      );
+      expect(res.status).toBe(400); // zod rejection, not a rate-limit
+      if (res.status === 429) saw429 = true;
+    }
+    expect(saw429).toBe(false);
+  }, 15_000);
 });

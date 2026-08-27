@@ -267,7 +267,23 @@ export function requireCsrf(req: Request): void {
 }
 
 export function clientIp(req: Request): string {
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  // Prefer the RIGHTMOST x-forwarded-for entry. XFF is a comma-separated
+  // chain built by each proxy in the path; the leftmost entry is whatever the
+  // *client* chose to put there and is fully attacker-controlled. The rightmost
+  // entry is the one appended by the proxy closest to us — the only hop that
+  // reflects the real peer IP. Using the leftmost entry would let an attacker
+  // spoof `x-forwarded-for: 1.2.3.4, <real>` on every request and rotate the
+  // first hop infinitely, defeating every IP-keyed rate limiter (login/register/
+  // recovery/pairing/bootstrap/demo — all unauthenticated brute-force surfaces).
+  // Cloud/serverless load balancers append to the chain, so the rightmost hop
+  // is the trusted one even behind a CDN.
+  const xff = req.headers.get("x-forwarded-for");
+  if (xff) {
+    const hops = xff.split(",").map((h) => h.trim()).filter(Boolean);
+    const rightmost = hops[hops.length - 1];
+    if (rightmost) return rightmost;
+  }
+  return "local";
 }
 
 export function deviceLabel(req: Request): string {
