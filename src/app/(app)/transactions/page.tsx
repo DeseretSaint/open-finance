@@ -112,12 +112,21 @@ export default function TransactionsPage() {
     return p.toString();
   }, [debouncedQ, accountId, categoryId, pendingOnly, from, to, limit]);
 
-  const { data, isLoading } = useQuery({
+  const txQuery = useQuery({
     queryKey: ["transactions", params],
     queryFn: () => api.get<{ rows: Txn[]; total: number }>(`/api/transactions?${params}`),
   });
+  const { data, isLoading } = txQuery;
   const accounts = useQuery({ queryKey: ["accounts"], queryFn: () => api.get<{ accounts: Account[] }>("/api/accounts") });
   const categories = useQuery({ queryKey: ["categories"], queryFn: () => api.get<{ categories: Category[] }>("/api/categories") });
+
+  // Surface fetch failures instead of leaving the user stuck on RowSkeleton with
+  // zero feedback. Gated on !data so a background refetch error never blanks
+  // already-rendered rows (mirrors the dashboard/reports/budgets/agents pattern).
+  const failedQueries = [txQuery, accounts, categories].filter((q) => q.isError && !q.data);
+  const hasFailed = failedQueries.length > 0;
+  const isRetrying = failedQueries.some((q) => q.isFetching);
+  const retry = () => failedQueries.forEach((q) => q.refetch());
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["transactions"] });
@@ -337,6 +346,21 @@ export default function TransactionsPage() {
 
   return (
     <div className="space-y-6">
+      {hasFailed && (
+        <Card className="border-danger/30 bg-[var(--danger-soft)]">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p role="alert" className="text-sm text-danger">
+              Couldn&apos;t load your transactions —{" "}
+              {failedQueries.flatMap((q) => (q.error instanceof Error ? [q.error.message] : [])).join("; ") ||
+                "Request failed"}
+            </p>
+            <Button variant="outline" disabled={isRetrying} onClick={retry}>
+              {isRetrying ? "Retrying…" : "Try again"}
+            </Button>
+          </div>
+        </Card>
+      )}
+
       {/* Sticky filter bar */}
       <Card className="sticky top-20 z-20 py-3">
         <div className="flex flex-wrap items-center gap-3">
