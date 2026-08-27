@@ -278,6 +278,7 @@ export default function PlanPage() {
   const payBill = useMutation({
     mutationFn: (id: string) => api.post(`/api/planning/bills/${id}/pay`),
     onSuccess: invalidate,
+    onError: (e) => setErr(e instanceof Error ? e.message : "Failed to mark bill paid."),
   });
   const removeBill = useMutation({ mutationFn: (id: string) => api.del(`/api/planning/bills/${id}`), onSuccess: () => { setConfirmDelete(null); invalidate(); }, onError: (e) => setConfirmDelete((c) => (c ? { ...c, error: e instanceof Error ? e.message : "Failed to delete bill." } : c)) });
 
@@ -671,8 +672,14 @@ export default function PlanPage() {
                 <div className="flex items-center gap-2">
                   <Money cents={b.amount_cents} />
                   {b.active && (
-                    <Button size="sm" variant="ghost" onClick={() => payBill.mutate(b.id)}>
-                      Paid
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={payBill.isPending}
+                      onClick={() => payBill.mutate(b.id)}
+                      aria-label={`Mark ${b.name} paid`}
+                    >
+                      {payBill.isPending && payBill.variables === b.id ? "Saving…" : "Paid"}
                     </Button>
                   )}
                   <button
@@ -825,7 +832,7 @@ export default function PlanPage() {
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm md:items-center md:p-6"
           onClick={() => {
-            if (createBill.isPending || createDebt.isPending || createGoal.isPending) return;
+            if (createBill.isPending || createDebt.isPending || createGoal.isPending || createExpense.isPending) return;
             setShowAdd(false);
             setAddKind(null);
           }}
