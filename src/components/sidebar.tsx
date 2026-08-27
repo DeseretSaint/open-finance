@@ -208,6 +208,7 @@ export function Sidebar() {
                   <Link
                     key={href}
                     href={href}
+                    aria-current={active ? "page" : undefined}
                     className={`flex flex-col gap-1 rounded-xl border p-4 transition-colors ${
                       active ? "border-accent bg-accent/5" : "border-border bg-surface hover:bg-surface-muted"
                     }`}
