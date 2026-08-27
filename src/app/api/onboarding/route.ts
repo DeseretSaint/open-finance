@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { ok, route, assertJsonBodySize } from "@/lib/api";
-import { requireSession } from "@/server/auth/service";
+import { requireSession, requireCsrf } from "@/server/auth/service";
 import { createOnboardingService } from "@/server/domain/onboarding";
 import { getDb } from "@/server/db/adapter";
 
@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   return route(async (req) => {
     const session = await requireSession(req);
+    requireCsrf(req);
     // Reject oversized bodies BEFORE buffering them into RAM (parity with the
     // parseBody chokepoint cap; this route reads only {action}).
     assertJsonBodySize(req.headers.get("content-length"), null);

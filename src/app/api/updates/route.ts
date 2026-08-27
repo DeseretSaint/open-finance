@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { ok, route } from "@/lib/api";
-import { requireSession } from "@/server/auth/service";
+import { requireSession, requireCsrf } from "@/server/auth/service";
 import { createUpdatesService } from "@/server/domain/updates";
 import { getDb } from "@/server/db/adapter";
 
@@ -10,6 +10,7 @@ export const runtime = "nodejs";
 export async function POST(req: NextRequest) {
   return route(async (req) => {
     await requireSession(req);
+    requireCsrf(req);
     const svc = createUpdatesService(getDb());
     const found = await svc.check();
     const status = await svc.status();
