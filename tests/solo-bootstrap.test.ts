@@ -104,4 +104,22 @@ describe("solo bootstrap (P8b)", () => {
     expect(await solo.getDeviceUser()).toBeNull();
     expect(await solo.hasPin()).toBe(false);
   });
+
+  it("generates recovery codes from a CSPRNG, not Math.random (regression)", async () => {
+    // The recovery code is the sole "I forgot my PIN" path — it must not be
+    // drawn from a predictable PRNG. Source guard: no Math.random in the
+    // generator; crypto.getRandomValues is used instead.
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const src = readFileSync(resolve(__dirname, "../src/server/domain/solo-bootstrap.ts"), "utf8");
+    expect(src).not.toMatch(/Math\.random/);
+    expect(src).toMatch(/crypto\.getRandomValues/);
+
+    // Behavior: codes still match the dashed base32 shape and are unique.
+    const db = createTestDb();
+    const solo = createSoloBootstrapService(db);
+    const { recoveryCode } = await solo.bootstrap({});
+    expect(recoveryCode).toMatch(/^[A-Z2-9]{4}(-[A-Z2-9]{4}){9}$/);
+    expect(await solo.verifyRecoveryCode(recoveryCode)).toBe(true);
+  });
 });

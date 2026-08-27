@@ -52,13 +52,20 @@ async function hashSecret(secret: string): Promise<string> {
 }
 
 function randomRecoveryCode(): string {
-  // 10 groups of 4 base32-ish chars, dashed: XXXX-XXXX-… (40 bits*4 ≈ 200 bits entropy)
+  // 10 groups of 4 base32-ish chars, dashed: XXXX-XXXX-… = 40 × 5 = 200 bits
+  // of entropy. MUST come from a CSPRNG: this code is the sole "I forgot my
+  // PIN" path (resetPin). The legacy non-cryptographic PRNG was a weakness
+  // here — crypto.getRandomValues is WebCrypto (browser + Node 22),
+  // matching this file's existing crypto.subtle/randomUUID usage.
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I,O,0,1
+  const rand = new Uint32Array(40);
+  crypto.getRandomValues(rand);
   const parts: string[] = [];
   for (let g = 0; g < 10; g++) {
     let chunk = "";
     for (let i = 0; i < 4; i++) {
-      chunk += alphabet[Math.floor(Math.random() * alphabet.length)];
+      // 2^32 % 32 === 0 → zero modulo bias.
+      chunk += alphabet[rand[g * 4 + i] % alphabet.length];
     }
     parts.push(chunk);
   }
