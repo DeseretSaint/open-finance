@@ -177,5 +177,21 @@ const insGoal = db.prepare(
 insGoal.run(uid(), demoUserId, "Emergency Fund", 1500000, addMonths(seedDate, 18), 350000, 25000, savings, now(), now());
 insGoal.run(uid(), demoUserId, "Summer Vacation", 300000, addMonths(seedDate, 10), 60000, 20000, savings, now(), now());
 
+// ── balance history: 45 days of deterministic drift ending at each account's
+//    seeded current balance, so the net-worth trend chart is non-empty (demo-first) ──
+const insHist = db.prepare(
+  `INSERT INTO balance_history (id, account_id, date, balance_cents) VALUES (?, ?, ?, ?)
+   ON CONFLICT(account_id, date) DO UPDATE SET balance_cents = excluded.balance_cents`
+);
+function seedHistory(accountId, finalCents, dailyDriftCents) {
+  for (let d = 45; d >= 0; d--) {
+    const wobble = (((d * 37) % 9) - 4) * 1000; // deterministic ±$40 wiggle
+    insHist.run(uid(), accountId, addDays(seedDate, -d), finalCents - d * dailyDriftCents + wobble);
+  }
+}
+seedHistory(checking, 421350, 1850); // checking grew ~$18.50/day
+seedHistory(savings, 1250000, 4200); // savings grew ~$42/day
+seedHistory(credit, -84325, -620); // card debt shrank ~$6.20/day (stored negative)
+
 db.close();
 console.log(`Seeded demo data for "${DEMO_USERNAME}" (seed date ${seedDate}) at ${dbPath}`);

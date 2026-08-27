@@ -13,7 +13,8 @@ async function seedHistory(
   balanceCents: number
 ) {
   await db.run(
-    "INSERT INTO balance_history (id, account_id, date, balance_cents) VALUES (?, ?, ?, ?)",
+    `INSERT INTO balance_history (id, account_id, date, balance_cents) VALUES (?, ?, ?, ?)
+     ON CONFLICT(account_id, date) DO UPDATE SET balance_cents = excluded.balance_cents`,
     randomUUID(),
     accountId,
     date,
@@ -77,7 +78,8 @@ describe("netWorthTrend (P24 / balance_history)", () => {
     const db = createTestDb();
     const user = await seedUser(db);
     const svc = createAccountsService(db);
-    await svc.createManual(user.id, { name: "A", type: "depository", currentBalanceCents: 10_000 });
+    // No balance supplied → createManual writes no balance_history point → still empty.
+    await svc.createManual(user.id, { name: "A", type: "depository" });
     expect(await createReportsService(db).netWorthTrend(user.id, 12)).toEqual([]);
   });
 

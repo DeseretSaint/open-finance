@@ -78,6 +78,46 @@ describe("solo plaid sync (webview-safe import)", () => {
     expect(txns.every((t) => t.source === "plaid")).toBe(true);
   });
 
+  it("writes a balance_history point for each synced account (net-worth trend)", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const client = fakeClient([
+      {
+        id: "txn-1",
+        accountId: "acct-1",
+        amountCents: 1999,
+        date: "2026-07-28",
+        authorizedDate: null,
+        name: "Netflix",
+        merchantName: null,
+        categoryPath: null,
+        personalFinanceCategory: null,
+        pending: false,
+      },
+    ]);
+    // accountDetails carries the current balance so syncSoloItem logs a point.
+    const result = await syncSoloItem({
+      db,
+      userId: user.id,
+      itemId: "item-1",
+      institutionName: "Test Bank",
+      environment: "sandbox",
+      creds: { clientId: "c", secret: "s", environment: "sandbox" },
+      accessToken: "access-1",
+      accounts: [{ id: "acct-1", name: "Checking", type: "depository", mask: "1234" }],
+      accountDetails: [{ id: "acct-1", currentBalanceCents: 100000, availableBalanceCents: 100000, currency: "USD" }],
+      client,
+      cursor: null,
+    });
+    expect(result.ok).toBe(true);
+    const hist = await db.all<{ balance_cents: number }>(
+      "SELECT balance_cents FROM balance_history WHERE account_id IN (SELECT id FROM accounts WHERE user_id = ?)",
+      user.id
+    );
+    expect(hist).toHaveLength(1);
+    expect(hist[0].balance_cents).toBe(100000); // depository stored positive, no sign flip
+  });
+
   it("re-sync upserts by plaid_transaction_id instead of duplicating", async () => {
     const db = createTestDb();
     const user = await seedUser(db);

@@ -15,6 +15,11 @@ import { createCategoriesService } from "@/server/domain/categories";
 import { markLinkedTransfers } from "@/server/domain/transfers";
 import { findImportedDuplicate } from "@/server/domain/txn-dedupe";
 
+/** Today's date (YYYY-MM-DD, UTC — same convention as server sync.ts). */
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export interface SoloSyncAccount {
   id: string; // plaid account id
   name: string;
@@ -125,24 +130,50 @@ export async function syncSoloItem(input: SoloSyncInput): Promise<SoloSyncResult
           currency,
           existing.id
         );
+        // One balance_history point per sync (parity with server sync.ts) so
+        // solo users get a net-worth trend. Skipped when this pass couldn't
+        // resolve a balance (fresh fetch failed → null) — never log a guess.
+        if (current != null) {
+          await db.run(
+            `INSERT INTO balance_history (id, account_id, date, balance_cents) VALUES (?, ?, ?, ?)
+             ON CONFLICT(account_id, date) DO UPDATE SET balance_cents = excluded.balance_cents`,
+            randomUUID(),
+            existing.id,
+            today(),
+            current
+          );
+        }
       } else {
         const newSign = a.type === "credit" || a.type === "loan" ? -1 : 1;
         const d = accountDetails?.find((dd) => dd.id === a.id);
+        const newRowId = randomUUID();
+        const newBalance = d?.currentBalanceCents == null ? null : d.currentBalanceCents * newSign;
         await db.run(
           `INSERT INTO accounts (id, user_id, item_id, plaid_account_id, name, type, mask, current_balance_cents, available_balance_cents, currency, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          randomUUID(),
+          newRowId,
           userId,
           itemId,
           a.id,
           a.name,
           a.type,
           a.mask,
-          d?.currentBalanceCents == null ? null : d.currentBalanceCents * newSign,
+          newBalance,
           d?.availableBalanceCents == null ? null : d.availableBalanceCents * newSign,
           d?.currency ?? "USD",
           new Date().toISOString()
         );
+        // Initial balance_history point so a freshly linked account starts the trend.
+        if (newBalance != null) {
+          await db.run(
+            `INSERT INTO balance_history (id, account_id, date, balance_cents) VALUES (?, ?, ?, ?)
+             ON CONFLICT(account_id, date) DO UPDATE SET balance_cents = excluded.balance_cents`,
+            randomUUID(),
+            newRowId,
+            today(),
+            newBalance
+          );
+        }
       }
     }
 

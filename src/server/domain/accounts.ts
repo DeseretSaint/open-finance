@@ -161,6 +161,19 @@ export function createAccountsService(db: Db = getDb()) {
         input.currency?.trim().toUpperCase().slice(0, 3) || "USD",
         now()
       );
+      // Initial balance_history point so manual accounts appear in the
+      // net-worth trend from day one (raw stored value — createManual keeps
+      // the user's sign as-is, unlike Plaid sync which flips credit/loan).
+      if (input.currentBalanceCents != null) {
+        await db.run(
+          `INSERT INTO balance_history (id, account_id, date, balance_cents) VALUES (?, ?, ?, ?)
+           ON CONFLICT(account_id, date) DO UPDATE SET balance_cents = excluded.balance_cents`,
+          randomUUID(),
+          id,
+          now().slice(0, 10),
+          input.currentBalanceCents
+        );
+      }
       return this.get(userId, id);
     },
 

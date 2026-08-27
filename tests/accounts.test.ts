@@ -115,3 +115,28 @@ describe("account soft delete + restore (v0.3.11)", () => {
     expect(restored?.deleted_at).toBeNull();
   });
 });
+
+describe("createManual writes an initial balance_history point (net-worth trend)", () => {
+  it("logs a balance_history row at today for a funded manual account", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const svc = createAccountsService(db);
+    const acct = await svc.createManual(user.id, { name: "Cash", type: "depository", currentBalanceCents: 50000 });
+    const rows = await db.all<{ date: string; balance_cents: number }>(
+      "SELECT date, balance_cents FROM balance_history WHERE account_id = ?",
+      acct.id
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].balance_cents).toBe(50000); // raw stored value, no sign flip
+    expect(rows[0].date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("does NOT log a point when no balance is supplied", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const svc = createAccountsService(db);
+    const acct = await svc.createManual(user.id, { name: "Empty", type: "other" });
+    const rows = await db.all("SELECT 1 FROM balance_history WHERE account_id = ?", acct.id);
+    expect(rows).toHaveLength(0);
+  });
+});
