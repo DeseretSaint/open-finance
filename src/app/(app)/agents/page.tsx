@@ -13,6 +13,7 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { isSoloCandidate } from "@/lib/mobile-mode";
 import { getRemoteServerStatus } from "@/lib/native-plugins";
+import { MANUAL_MAX_LEN } from "@/server/domain/agent-manual-meta";
 
 /* ── types ─────────────────────────────────────────────────────────────── */
 
@@ -506,6 +507,7 @@ export default function AgentsPage() {
   const [budDraft, setBudDraft] = useState("");
   const [genDraft, setGenDraft] = useState("");
   const [manualMsg, setManualMsg] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
   useEffect(() => {
     if (manual.data?.manual) {
       setCatDraft(manual.data.manual.categorization ?? "");
@@ -1083,49 +1085,82 @@ export default function AgentsPage() {
           categorized, how budgets are built, or anything else, without touching the agent&apos;s own config. Leave blank
           for a domain to let the agent decide.
         </p>
-        <div className="mt-3 space-y-4">
-          <div>
-            <label className="text-sm font-medium text-text">Categorization</label>
-            <textarea
-              className="mt-1 w-full rounded-lg border border-border bg-surface-muted p-2 text-sm text-text"
-              rows={3}
-              placeholder="e.g. Treat any charge from a pharmacy as Healthcare. Split Costco runs 70% Groceries / 30% Household."
-              value={catDraft}
-              onChange={(e) => setCatDraft(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-text">Budgeting</label>
-            <textarea
-              className="mt-1 w-full rounded-lg border border-border bg-surface-muted p-2 text-sm text-text"
-              rows={3}
-              placeholder="e.g. Keep Groceries under $600/mo; roll overspending into next month's buffer."
-              value={budDraft}
-              onChange={(e) => setBudDraft(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-text">General</label>
-            <textarea
-              className="mt-1 w-full rounded-lg border border-border bg-surface-muted p-2 text-sm text-text"
-              rows={3}
-              placeholder="e.g. Be concise in summaries. Flag any transaction over $500."
-              value={genDraft}
-              onChange={(e) => setGenDraft(e.target.value)}
-            />
-          </div>
-        </div>
-        <div className="mt-3 flex items-center gap-3">
-          <Button size="sm" onClick={() => saveManual.mutate()} disabled={saveManual.isPending}>
-            {saveManual.isPending ? "Saving…" : "Save guidance"}
-          </Button>
-          {manual.data?.manual?.updatedAt && (
-            <span className="text-xs text-text-muted">
-              Last updated {new Date(manual.data.manual.updatedAt).toLocaleString()}
-            </span>
-          )}
-        </div>
-        {manualMsg && <p className="mt-2 text-sm font-medium text-success">{manualMsg}</p>}
+        {(() => {
+          type Domain = { key: "categorization" | "budgeting" | "general"; label: string; placeholder: string; draft: string; set: (v: string) => void };
+          const domains: Domain[] = [
+            { key: "categorization", label: "Categorization", placeholder: "e.g. Treat any charge from a pharmacy as Healthcare. Split Costco runs 70% Groceries / 30% Household.", draft: catDraft, set: setCatDraft },
+            { key: "budgeting", label: "Budgeting", placeholder: "e.g. Keep Groceries under $600/mo; roll overspending into next month's buffer.", draft: budDraft, set: setBudDraft },
+            { key: "general", label: "General", placeholder: "e.g. Be concise in summaries. Flag any transaction over $500.", draft: genDraft, set: setGenDraft },
+          ];
+          const saved = {
+            categorization: manual.data?.manual?.categorization ?? "",
+            budgeting: manual.data?.manual?.budgeting ?? "",
+            general: manual.data?.manual?.general ?? "",
+          };
+          const overLimit = domains.some((d) => d.draft.length > MANUAL_MAX_LEN);
+          const dirty = domains.some((d) => d.draft !== saved[d.key]);
+          const preview = Object.fromEntries(domains.filter((d) => d.draft.trim().length > 0).map((d) => [d.key, d.draft]));
+          return (
+            <>
+              <div className="mt-3 space-y-4">
+                {domains.map((d) => (
+                  <div key={d.key}>
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium text-text">{d.label}</label>
+                      <span className={`text-xs tabular-nums ${d.draft.length > MANUAL_MAX_LEN ? "text-danger" : "text-text-muted"}`}>
+                        {d.draft.length}/{MANUAL_MAX_LEN}
+                      </span>
+                    </div>
+                    <textarea
+                      className={`mt-1 w-full rounded-lg border bg-surface-muted p-2 text-sm text-text ${d.draft.length > MANUAL_MAX_LEN ? "border-danger" : "border-border"}`}
+                      rows={3}
+                      placeholder={d.placeholder}
+                      value={d.draft}
+                      onChange={(e) => d.set(e.target.value)}
+                      aria-invalid={d.draft.length > MANUAL_MAX_LEN}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <Button size="sm" variant="secondary" onClick={() => setShowPreview((s) => !s)}>
+                  {showPreview ? "Hide preview" : "Preview"}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => saveManual.mutate()}
+                  disabled={saveManual.isPending || !dirty || overLimit}
+                >
+                  {saveManual.isPending ? "Saving…" : dirty ? "Save guidance" : "Saved"}
+                </Button>
+                {overLimit && (
+                  <span className="text-xs font-medium text-danger">
+                    A field exceeds the {MANUAL_MAX_LEN}-character limit.
+                  </span>
+                )}
+                {manual.data?.manual?.updatedAt && !dirty && !showPreview && (
+                  <span className="text-xs text-text-muted">
+                    Last updated {new Date(manual.data.manual.updatedAt).toLocaleString()}
+                  </span>
+                )}
+              </div>
+              {showPreview && (
+                <div className="mt-3 rounded-lg border border-border bg-surface-muted p-3">
+                  <p className="mb-2 text-xs font-medium text-text-muted">
+                    What your agent reads on its next poll:
+                  </p>
+                  <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words text-sm text-text">
+{JSON.stringify(preview, null, 2)}
+                  </pre>
+                  {Object.keys(preview).length === 0 && (
+                    <p className="text-sm text-text-muted">No guidance yet — fill in a domain above to preview it.</p>
+                  )}
+                </div>
+              )}
+              {manualMsg && <p className="mt-2 text-sm font-medium text-success">{manualMsg}</p>}
+            </>
+          );
+        })()}
       </Card>
 
       {/* Disconnect confirmation */}
