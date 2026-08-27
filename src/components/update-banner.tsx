@@ -114,6 +114,7 @@ export function UpdateBanner() {
             />
             <Button
               size="sm"
+              disabled={decide.isPending}
               onClick={() => {
                 decide.mutate({ action: "scheduled", scheduledAt: new Date(scheduledFor).toISOString() });
                 setScheduledFor(null);
@@ -147,10 +148,10 @@ export function UpdateBanner() {
             <span className="font-medium">{new Date(s.scheduledAt).toLocaleString()}</span>.
           </span>
           <div className="flex items-center gap-2">
-            <Button size="sm" onClick={() => decide.mutate({ action: "now" })}>
+            <Button size="sm" disabled={decide.isPending} onClick={() => decide.mutate({ action: "now" })}>
               Update now
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => decide.mutate({ action: "cancel" })}>
+            <Button size="sm" variant="ghost" disabled={decide.isPending} onClick={() => decide.mutate({ action: "cancel" })}>
               Cancel
             </Button>
           </div>
@@ -170,7 +171,7 @@ export function UpdateBanner() {
         </span>
         <div className="flex items-center gap-2">
           {selfUpdate ? (
-            <Button size="sm" onClick={() => decide.mutate({ action: "now" })}>
+            <Button size="sm" disabled={decide.isPending} onClick={() => decide.mutate({ action: "now" })}>
               Update now
             </Button>
           ) : native ? (
@@ -197,7 +198,7 @@ export function UpdateBanner() {
               Schedule (3am)
             </Button>
           )}
-          <Button size="sm" variant="ghost" onClick={() => decide.mutate({ action: "dismiss" })}>
+          <Button size="sm" variant="ghost" disabled={decide.isPending} onClick={() => decide.mutate({ action: "dismiss" })}>
             Stop notifying
           </Button>
         </div>

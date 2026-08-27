@@ -1006,10 +1006,10 @@ export default function AgentsPage() {
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => resolveRequest.mutate({ id: r.id, decision: "denied" })}>
+                  <Button size="sm" variant="outline" disabled={resolveRequest.isPending && resolveRequest.variables?.id === r.id} onClick={() => resolveRequest.mutate({ id: r.id, decision: "denied" })}>
                     Deny
                   </Button>
-                  <Button size="sm" onClick={() => resolveRequest.mutate({ id: r.id, decision: "granted" })}>
+                  <Button size="sm" disabled={resolveRequest.isPending && resolveRequest.variables?.id === r.id} onClick={() => resolveRequest.mutate({ id: r.id, decision: "granted" })}>
                     Grant
                   </Button>
                 </div>
