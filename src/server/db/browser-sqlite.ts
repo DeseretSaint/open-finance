@@ -83,6 +83,8 @@ async function loadSqlJs(): Promise<SqlJsModule> {
       // Dynamic import keeps sql.js out of the server bundle entirely.
       // SAFETY: sql.js default export is the initSqlJs factory (UMD interop).
       const mod = await import("sql.js");
+      // SAFETY: UMD interop boundary — the sql.js module object is either
+      // { default: factory } or the factory itself; the ?? below handles both.
       const initSqlJs = (mod as unknown as { default?: unknown }).default ?? mod;
       // SAFETY: initSqlJs is the factory function exported by sql.js.
       const init = initSqlJs as (opts: { locateFile: (f: string) => string }) => Promise<SqlJsModule>;
@@ -115,6 +117,10 @@ async function idbLoad(): Promise<Uint8Array | null> {
       const req = tx.objectStore(IDB_STORE).get(IDB_KEY);
       req.onsuccess = () => {
         const v = req.result;
+        // SAFETY: this store only ever holds our own DB exports (Uint8Array);
+        // some browsers hand back the same bytes as an ArrayBuffer, so after
+        // the instanceof check a truthy remainder is an ArrayBuffer by storage
+        // invariant.
         resolve(v instanceof Uint8Array ? v : v ? new Uint8Array(v as ArrayBuffer) : null);
       };
       req.onerror = () => resolve(null);
@@ -175,6 +181,8 @@ export class BrowserSqliteDb implements Db {
       this.saveTimer = null;
     }
     try {
+      // SAFETY: sql.js Database.export() serializes the database to a
+      // Uint8Array (sql.js API contract).
       const bytes = this.db.export() as Uint8Array;
       await idbSave(bytes);
       // Announce the save so other tabs reload from IDB instead of clobbering us.
@@ -222,6 +230,8 @@ export class BrowserSqliteDb implements Db {
    */
   private async onRemoteUpdate(msg: { tabId?: string; seq?: number }): Promise<void> {
     if (!syncShouldAdopt(msg, TAB_ID, syncSeq, this.saveTimer !== null)) return;
+    // SAFETY: syncShouldAdopt above verified typeof msg.seq === "number"
+    // (and seq > lastSeq) before we get here.
     syncSeq = msg.seq as number;
     if (!this.db || !this.SQL) return;
     try {
@@ -241,6 +251,7 @@ export class BrowserSqliteDb implements Db {
     const db = await this.connection();
     db.run("CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)");
 
+    // SAFETY: the query selects exactly one INTEGER column (version).
     const appliedRows = this.execRows("SELECT version FROM _migrations") as { version: number }[];
     const applied = new Set(appliedRows.map((r) => Number(r.version)));
 
@@ -284,6 +295,8 @@ export class BrowserSqliteDb implements Db {
       count++;
     }
     await this.flush();
+    // SAFETY: the query selects exactly one aliased INTEGER column (v);
+    // COALESCE guarantees one row.
     const cur = this.execRows("SELECT COALESCE(MAX(version), 0) AS v FROM _migrations") as { v: number }[];
     const current = Number(cur[0]?.v ?? 0);
     return { applied: count, current };
@@ -308,6 +321,8 @@ export class BrowserSqliteDb implements Db {
   async all<T = Record<string, unknown>>(sql: string, ...params: unknown[]): Promise<T[]> {
     await this.connection();
     const values = params.map((p) => (p === undefined ? null : p));
+    // SAFETY: execRows returns plain sql.js row objects; T is the caller's
+    // row contract at the Db-interface boundary (default Record<string, unknown>).
     return this.execRows(sql, values) as T[];
   }
 
@@ -321,6 +336,7 @@ export class BrowserSqliteDb implements Db {
     const values = params.map((p) => (p === undefined ? null : p));
     db.run(sql, values);
     const changes = typeof db.getRowsModified === "function" ? Number(db.getRowsModified()) : 0;
+    // SAFETY: the query selects exactly one aliased INTEGER column (id).
     const lastRows = this.execRows("SELECT last_insert_rowid() AS id") as { id: number }[];
     const lastInsertRowid = Number(lastRows[0]?.id ?? 0);
     this.scheduleSave();
