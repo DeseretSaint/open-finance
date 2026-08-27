@@ -230,6 +230,7 @@ export default function BudgetsPage() {
   function openEdit(b: Budget) {
     setName(b.name);
     setAmount((b.amount_cents / 100).toFixed(2));
+    // SAFETY: Budget.period is only "weekly"|"monthly"|"yearly" per the schema; the else branch routes to "monthly".
     setPeriod((b.period === "weekly" || b.period === "yearly" ? b.period : "monthly") as "weekly" | "monthly" | "yearly");
     setCategoryIds(b.categoryIds);
     setError(null);
@@ -571,6 +572,7 @@ export default function BudgetsPage() {
                 <CustomSelect
                   ariaLabel="Budget period"
                   value={period}
+                  // SAFETY: the only options are the three period literals, so v is one of them.
                   onChange={(v) => setPeriod(v as "weekly" | "monthly" | "yearly")}
                   options={[
                     { value: "weekly", label: "Weekly" },

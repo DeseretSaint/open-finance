@@ -66,6 +66,7 @@ export function FloatingAddButton({
     function isTextField(el: Element | null): boolean {
       if (!el) return false;
       const tag = el.tagName;
+      // SAFETY: only INPUT/TEXTAREA/HTMLElement carry isContentEditable; el either matched a tag or is a contentEditable HTMLElement.
       return tag === "INPUT" || tag === "TEXTAREA" || (el as HTMLElement).isContentEditable;
     }
     function measureKeyboard() {

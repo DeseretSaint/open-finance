@@ -39,6 +39,7 @@ const ITEMS_KEY = "of-solo-plaid-items";
 function read<T>(key: string): T | null {
   try {
     const raw = localStorage.getItem(key);
+    // SAFETY: raw JSON was written by this module's own write<T> path, so its shape matches T.
     return raw ? (JSON.parse(raw) as T) : null;
   } catch {
     return null;

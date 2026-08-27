@@ -22,6 +22,7 @@ interface UpdateStatus {
 }
 
 function isNativeApp(): boolean {
+  // SAFETY: window.Capacitor is undefined on web; optional chaining guards the read.
   return typeof window !== "undefined" && !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.();
 }
 
@@ -39,6 +40,7 @@ export function UpdatesCard() {
   const [installMsg, setInstallMsg] = useState<string | null>(null);
 
   function updaterPlugin() {
+    // SAFETY: the Updater global exists only in the native APK build; absent on web, optional chaining guards the read.
     const w = window as unknown as {
       Updater?: {
         downloadAndInstall?: (o: { url: string; sha256?: string | null; fileName?: string }) => Promise<unknown>;
@@ -98,6 +100,7 @@ export function UpdatesCard() {
         ? api.post<{ status: UpdateStatus }>("/api/updates")
         : api.post<{ ok?: boolean }>("/api/updates/decide", body),
     onSuccess: (data) => {
+      // SAFETY: the /api/updates/decide response is { status?: UpdateStatus } per the route contract.
       const st = (data as { status?: UpdateStatus }).status;
       if (st) {
         setMsg(st.updateAvailable ? `Update available: v${st.latestVersion}` : "You're up to date.");

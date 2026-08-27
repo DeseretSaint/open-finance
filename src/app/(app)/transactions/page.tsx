@@ -163,6 +163,7 @@ export default function TransactionsPage() {
         setError(null);
         setHistoryDetail([]);
         setShowCsvSuggestion(false);
+        // SAFETY: fallback is an empty array literal, so the asserted element type is vacuously sound.
         const items = await api.get<{ items: Array<{ id: string; institution_name: string | null; linkedAt: string | null; accounts: Array<{ name: string }> }> }>("/api/plaid/items").catch(() => ({ items: [] as Array<{ id: string; institution_name: string | null; linkedAt: string | null; accounts: Array<{ name: string }> }> }));
         const detail: Array<{ name: string; oldest: string | null; added: number; ok: boolean; linkedAt: string | null }> = [];
         let oldest: string | null = null;
@@ -173,6 +174,7 @@ export default function TransactionsPage() {
           const r = await api.post<{ ok: boolean; added: number; oldestDate: string | null; error?: string | null }>(
             "/api/plaid/resync",
             { itemId: it.id }
+          // SAFETY: null is assignable to string|null; the assertion just fixes the literal's inferred type.
           ).catch(() => ({ ok: false, added: 0, oldestDate: null as string | null, error: "request failed" }));
           if (r.ok) {
             totalAdded += r.added;
@@ -550,6 +552,7 @@ export default function TransactionsPage() {
               className="flex flex-col gap-4"
               onSubmit={(e) => {
                 e.preventDefault();
+                // SAFETY: "csv-file" names the file input, so the form control is an HTMLInputElement (or null when absent).
                 const file = (e.currentTarget.elements.namedItem("csv-file") as HTMLInputElement | null)?.files?.[0];
                 if (!importAccount || !file) return;
                 file.text().then((contents) => {

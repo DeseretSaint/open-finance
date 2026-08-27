@@ -20,6 +20,7 @@ export function randomBytes(size: number): Uint8Array {
 }
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  // SAFETY: bytes is a getRandomValues-backed Uint8Array whose .buffer is a non-shared ArrayBuffer; slice() returns a fresh ArrayBuffer.
   return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }
 

@@ -42,6 +42,7 @@ if (!parsed.success) {
 // key. A missing required key is surfaced loudly by crypto.key() at the moment
 // encryption is actually used, not at import time.
 export const env: z.infer<typeof envSchema> =
+  // SAFETY: envSchema.parse({}) returns the schema's inferred type (z.infer), so the assertion is an identity.
   parsed.success ? parsed.data : (envSchema.parse({}) as z.infer<typeof envSchema>);
 
 if (!env.ENCRYPTION_KEY || !env.AUTH_SECRET) {

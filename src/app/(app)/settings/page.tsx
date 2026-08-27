@@ -338,6 +338,7 @@ export default function SettingsPage() {
             <CustomSelect
               ariaLabel="Plaid environment"
               value={environment}
+              // SAFETY: the only options are "sandbox" | "production", so v is one of the two literals.
               onChange={(v) => setEnvironment(v as "sandbox" | "production")}
               options={[
                 { value: "sandbox", label: "Sandbox", hint: "test data" },
@@ -682,6 +683,7 @@ function NotificationsSecurityCard({ setMsg, setErr }: { setMsg: (s: string | nu
   });
 
   useEffect(() => {
+    // SAFETY: window.Capacitor is undefined on web; optional chaining guards the read.
     const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
     setIsMobile(!!cap?.isNativePlatform?.());
     if (cap?.isNativePlatform?.()) {
@@ -703,6 +705,7 @@ function NotificationsSecurityCard({ setMsg, setErr }: { setMsg: (s: string | nu
         const { syncNotificationSchedule } = await import("@/lib/solo-notifications");
         const { getSoloDb } = await import("@/lib/solo-router");
         const db = await getSoloDb();
+        // SAFETY: patch is a Partial of the same solo-prefs shape, so the spread yields the asserted type.
         const next = { ...prefs.data, ...patch } as {
           notifEnabled: boolean;
           notifFrequency: "daily" | "weekly";
@@ -791,6 +794,7 @@ function NotificationsSecurityCard({ setMsg, setErr }: { setMsg: (s: string | nu
                 ariaLabel="Notification frequency"
                 className="w-36"
                 value={p.notifFrequency}
+                // SAFETY: the only options are "daily" | "weekly", so v is one of the two literals.
                 onChange={(v) => save({ notifFrequency: v as "daily" | "weekly" })}
                 options={[
                   { value: "daily", label: "Daily" },
@@ -837,6 +841,7 @@ function NotificationsSecurityCard({ setMsg, setErr }: { setMsg: (s: string | nu
                 ariaLabel="Email digest frequency"
                 className="w-36"
                 value={p.emailFrequency}
+                // SAFETY: the only options are "daily" | "weekly", so v is one of the two literals.
                 onChange={(v) => save({ emailFrequency: v as "daily" | "weekly" })}
                 options={[
                   { value: "daily", label: "Daily" },
@@ -1500,6 +1505,7 @@ function PaydaysCard({ setMsg, setErr }: { setMsg: (s: string | null) => void; s
   }
 
   function pickMode(mode: string) {
+    // SAFETY: pickMode is only called with a value from the mode option set, so mode narrows to typeof eff.mode.
     setDraft({ ...eff, mode: mode as typeof eff.mode });
     // Only save immediately when the mode is complete — auto saves alone;
     // interval/days_of_month wait for a value so server validation can't
@@ -1510,6 +1516,7 @@ function PaydaysCard({ setMsg, setErr }: { setMsg: (s: string | null) => void; s
   }
 
   function pickInterval(iv: string) {
+    // SAFETY: pickInterval is only called with a value from the interval option set, narrowing to typeof eff.interval.
     setDraft({ ...eff, mode: "interval", interval: iv as typeof eff.interval });
     save.mutate({ mode: "interval", interval: iv });
   }

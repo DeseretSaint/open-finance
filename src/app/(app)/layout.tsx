@@ -81,6 +81,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // survive app restarts, not just the toggle moment. No-op on plain web.
   useEffect(() => {
     if (!data || onboarding.data?.completed === false || typeof window === "undefined") return;
+    // SAFETY: window.Capacitor is undefined on web; optional chaining guards the read.
     const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
     if (!cap?.isNativePlatform?.()) return;
     let cancelled = false;
@@ -88,6 +89,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       try {
         const remote = await api.get<{ enabled: boolean; port: number }>("/api/agent/remote");
         if (cancelled || !remote.enabled) return;
+        // SAFETY: RemoteServer global exists only in native APK builds; absent on web, optional chaining guards the read.
         const w = window as unknown as { RemoteServer?: { start?: (o: { port: number }) => Promise<unknown>; status?: () => Promise<{ running: boolean }> } };
         const plugin = w.RemoteServer;
         if (!plugin?.start) return;
@@ -110,6 +112,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!data || onboarding.data?.completed === false) return;
     if (typeof window === "undefined") return;
+    // SAFETY: window.Capacitor is undefined on web; optional chaining guards the read.
     const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
     if (!cap?.isNativePlatform?.()) return;
     let cancelled = false;

@@ -143,6 +143,7 @@ export function OnboardingWizard() {
       .then((res) => {
         const any = res.environments.find((e) => e.hasKeys);
         if (any) {
+          // SAFETY: environments come from the Plaid API where environment is exactly "sandbox" | "production".
           setEnvironment(any.environment as "sandbox" | "production");
           setKeysSaved(true);
         }
@@ -509,6 +510,7 @@ export function OnboardingWizard() {
                 <CustomSelect
                   ariaLabel="Plaid environment"
                   value={environment}
+                  // SAFETY: the only options are "production" | "sandbox", so v is one of the two literals.
                   onChange={(v) => setEnvironment(v as "sandbox" | "production")}
                   options={[
                     { value: "production", label: "Production", hint: "real banks — recommended" },
@@ -885,6 +887,7 @@ function NativeOrWebLink({
   const [useWebLink, setUseWebLink] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined") return;
+    // SAFETY: window.Capacitor is absent on web; optional chaining guards the read.
     const cap = (window as unknown as { Capacitor?: { getPlatform?: () => string } }).Capacitor;
     if (cap?.getPlatform?.() === "ios") setUseWebLink(true);
   }, []);

@@ -71,6 +71,7 @@ export function useDialogA11y(open: boolean): RefObject<HTMLDivElement | null> {
       const items = focusableIn(container);
       const target = tabWrapTarget(
         items.length,
+        // SAFETY: activeElement may be null (indexOf → -1); it is only used as an index, never dereferenced.
         items.indexOf(document.activeElement as HTMLElement),
         e.shiftKey,
       );
