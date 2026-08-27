@@ -4,10 +4,6 @@ export function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function nowISO(): string {
-  return new Date().toISOString();
-}
-
 export function addDaysISO(dateISO: string, days: number): string {
   const d = new Date(`${dateISO}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);

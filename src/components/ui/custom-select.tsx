@@ -101,8 +101,4 @@ export function CustomSelect({
   );
 }
 
-export function customOptions(items: Array<{ value: string; label: string; hint?: string }>): CustomSelectOption[] {
-  return items;
-}
-
 export type { ReactNode };

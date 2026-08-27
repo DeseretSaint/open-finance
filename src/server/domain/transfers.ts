@@ -67,6 +67,4 @@ export async function markLinkedTransfers(db: Db, userId: string, dates?: string
   return marked;
 }
 
-export const transferPaymentPattern = PAYMENT_WORDS;
-export const transferCategoryPattern = TRANSFER_CATEGORY;
-export const transferPostingWindowDays = MAX_POSTING_GAP_DAYS;
+

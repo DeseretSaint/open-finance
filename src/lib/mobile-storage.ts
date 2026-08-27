@@ -35,28 +35,6 @@ export async function storeSessionToken(token: string): Promise<void> {
   }
 }
 
-export async function getStoredSessionToken(): Promise<string | null> {
-  const p = plugin();
-  if (p) return (await p.getSessionToken()).token;
-  try {
-    return localStorage.getItem("of-mobile-session");
-  } catch {
-    return null;
-  }
-}
-
-export async function clearStoredSessionToken(): Promise<void> {
-  const p = plugin();
-  if (p) await p.clearSessionToken();
-  else {
-    try {
-      localStorage.removeItem("of-mobile-session");
-    } catch {
-      /* ignore */
-    }
-  }
-}
-
 export async function storeHubUrl(url: string): Promise<void> {
   const p = plugin();
   if (p) await p.setHubUrl({ url });
@@ -79,9 +57,4 @@ export async function getStoredHubUrl(): Promise<string | null> {
   }
 }
 
-/** Reconnect deep link: openfinance://reconnect → /pair on this hub. */
-export function isReconnectDeepLink(): boolean {
-  if (typeof window === "undefined") return false;
-  const raw = window.location.href;
-  return raw.startsWith("openfinance://reconnect");
-}
+

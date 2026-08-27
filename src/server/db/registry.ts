@@ -28,7 +28,4 @@ export function getDb(): Db {
   return provider();
 }
 
-/** Tests / solo router: replace the provider (e.g. with the in-memory test DB). */
-export function resetDbProvider(): void {
-  provider = null;
-}
+

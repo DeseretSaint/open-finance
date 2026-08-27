@@ -49,7 +49,3 @@ export async function authenticateBiometric(reason: string): Promise<boolean> {
     return false; // cancelled or failed — caller falls back to PIN
   }
 }
-
-export function hasNativeBiometrics(): boolean {
-  return nativeAvailable();
-}
