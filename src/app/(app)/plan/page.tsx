@@ -76,6 +76,19 @@ interface Projection {
 
 const FREQUENCIES = ["weekly", "biweekly", "monthly", "quarterly", "yearly", "one-time"];
 
+// Inline amount validation (run-59 budgets / run-68 transactions pattern):
+// catch non-numeric / non-positive amounts before they round-trip to the
+// server's generic 400. Number() — not parseFloat — so "1,000" is rejected as
+// invalid instead of silently recording $1.00 (parseFloat stops at the comma).
+// Server stays authoritative for the final int().positive() check.
+function positiveAmountError(raw: string): string | null {
+  if (raw === "") return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return "Enter a valid amount.";
+  if (n <= 0) return "Amount must be greater than 0.";
+  return null;
+}
+
 /** Horizon presets for the upcoming-bills digest (issue #9 — no more hardcoded 30 days). */
 type Horizon = "7d" | "30d" | "eom" | "paycheck" | "custom";
 
@@ -237,11 +250,12 @@ export default function PlanPage() {
   const [billFrequency, setBillFrequency] = useState("monthly");
   const [billDueDate, setBillDueDate] = useState("");
   const [billError, setBillError] = useState<string | null>(null);
+  const billAmountError = positiveAmountError(billAmount);
   const createBill = useMutation({
     mutationFn: () =>
       api.post("/api/planning/bills", {
         name: billName,
-        amountCents: Math.round(parseFloat(billAmount) * 100),
+        amountCents: Math.round(Number(billAmount) * 100),
         frequency: billFrequency,
         // Calendar-picked due date (issue #10): store the picked date as the
         // next occurrence AND derive the recurring day-of-month from it.
@@ -271,13 +285,14 @@ export default function PlanPage() {
   const [debtApr, setDebtApr] = useState("");
   const [debtMinPayment, setDebtMinPayment] = useState("");
   const [debtError, setDebtError] = useState<string | null>(null);
+  const debtPrincipalError = positiveAmountError(debtPrincipal);
   const createDebt = useMutation({
     mutationFn: () =>
       api.post("/api/planning/debts", {
         name: debtName,
-        principalCents: Math.round(parseFloat(debtPrincipal) * 100),
-        aprBps: Math.round((parseFloat(debtApr) || 0) * 100),
-        minPaymentCents: Math.round((parseFloat(debtMinPayment) || 0) * 100),
+        principalCents: Math.round(Number(debtPrincipal) * 100),
+        aprBps: Math.round((Number(debtApr) || 0) * 100),
+        minPaymentCents: Math.round((Number(debtMinPayment) || 0) * 100),
       }),
     onSuccess: () => {
       setDebtName("");
@@ -300,14 +315,15 @@ export default function PlanPage() {
   const [goalContribution, setGoalContribution] = useState("");
   const [goalDate, setGoalDate] = useState("");
   const [goalError, setGoalError] = useState<string | null>(null);
+  const goalTargetError = positiveAmountError(goalTarget);
   const createGoal = useMutation({
     mutationFn: () =>
       api.post("/api/planning/goals", {
         name: goalName,
         type: "savings",
-        targetCents: Math.round(parseFloat(goalTarget) * 100),
-        currentCents: Math.round((parseFloat(goalCurrent) || 0) * 100),
-        monthlyContributionCents: goalContribution ? Math.round(parseFloat(goalContribution) * 100) : null,
+        targetCents: Math.round(Number(goalTarget) * 100),
+        currentCents: Math.round((Number(goalCurrent) || 0) * 100),
+        monthlyContributionCents: goalContribution ? Math.round(Number(goalContribution) * 100) : null,
         targetDate: goalDate || null,
       }),
     onSuccess: () => {
@@ -336,6 +352,7 @@ export default function PlanPage() {
   const [expDays, setExpDays] = useState<number[]>([]);
   const [expDayInput, setExpDayInput] = useState("");
   const [expError, setExpError] = useState<string | null>(null);
+  const expAmountError = positiveAmountError(expAmount);
 
   function toggleExpDay(d: number) {
     setExpDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort((a, b) => a - b)));
@@ -346,10 +363,10 @@ export default function PlanPage() {
       api.post("/api/planning/goals", {
         name: expName,
         type: "expense",
-        targetCents: Math.round(parseFloat(expAmount) * 100),
+        targetCents: Math.round(Number(expAmount) * 100),
         targetDate: expDate || null,
-        currentCents: Math.round((parseFloat(expSaved) || 0) * 100),
-        monthlyContributionCents: expSetAside && expContribution ? Math.round(parseFloat(expContribution) * 100) : null,
+        currentCents: Math.round((Number(expSaved) || 0) * 100),
+        monthlyContributionCents: expSetAside && expContribution ? Math.round(Number(expContribution) * 100) : null,
         contributionMode: expSetAside ? expMode : "none",
         contributionInterval: expSetAside && expMode === "interval" ? expInterval : null,
         contributionDays: expSetAside && expMode === "days_of_month" ? expDays : undefined,
@@ -895,7 +912,18 @@ export default function PlanPage() {
                   <label htmlFor="plan-bill-amount" className="mb-1 block text-xs font-medium text-text-muted">
                     Amount ($)
                   </label>
-                  <Input id="plan-bill-amount" placeholder="1200.00" inputMode="decimal" value={billAmount} onChange={(e) => setBillAmount(e.target.value)} required />
+                  <Input
+                    id="plan-bill-amount"
+                    placeholder="1200.00"
+                    inputMode="decimal"
+                    value={billAmount}
+                    onChange={(e) => setBillAmount(e.target.value)}
+                    aria-invalid={!!billAmountError}
+                    required
+                  />
+                  {billAmountError && (
+                    <p role="alert" className="mt-1 text-xs text-danger">{billAmountError}</p>
+                  )}
                 </div>
                 <div>
                   <label id="plan-bill-freq-label" className="mb-1 block text-xs font-medium text-text-muted">
@@ -916,7 +944,7 @@ export default function PlanPage() {
                   <p className="mt-1 text-xs text-text-muted">Picked from the calendar — the day of month is kept for recurring bills.</p>
                 </div>
                 {billError && <p className="text-sm text-danger">{billError}</p>}
-                <Button type="submit" disabled={createBill.isPending || !billName || !billAmount}>
+                <Button type="submit" disabled={createBill.isPending || !billName || !billAmount || !!billAmountError}>
                   {createBill.isPending ? "Adding…" : "Add bill"}
                 </Button>
               </form>
@@ -940,7 +968,18 @@ export default function PlanPage() {
                   <label htmlFor="plan-debt-principal" className="mb-1 block text-xs font-medium text-text-muted">
                     Principal ($)
                   </label>
-                  <Input id="plan-debt-principal" placeholder="15000.00" inputMode="decimal" value={debtPrincipal} onChange={(e) => setDebtPrincipal(e.target.value)} required />
+                  <Input
+                    id="plan-debt-principal"
+                    placeholder="15000.00"
+                    inputMode="decimal"
+                    value={debtPrincipal}
+                    onChange={(e) => setDebtPrincipal(e.target.value)}
+                    aria-invalid={!!debtPrincipalError}
+                    required
+                  />
+                  {debtPrincipalError && (
+                    <p role="alert" className="mt-1 text-xs text-danger">{debtPrincipalError}</p>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -957,7 +996,7 @@ export default function PlanPage() {
                   </div>
                 </div>
                 {debtError && <p className="text-sm text-danger">{debtError}</p>}
-                <Button type="submit" disabled={createDebt.isPending || !debtName || !debtPrincipal}>
+                <Button type="submit" disabled={createDebt.isPending || !debtName || !debtPrincipal || !!debtPrincipalError}>
                   {createDebt.isPending ? "Adding…" : "Add debt"}
                 </Button>
               </form>
@@ -982,7 +1021,18 @@ export default function PlanPage() {
                     <label htmlFor="plan-goal-target" className="mb-1 block text-xs font-medium text-text-muted">
                       Target ($)
                     </label>
-                    <Input id="plan-goal-target" placeholder="10000.00" inputMode="decimal" value={goalTarget} onChange={(e) => setGoalTarget(e.target.value)} required />
+                    <Input
+                      id="plan-goal-target"
+                      placeholder="10000.00"
+                      inputMode="decimal"
+                      value={goalTarget}
+                      onChange={(e) => setGoalTarget(e.target.value)}
+                      aria-invalid={!!goalTargetError}
+                      required
+                    />
+                    {goalTargetError && (
+                      <p role="alert" className="mt-1 text-xs text-danger">{goalTargetError}</p>
+                    )}
                   </div>
                   <div>
                     <label htmlFor="plan-goal-current" className="mb-1 block text-xs font-medium text-text-muted">
@@ -1004,7 +1054,7 @@ export default function PlanPage() {
                   <CustomDatePicker ariaLabel="Goal target date" value={goalDate} onChange={setGoalDate} />
                 </div>
                 {goalError && <p className="text-sm text-danger">{goalError}</p>}
-                <Button type="submit" disabled={createGoal.isPending || !goalName || !goalTarget}>
+                <Button type="submit" disabled={createGoal.isPending || !goalName || !goalTarget || !!goalTargetError}>
                   {createGoal.isPending ? "Adding…" : "Add goal"}
                 </Button>
                 </form>
@@ -1029,7 +1079,18 @@ export default function PlanPage() {
                    <label htmlFor="plan-exp-amount" className="mb-1 block text-xs font-medium text-text-muted">
                      Amount ($)
                    </label>
-                   <Input id="plan-exp-amount" placeholder="3800.00" inputMode="decimal" value={expAmount} onChange={(e) => setExpAmount(e.target.value)} required />
+                   <Input
+                     id="plan-exp-amount"
+                     placeholder="3800.00"
+                     inputMode="decimal"
+                     value={expAmount}
+                     onChange={(e) => setExpAmount(e.target.value)}
+                     aria-invalid={!!expAmountError}
+                     required
+                   />
+                   {expAmountError && (
+                     <p role="alert" className="mt-1 text-xs text-danger">{expAmountError}</p>
+                   )}
                  </div>
                  <div>
                    <label htmlFor="plan-exp-saved" className="mb-1 block text-xs font-medium text-text-muted">
@@ -1150,7 +1211,7 @@ export default function PlanPage() {
                  )}
                 </div>
                 {expError && <p className="text-sm text-danger">{expError}</p>}
-                <Button type="submit" disabled={createExpense.isPending || !expName || !expAmount || (expSetAside && expMode === "days_of_month" && expDays.length === 0)}>
+                <Button type="submit" disabled={createExpense.isPending || !expName || !expAmount || !!expAmountError || (expSetAside && expMode === "days_of_month" && expDays.length === 0)}>
                  {createExpense.isPending ? "Adding…" : "Add expense"}
                 </Button>
                 </form>
