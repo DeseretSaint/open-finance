@@ -187,8 +187,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         className="flex min-h-dvh bg-background text-text md:h-dvh md:overflow-hidden"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-lg"
+          style={{ background: "var(--accent)", color: "var(--accent-foreground)" }}
+        >
+          Skip to content
+        </a>
         <Sidebar />
-        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-24 pt-4 md:p-8">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-24 pt-4 outline-none md:p-8"
+        >
           <header className="mb-4 flex items-center gap-3 md:mb-6">
             <span
               aria-hidden
