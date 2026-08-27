@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_THEME,
@@ -133,5 +135,50 @@ describe("theme store (single source of truth)", () => {
     expect(typeof setAccent).toBe("function");
     expect(typeof setDark).toBe("function");
     expect(typeof setDensity).toBe("function");
+  });
+});
+
+describe("pre-hydration replay blob (Gap B FOUC fix)", () => {
+  it("of-theme-css mirrors the exact values set on the DOM (preset accent, dark)", () => {
+    const storage = makeStorage();
+    const { style } = installDom(storage);
+    setAccent("#4F46E5");
+    setDark(true);
+    setDensity(0.92);
+    const blob = JSON.parse(storage.getItem("of-theme-css")!);
+    expect(blob.a).toBe(style.get("--accent"));
+    expect(blob.f).toBe(style.get("--accent-foreground"));
+    expect(blob.t).toBe(style.get("--accent-text"));
+    expect(blob.z).toBe(Number(style.get("zoom")));
+  });
+
+  it("of-theme-css mirrors the DOM for a custom mid-tone accent in light mode", () => {
+    const storage = makeStorage();
+    const { style } = installDom(storage);
+    setAccent("#7A8C5A"); // arbitrary custom hex → runtime contrast math
+    setDark(false);
+    const blob = JSON.parse(storage.getItem("of-theme-css")!);
+    expect(blob.a).toBe(style.get("--accent"));
+    expect(blob.f).toBe(style.get("--accent-foreground"));
+    expect(blob.t).toBe(style.get("--accent-text"));
+    expect(blob.z).toBe(Number(style.get("zoom")));
+  });
+
+  it("layout.tsx inline script replays the blob before first paint", () => {
+    // Source guard: the pre-hydration script must read of-theme-css and set
+    // all three accent vars + zoom from it (regex, same pattern as the
+    // offline-sw source guards).
+    const src = readFileSync(
+      join(__dirname, "..", "src", "app", "layout.tsx"),
+      "utf8",
+    );
+    expect(src).toContain("of-theme-css");
+    expect(src).toMatch(/setProperty\("--accent"/);
+    expect(src).toMatch(/setProperty\("--accent-foreground"/);
+    expect(src).toMatch(/setProperty\("--accent-text"/);
+    expect(src).toMatch(/setProperty\("zoom"/);
+    // Validation: only the three known densities may replay.
+    expect(src).toContain("0.92");
+    expect(src).toContain("0.84");
   });
 });

@@ -40,7 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var d=document.documentElement;var v=localStorage.getItem("of-dark");var m=localStorage.getItem("of-dark-v2");if(m==null){if(v==="0"){localStorage.setItem("of-dark","1");}localStorage.setItem("of-dark-v2","1");}var v3=localStorage.getItem("of-dark-v3");if(v3==null){if(localStorage.getItem("of-dark")==="0"){localStorage.setItem("of-dark","1");}localStorage.setItem("of-dark-v3","1");}if(localStorage.getItem("of-dark")!=="0")d.classList.add("dark");}catch(e){}})();`,
+            __html: `(function(){try{var d=document.documentElement;var v=localStorage.getItem("of-dark");var m=localStorage.getItem("of-dark-v2");if(m==null){if(v==="0"){localStorage.setItem("of-dark","1");}localStorage.setItem("of-dark-v2","1");}var v3=localStorage.getItem("of-dark-v3");if(v3==null){if(localStorage.getItem("of-dark")==="0"){localStorage.setItem("of-dark","1");}localStorage.setItem("of-dark-v3","1");}if(localStorage.getItem("of-dark")!=="0")d.classList.add("dark");var t=localStorage.getItem("of-theme-css");if(t){var j=JSON.parse(t);if(j&&typeof j.a==="string"&&typeof j.f==="string"&&typeof j.t==="string"&&(j.z===1||j.z===0.92||j.z===0.84)){d.style.setProperty("--accent",j.a);d.style.setProperty("--accent-foreground",j.f);d.style.setProperty("--accent-text",j.t);d.style.setProperty("zoom",String(j.z));}}}catch(e){}})();`,
           }}
         />
       </head>

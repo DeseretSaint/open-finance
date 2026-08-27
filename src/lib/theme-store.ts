@@ -109,11 +109,13 @@ export function applyTheme(): void {
   ensureLoaded();
   if (typeof document === "undefined") return;
   const root = document.documentElement;
+  const fg = accentForeground(state.accent);
+  const text = accentText(state.accent, state.dark);
   root.style.setProperty("--accent", state.accent);
   // WCAG AA: each accent carries its own verified foreground (white-on-accent
   // fails for the 6 light accents), plus a per-mode accent-as-text variant.
-  root.style.setProperty("--accent-foreground", accentForeground(state.accent));
-  root.style.setProperty("--accent-text", accentText(state.accent, state.dark));
+  root.style.setProperty("--accent-foreground", fg);
+  root.style.setProperty("--accent-text", text);
   root.classList.toggle("dark", state.dark);
   root.style.setProperty("zoom", String(state.density));
   if (hasWindow()) {
@@ -121,6 +123,15 @@ export function applyTheme(): void {
     storage.setItem("of-accent", state.accent);
     storage.setItem("of-dark", state.dark ? "1" : "0");
     storage.setItem("of-density", String(state.density));
+    // Pre-hydration replay blob: the inline script in app/layout.tsx applies
+    // these exact values before first paint so non-default users (custom
+    // accent and/or density != 1) don't FOUC the CSS defaults. Written from
+    // the same computed values just set on the DOM — the blob can never
+    // drift from the runtime contrast logic (no math duplicated inline).
+    storage.setItem(
+      "of-theme-css",
+      JSON.stringify({ a: state.accent, f: fg, t: text, z: state.density }),
+    );
   }
 }
 
