@@ -134,12 +134,11 @@ export function createBackupService(db: Db = getDb(), dbPathOverride?: string) {
     }
 
     // Swap the file: close any live handles → write → migrate via a temp connection → reopen.
-    const { resetDb } = await import("@/server/db/adapter");
     // Close the passed handle too if it's a real SqliteDb (production: same as singleton).
-    const maybeSqlite = db as unknown as { close?: () => void };
-    if (typeof maybeSqlite.close === "function") {
+    const { resetDb, SqliteDb } = await import("@/server/db/adapter");
+    if (db instanceof SqliteDb) {
       try {
-        maybeSqlite.close();
+        db.close();
       } catch {
         // already closed
       }
@@ -149,17 +148,23 @@ export function createBackupService(db: Db = getDb(), dbPathOverride?: string) {
     // Bring any older backup schema up to date (idempotent; no-op when current).
     const { createRequire } = await import("node:module");
     const require = createRequire(import.meta.url);
-    const Database = require("better-sqlite3") as new (p: string) => {
+    // CJS interop: require() returns `any`, so annotate the bindings (no assertion).
+    // better-sqlite3 exports its constructor; up.js's runMigrations only needs
+    // pragma/exec on the db it receives (extra members on the instance are fine).
+    const Database: new (p: string) => {
       pragma(s: string): void;
       exec(s: string): void;
       close(): void;
-    };
-    const { runMigrations } = require("../../../migrations/up.js") as {
-      runMigrations: (db: { pragma(s: string): void; exec(s: string): void }, dir?: string) => unknown;
-    };
+    } = require("better-sqlite3");
+    const { runMigrations }: {
+      runMigrations: (
+        db: { pragma(s: string): void; exec(s: string): void },
+        dir?: string
+      ) => { applied: number; current: number };
+    } = require("../../../migrations/up.js");
     const temp = new Database(p);
     try {
-      runMigrations(temp as Parameters<typeof runMigrations>[0]);
+      runMigrations(temp);
     } finally {
       temp.close();
     }

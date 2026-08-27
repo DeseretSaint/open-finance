@@ -102,6 +102,8 @@ async function deriveKey(pin: string, salt: Uint8Array, iterations: number): Pro
   const bits = await crypto.subtle.deriveBits(
     {
       name: "PBKDF2",
+      // SAFETY: salt is a freshly allocated Uint8Array (randomBytes(16)); its .buffer
+      // slice is exactly the 16 bytes we generated, an ArrayBuffer by construction.
       salt: salt.buffer.slice(salt.byteOffset, salt.byteOffset + salt.byteLength) as ArrayBuffer,
       iterations,
       hash: "SHA-256",
@@ -199,6 +201,9 @@ export function createSoloBackupService(db: Db) {
 
     let envelope: SoloBackupEnvelope;
     try {
+      // SAFETY: I/O parse boundary — `contents` is the untrusted upload. We cast to the
+      // nominal envelope, then validate magic/version/tables/kdf immediately below before
+      // any field is trusted.
       envelope = JSON.parse(contents) as SoloBackupEnvelope;
     } catch {
       throw apiErrors.badRequest("That file isn't an Open Finance phone backup.");
@@ -211,6 +216,9 @@ export function createSoloBackupService(db: Db) {
     const key = await deriveKey(pin, salt, envelope.kdf.iterations || KDF_ITERATIONS);
     let dump: Dump;
     try {
+      // SAFETY: payload is treated as untrusted — the decrypted dump is cast to Dump, then
+      // every field is re-validated below (typeof string checks, environment whitelist,
+      // Array.isArray + text()/integer() per row) before a single write happens.
       dump = JSON.parse(await decryptTables(envelope.tables, key)) as Dump;
     } catch {
       throw apiErrors.badRequest(
