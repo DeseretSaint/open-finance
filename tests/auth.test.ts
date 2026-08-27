@@ -170,6 +170,15 @@ describe("auth service", () => {
     await createSession(user.id, "30d", "dev", db);
     await db.run("INSERT INTO bills (id, user_id, name, amount_cents, frequency, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
       "b1", user.id, "Rent", 100000, "monthly", "2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z");
+    // category_learnings (run-40 table) must be purged too — it is user-scoped
+    // and was missing from the cascade, leaking a deleted user's merchant map.
+    await db.run("INSERT INTO categories (id, user_id, name, is_system, created_at) VALUES (?,?,?,?,?)",
+      "c1", user.id, "Groceries", 0, "2026-01-01T00:00:00Z");
+    await db.run("INSERT INTO category_learnings (user_id, merchant_key, category_id, count, created_at, updated_at) VALUES (?,?,?,?,?,?)",
+      user.id, "trader joes", "c1", 1, "2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z");
+    // agent_manual (run-19 table) is user-scoped by PRIMARY KEY and also leaked.
+    await db.run("INSERT INTO agent_manual (user_id, categorization, budgeting, general, updated_at) VALUES (?,?,?,?,?)",
+      user.id, "x", "y", "z", "2026-01-01T00:00:00Z");
     await auth().deleteUser(user.id);
     const u = await db.get("SELECT id FROM users WHERE id = ?", user.id);
     expect(u).toBeUndefined();
@@ -177,6 +186,10 @@ describe("auth service", () => {
     expect(bill).toBeUndefined();
     const s = await db.get("SELECT id FROM sessions WHERE user_id = ?", user.id);
     expect(s).toBeUndefined();
+    const learn = await db.get("SELECT user_id FROM category_learnings WHERE user_id = ?", user.id);
+    expect(learn).toBeUndefined();
+    const manual = await db.get("SELECT user_id FROM agent_manual WHERE user_id = ?", user.id);
+    expect(manual).toBeUndefined();
   });
 
   it("login is timing-safe: nonexistent user costs the same as a wrong password", async () => {

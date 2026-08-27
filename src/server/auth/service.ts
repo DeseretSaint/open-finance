@@ -235,7 +235,7 @@ export function createAuthService(db: Db = getDb()) {
         for (const table of [
           "plaid_credentials", "plaid_items", "accounts", "categories", "budgets", "bills",
           "debts", "goals", "agent_tokens", "custom_views", "sessions", "device_lock",
-          "user_settings",
+          "user_settings", "category_learnings", "agent_manual",
         ]) {
           await db.run(`DELETE FROM ${table} WHERE user_id = ?`, userId);
         }
