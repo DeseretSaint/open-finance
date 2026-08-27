@@ -535,6 +535,27 @@ export default function AgentsPage() {
   const tokensUnavailable = solo || agents.isError;
   const hasAgent = !tokensUnavailable && (agents.data?.agents.length ?? 0) > 0;
 
+  // Fetch failures must not masquerade as "no tokens / no requests" empty states —
+  // page-level sweep mirroring the dashboard/reports pattern (gated so a background
+  // refetch error never blanks already-rendered data).
+  const failedQueries = [agents, requests, audit, accounts, manual].filter((q) => q.isError && !q.data);
+  const firstFailedError = failedQueries[0]?.error ?? null;
+  const retryFailed = () => failedQueries.forEach((q) => q.refetch());
+  const retrying = failedQueries.some((q) => q.isFetching);
+  const failedBanner = failedQueries.length > 0 && (
+    <Card className="p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p role="alert" className="text-sm text-danger">
+          Couldn&apos;t load {failedQueries.length === 1 ? "agent data" : "some agent data"}
+          {firstFailedError instanceof Error && firstFailedError.message ? ` — ${firstFailedError.message}` : ""}.
+        </p>
+        <Button variant="secondary" size="sm" onClick={retryFailed} disabled={retrying}>
+          {retrying ? "Retrying…" : "Try again"}
+        </Button>
+      </div>
+    </Card>
+  );
+
   /* create form */
   const [name, setName] = useState("");
   const [preset, setPreset] = useState("read-only");
@@ -634,6 +655,7 @@ export default function AgentsPage() {
           </p>
         </div>
 
+        {failedBanner}
         <HermesSetupCard endpoint={endpoint} solo={solo} setMsg={setMsg} setErr={setErr} />
         {solo && <RemoteAccessCard />}
         <RemoteAgentBriefCard endpoint={endpoint} solo={solo} />
@@ -864,6 +886,7 @@ export default function AgentsPage() {
 
       {msg && <p role="status" className="text-sm font-medium text-success">{msg}</p>}
       {err && <p role="alert" className="text-sm text-danger">{err}</p>}
+      {failedBanner}
 
       <HermesSetupCard endpoint={endpoint} solo={solo} setMsg={setMsg} setErr={setErr} />
       <RemoteAgentBriefCard endpoint={endpoint} solo={solo} />
