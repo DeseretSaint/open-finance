@@ -76,8 +76,8 @@ importers:
         specifier: ^9.0.3
         version: 9.0.3
       plaid:
-        specifier: ^45.0.0
-        version: 45.0.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)
+        specifier: ^46.0.0
+        version: 46.0.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)
       react:
         specifier: 19.1.0
         version: 19.1.0
@@ -3267,8 +3267,8 @@ packages:
     resolution: {integrity: sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ==}
     engines: {node: '>=16.20.0'}
 
-  plaid@45.0.0:
-    resolution: {integrity: sha512-JuK7VKPEdH4muxic35ZyzjFA3Xc+DURkIE/O5A1QQGZfBzOgsQgYBovgGzd/+Z5Jl5dBTV43S9HQX3GSorymUw==}
+  plaid@46.0.0:
+    resolution: {integrity: sha512-MMLtie70amJjZdrislGohyG9hkm30X3tdPNUD/cC62kGXZsvOlc8N2hWeg2tJBG99iPRW6xxfL3HrJUkvVeHQg==}
     engines: {node: '>=10.0.0'}
 
   playwright-core@1.62.0:
@@ -7267,7 +7267,7 @@ snapshots:
 
   pkce-challenge@5.0.1: {}
 
-  plaid@45.0.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0):
+  plaid@46.0.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0):
     dependencies:
       axios: 1.19.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)
     transitivePeerDependencies:
