@@ -59,6 +59,24 @@ const SCOPE_GROUPS: Array<{ group: string; scopes: string[] }> = [
   { group: "Dev", scopes: ["dev:ui"] },
 ];
 
+/* Plain-language "what data does this scope grant" — shown on each pending
+   request so the human can make an informed Grant/Deny decision. */
+const SCOPE_INFO: Record<string, string> = {
+  "read:summary": "See your balance summary and net worth.",
+  "read:banking": "See your accounts and transactions.",
+  "read:investments": "See your investment holdings.",
+  "read:budgets": "See your budgets and spending.",
+  "read:planning": "See your bills, debts, and goals.",
+  "read:reports": "See your spending and cash-flow reports.",
+  "transactions:edit": "Add, edit, or categorize transactions.",
+  "budgets:write": "Create and change budgets.",
+  "planning:write": "Manage your bills, debts, and goals.",
+  "categories:write": "Manage your spending categories.",
+  "settings:write": "Change app settings.",
+  "sync:run": "Trigger bank and Plaid syncs.",
+  "dev:ui": "Build custom dashboard widgets.",
+};
+
 const PRESET_CARDS: Array<{ id: string; name: string; blurb: string; recommended?: boolean }> = [
   { id: "read-only", name: "Read-only", blurb: "See summary, banking, budgets. Cannot change anything.", recommended: true },
   { id: "read-all", name: "Read everything", blurb: "Also investments, planning, reports." },
@@ -974,8 +992,11 @@ export default function AgentsPage() {
                   <p className="text-sm text-text">
                     <span className="font-medium">{r.tokenName}</span> requested <Badge>{r.scope}</Badge>
                   </p>
-                  <p className="text-xs text-text-muted">
-                    {r.tool ?? "unknown tool"} · {new Date(r.created_at).toLocaleString()}
+                  <p className="text-xs text-text-muted mt-0.5">
+                    {SCOPE_INFO[r.scope] ?? "Additional access for this agent."}
+                  </p>
+                  <p className="text-xs text-text-muted mt-0.5">
+                    Wants to use: {r.tool ?? "unknown tool"} · asked {new Date(r.created_at).toLocaleString()}
                   </p>
                 </div>
                 <div className="flex gap-2">
