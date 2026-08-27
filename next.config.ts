@@ -7,6 +7,11 @@ const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "no-referrer" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+  // HSTS: app requires HTTPS for secure session cookies (isHttps gate), so pin
+  // it. No includeSubDomains/preload — keeps lockout risk low for self-hosters
+  // who mix http (LAN) + https (Tailscale) origins. Browsers ignore HSTS on
+  // plain-http responses, so localhost/LAN http is unaffected.
+  { key: "Strict-Transport-Security", value: "max-age=31536000" },
   {
     key: "Content-Security-Policy",
     value: [
