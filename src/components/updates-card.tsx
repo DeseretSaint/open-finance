@@ -232,8 +232,8 @@ export function UpdatesCard() {
         )}
       </div>
 
-      {msg && <p className="mt-3 text-sm text-emerald-600">{msg}</p>}
-      {err && <p className="mt-3 text-sm text-red-600">{err}</p>}
+      {msg && <p role="status" className="mt-3 text-sm text-emerald-600">{msg}</p>}
+      {err && <p role="alert" className="mt-3 text-sm text-red-600">{err}</p>}
       {installMsg && <p className="mt-3 text-sm text-text-muted">{installMsg}</p>}
     </Card>
   );

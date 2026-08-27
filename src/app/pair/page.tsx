@@ -191,8 +191,8 @@ function PairPage() {
         </div>
       )}
 
-      {msg && <p className="text-sm text-emerald-600">{msg}</p>}
-      {err && <p className="text-sm text-red-600">{err}</p>}
+      {msg && <p role="status" className="text-sm text-emerald-600">{msg}</p>}
+      {err && <p role="alert" className="text-sm text-red-600">{err}</p>}
     </div>
   );
 }

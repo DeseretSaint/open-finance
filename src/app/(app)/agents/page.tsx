@@ -683,8 +683,8 @@ export default function AgentsPage() {
                 Create a token
               </CardTitle>
               <p className="mt-1 text-sm text-text-muted">Tokens are the keys your agent presents to the app. Start read-only.</p>
-              {msg && <p className="mt-2 text-sm font-medium text-success">{msg}</p>}
-              {err && <p className="mt-2 text-sm text-danger">{err}</p>}
+              {msg && <p role="status" className="mt-2 text-sm font-medium text-success">{msg}</p>}
+              {err && <p role="alert" className="mt-2 text-sm text-danger">{err}</p>}
 
               <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 {PRESET_CARDS.map((p) => (
@@ -858,8 +858,8 @@ export default function AgentsPage() {
         </Button>
       </div>
 
-      {msg && <p className="text-sm font-medium text-success">{msg}</p>}
-      {err && <p className="text-sm text-danger">{err}</p>}
+      {msg && <p role="status" className="text-sm font-medium text-success">{msg}</p>}
+      {err && <p role="alert" className="text-sm text-danger">{err}</p>}
 
       <HermesSetupCard endpoint={endpoint} solo={solo} setMsg={setMsg} setErr={setErr} />
       <RemoteAgentBriefCard endpoint={endpoint} solo={solo} />
@@ -1157,7 +1157,7 @@ export default function AgentsPage() {
                   )}
                 </div>
               )}
-              {manualMsg && <p className="mt-2 text-sm font-medium text-success">{manualMsg}</p>}
+              {manualMsg && <p role="status" className="mt-2 text-sm font-medium text-success">{manualMsg}</p>}
             </>
           );
         })()}

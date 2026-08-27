@@ -442,8 +442,8 @@ export function OnboardingWizard() {
                   Nothing to do here — your account password covers desktop access.
                 </p>
               )}
-              {err && <p className="mt-3 text-sm text-danger">{err}</p>}
-              {msg && <p className="mt-3 text-sm text-success">{msg}</p>}
+              {err && <p role="alert" className="mt-3 text-sm text-danger">{err}</p>}
+              {msg && <p role="status" className="mt-3 text-sm text-success">{msg}</p>}
               <div className="mt-6 flex gap-3">
                 <Button
                   variant="secondary"
@@ -516,9 +516,9 @@ export function OnboardingWizard() {
                   ]}
                 />
               </div>
-              {err && <p className="mt-3 text-sm text-danger">{err}</p>}
-              {msg && <p className="mt-3 text-sm text-success">{msg}</p>}
-              {keysSaved && !msg && <p className="mt-3 text-sm text-success">Keys saved.</p>}
+              {err && <p role="alert" className="mt-3 text-sm text-danger">{err}</p>}
+              {msg && <p role="status" className="mt-3 text-sm text-success">{msg}</p>}
+              {keysSaved && !msg && <p role="status" className="mt-3 text-sm text-success">Keys saved.</p>}
               <div className="mt-6 flex gap-3">
                 <Button variant="secondary" onClick={() => setStep("bank")} className="flex-1">
                   Skip
@@ -547,9 +547,9 @@ export function OnboardingWizard() {
 
               {keysSaved && linkToken && <NativeOrWebLink token={linkToken} solo={solo} onSuccess={onLinkSuccess} />}
 
-              {linkedCount > 0 && <p className="mt-3 text-sm text-success">{linkedCount} connected.</p>}
-              {msg && !linkToken && <p className="mt-3 text-sm text-success">{msg}</p>}
-              {err && <p className="mt-3 text-sm text-danger">{err}</p>}
+              {linkedCount > 0 && <p role="status" className="mt-3 text-sm text-success">{linkedCount} connected.</p>}
+              {msg && !linkToken && <p role="status" className="mt-3 text-sm text-success">{msg}</p>}
+              {err && <p role="alert" className="mt-3 text-sm text-danger">{err}</p>}
 
               <div className="mt-6 flex gap-3">
                 <Button
@@ -855,7 +855,7 @@ export function OnboardingWizard() {
               <p className="mt-4 text-xs text-text-muted">
                 You can replay this tour anytime from Settings → &quot;Restart setup tour&quot;.
               </p>
-              {err && <p className="mt-3 text-sm text-danger">{err}</p>}
+              {err && <p role="alert" className="mt-3 text-sm text-danger">{err}</p>}
               <Button onClick={finish} disabled={busy} className="mt-6 w-full">
                 {busy ? "Entering…" : "Enter Open Finance"}
               </Button>
@@ -933,7 +933,7 @@ function NativeOrWebLink({
     return (
       <div className="mt-5">
         {webEl}
-        {err && <p className="mt-2 text-sm text-danger">{err}</p>}
+        {err && <p role="alert" className="mt-2 text-sm text-danger">{err}</p>}
       </div>
     );
 
@@ -942,7 +942,7 @@ function NativeOrWebLink({
       <Button onClick={nativeLaunch} disabled={linking} className="mt-5 w-full">
         {linking ? "Opening bank linking…" : "Connect a bank account"}
       </Button>
-      {err && <p className="mt-2 text-sm text-danger">{err}</p>}
+      {err && <p role="alert" className="mt-2 text-sm text-danger">{err}</p>}
     </>
   );
 }
