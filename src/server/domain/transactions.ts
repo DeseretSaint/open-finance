@@ -258,11 +258,17 @@ export function createTransactionsService(db: Db = getDb()) {
       }
       const placeholders = cleanIds.map(() => "?").join(", ");
       // Only touch transactions that still need review (Plaid-sourced, uncategorized).
-      // Ids are user-scoped by the caller (the review queue already filters to this user).
+      // Ids come straight from the request body, so the UPDATE must be scoped to
+      // this user's accounts — transactions carry no user_id of their own
+      // (ownership is via accounts). Without the subquery an authenticated user
+      // could pass another user's transaction ids and recategorize their rows.
       const res = await db.run(
-        `UPDATE transactions SET user_category_id = ? WHERE id IN (${placeholders}) AND user_category_id IS NULL AND source != 'manual'`,
+        `UPDATE transactions SET user_category_id = ?
+          WHERE id IN (${placeholders}) AND user_category_id IS NULL AND source != 'manual'
+            AND account_id IN (SELECT id FROM accounts WHERE user_id = ? AND deleted_at IS NULL)`,
         userCategoryId,
         ...cleanIds,
+        userId,
       );
       return res.changes ?? 0;
     },

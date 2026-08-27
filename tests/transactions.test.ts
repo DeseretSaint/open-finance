@@ -216,4 +216,37 @@ describe("transactions", () => {
     const after = await svc.list(user.id, { limit: 50, offset: 0 });
     expect(after.rows.find((r) => r.id === "pl-1")!.user_category_id).toBe("cat-1");
   });
+
+  it("batchCategorize never touches another user's transactions (IDOR guard)", async () => {
+    const db = createTestDb();
+    const alice = await seedUser(db, "alice");
+    const bob = await seedUser(db, "bob");
+    const aliceAcc = await seedManualAccount(db, alice.id);
+    const bobAcc = await seedManualAccount(db, bob.id);
+    const svc = createTransactionsService(db);
+    // Alice's reviewable Plaid row
+    await db.run(
+      `INSERT INTO transactions (id, account_id, plaid_transaction_id, amount_cents, date, name, source, created_at)
+       VALUES ('al-1', ?, 'plaid-al', -550, '2026-02-10', 'Alice Grocery', 'plaid', '2026-02-10T00:00:00.000Z')`,
+      aliceAcc
+    );
+    // Bob's reviewable Plaid row
+    await db.run(
+      `INSERT INTO transactions (id, account_id, plaid_transaction_id, amount_cents, date, name, source, created_at)
+       VALUES ('bo-1', ?, 'plaid-bo', -700, '2026-02-12', 'Bob Restaurant', 'plaid', '2026-02-12T00:00:00.000Z')`,
+      bobAcc
+    );
+    await db.run(`INSERT INTO categories (id, user_id, name, created_at) VALUES ('cat-b', ?, 'Food', '2026-01-01T00:00:00.000Z')`, bob.id);
+    // Bob tries to recategorize Alice's row (and his own) in one batch
+    const updated = await svc.batchCategorize(bob.id, ["al-1", "bo-1"], "cat-b");
+    expect(updated).toBe(1); // only his own row
+    const aliceRow = await db.get<{ user_category_id: string | null }>(
+      "SELECT user_category_id FROM transactions WHERE id = 'al-1'"
+    );
+    expect(aliceRow!.user_category_id).toBeNull(); // Alice's row untouched
+    const bobRow = await db.get<{ user_category_id: string | null }>(
+      "SELECT user_category_id FROM transactions WHERE id = 'bo-1'"
+    );
+    expect(bobRow!.user_category_id).toBe("cat-b");
+  });
 });
