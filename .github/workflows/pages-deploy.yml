@@ -1,0 +1,53 @@
+# GitHub Pages deploy of the browser-solo PWA (PAGES=1 static export).
+# Builds with PAGES_BASE_PATH=/open-finance and publishes dist/mobile to Pages.
+name: pages-deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      ENCRYPTION_KEY: build-time-dummy
+      AUTH_SECRET: build-time-dummy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build browser-solo export (Pages layout)
+        run: |
+          PAGES=1 PAGES_BASE_PATH=/open-finance node scripts/build-mobile.mjs
+      - name: SPA-ish fallback (404.html copy of index)
+        run: cp dist/mobile/index.html dist/mobile/404.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/mobile
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
