@@ -211,9 +211,11 @@ export function AgentWidgets({ tab }: { tab: "dashboard" | "budgets" | "reports"
     queryFn: () => api.get<{ views: CustomView[] }>(`/api/custom-views?tab=${tab}`),
     retry: false,
   });
+  const [err, setErr] = useState<string | null>(null);
   const remove = useMutation({
     mutationFn: (id: string) => api.del(`/api/custom-views/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["custom-views", tab] }),
+    onError: (e) => setErr(e instanceof Error ? e.message : "Failed to remove widget."),
   });
   const [confirming, setConfirming] = useState<string | null>(null);
 
@@ -229,9 +231,11 @@ export function AgentWidgets({ tab }: { tab: "dashboard" | "budgets" | "reports"
               <span className="flex items-center gap-1 text-xs">
                 <button
                   onClick={() => remove.mutate(v.id)}
-                  className="rounded-md bg-danger/10 px-2 py-1 font-medium text-danger"
+                  disabled={remove.isPending}
+                  aria-label={`Remove widget ${v.name}`}
+                  className="rounded-md bg-danger/10 px-2 py-1 font-medium text-danger disabled:opacity-60"
                 >
-                  Remove
+                  {remove.isPending ? "Removing…" : "Remove"}
                 </button>
                 <button onClick={() => setConfirming(null)} className="rounded-md px-2 py-1 text-text-muted">
                   Keep
@@ -245,6 +249,9 @@ export function AgentWidgets({ tab }: { tab: "dashboard" | "budgets" | "reports"
               >
                 <X size={14} aria-hidden />
               </button>
+            )}
+            {err && confirming && (
+              <span className="ml-2 self-center text-danger">{err}</span>
             )}
           </div>
           <WidgetBody w={v.widget} />

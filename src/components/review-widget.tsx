@@ -36,6 +36,7 @@ export function ReviewWidget() {
   const [bulkCategory, setBulkCategory] = useState<string>("");
   const [perRow, setPerRow] = useState<Record<string, string>>({});
   const [done, setDone] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   const review = useQuery({
     queryKey: ["review-queue"],
@@ -67,8 +68,10 @@ export function ReviewWidget() {
       setDone(true);
       setBulkCategory("");
       setPerRow({});
+      setErr(null);
       setTimeout(() => setDone(false), 2500);
     },
+    onError: (e) => setErr(e instanceof Error ? e.message : "Failed to categorize."),
   });
 
   const count = review.data?.total ?? list.length;
@@ -135,6 +138,7 @@ export function ReviewWidget() {
             ))}
           </div>
           {done && <p className="text-xs font-medium text-success">Saved. Refreshed your review queue.</p>}
+          {err && <p className="text-xs font-medium text-danger" role="alert">{err}</p>}
         </div>
       )}
     </Card>
