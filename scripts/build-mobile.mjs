@@ -72,6 +72,8 @@ try {
     throw new Error(`dist/mobile/index.html missing — export failed?`);
   }
   console.log(`✅ mobile export ready at ${path.relative(root, out)}`);
+  // Serwist cannot emit sw.js under turbopack — compile it separately.
+  execSync("node scripts/build-sw.mjs", { cwd: root, stdio: "inherit" });
 } finally {
   restoreApi();
 }
