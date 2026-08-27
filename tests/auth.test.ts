@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
 import Database from "better-sqlite3";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createDb, SqliteDb } from "@/server/db/adapter";
 import { createAuthService } from "@/server/auth/service";
 import { createSession, getSessionFromToken } from "@/server/auth/sessions";
@@ -225,6 +225,29 @@ describe("rate limiter", () => {
     // window still active; simulate expiry by resetting
     limiter.reset("k");
     expect(limiter.check("k").ok).toBe(true);
+  });
+
+  it("stays bounded under many distinct keys (prunes expired buckets)", async () => {
+    vi.useFakeTimers();
+    try {
+      const { createRateLimiter } = await import("@/lib/rate-limit");
+      const limiter = createRateLimiter({ windowMs: 10_000, max: 3 });
+      // Far more distinct keys than the internal cap (>1000) — each must stay ok
+      // and the buckets Map must be swept (not grow without limit).
+      for (let i = 0; i < 1500; i++) expect(limiter.check(`ip-${i}`).ok).toBe(true);
+      // A repeated key still enforces the max.
+      expect(limiter.check("hot").ok).toBe(true);
+      expect(limiter.check("hot").ok).toBe(true);
+      expect(limiter.check("hot").ok).toBe(true);
+      expect(limiter.check("hot").ok).toBe(false);
+      // Advance past the window: the production prune path (size > cap) must
+      // reclaim the 1500+ expired buckets so a re-check starts fresh.
+      vi.advanceTimersByTime(11_000);
+      expect(limiter.check("hot").ok).toBe(true);
+      expect(limiter.check("ip-1").ok).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -11,10 +11,16 @@ export interface RateLimitResult {
   retryAfterMs: number;
 }
 
+/** Hard cap on tracked keys per limiter instance. When exceeded we sweep
+ *  expired buckets; this bounds memory for a long-running server (a key is
+ *  otherwise only reclaimed when check() is re-invoked for that exact key). */
+const MAX_BUCKETS = 1000;
+
 export function createRateLimiter(opts: { windowMs: number; max: number }) {
   const buckets = new Map<string, Bucket>();
 
   function check(key: string): RateLimitResult {
+    if (buckets.size > MAX_BUCKETS) prune();
     const now = Date.now();
     const b = buckets.get(key);
     if (!b || b.resetAt <= now) {
