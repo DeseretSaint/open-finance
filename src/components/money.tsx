@@ -10,7 +10,7 @@ import { formatCents, formatCentsSigned } from "@/server/domain/money";
  */
 export function Money({ cents, currency = "USD", signed = false }: { cents: number; currency?: string; signed?: boolean }) {
   const text = signed ? formatCentsSigned(cents, currency) : formatCents(cents, currency);
-  const cls = !signed ? (cents < 0 ? "text-danger" : undefined) : undefined;
+  const cls = !signed ? (cents < 0 ? "money text-danger" : "money") : "money";
   return (
     <span data-money className={cls}>
       {text}
