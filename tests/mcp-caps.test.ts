@@ -95,6 +95,34 @@ describe("MCP transport enforces user Settings caps", () => {
     await client.close();
   });
 
+  it("every dispatch-side tool is scope-gated (regression for list_uncategorized_transactions bypass)", async () => {
+    const db = getSqliteDb();
+    const user = await seedUser(db, "mcp-caps-uncat");
+    // Narrow token: only read:budgets — NOT read:banking/read:investments.
+    const { token } = await createAgentTokenService(db).create(user.id, {
+      name: "budget-only-token",
+      preset: "custom",
+      scopes: ["read:budgets"],
+    });
+    await createAgentPrefsService(db).update(user.id, { tabs: ["budgets"], tabsWrite: [] });
+
+    const client = await connectMcp(token);
+
+    // Before the fix, list_uncategorized_transactions was absent from the
+    // MCP_TOOLS registry, so scopesFor() returned [] and ANY token could call
+    // it scope-free. Now it requires read:banking/read:investments.
+    const denied = await client.callTool({ name: "list_uncategorized_transactions", arguments: {} });
+    expect(denied.isError).toBe(true);
+    const deniedText = (denied.content as Array<{ text?: string }> | undefined)?.[0]?.text ?? "";
+    expect(deniedText).toContain("insufficient_scope");
+
+    // And it stays hidden from tools/list for this narrow token.
+    const listed = await client.listTools();
+    expect(listed.tools.map((t) => t.name)).not.toContain("list_uncategorized_transactions");
+
+    await client.close();
+  });
+
   it("a follow_settings token tracks the user's caps in both directions", async () => {
     const db = getSqliteDb();
     const user = await seedUser(db, "mcp-caps-3");

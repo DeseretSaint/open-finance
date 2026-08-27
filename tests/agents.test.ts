@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
 import { createAgentTokenService, ALL_SCOPES, PRESETS } from "@/server/authz/tokens";
 import { AGENT_ROUTES, MCP_TOOLS, scopesWithRoutes } from "@/server/authz/route-registry";
 import { createPermissionService } from "@/server/authz/permission-requests";
@@ -95,6 +97,31 @@ describe("route registry completeness (J.5)", () => {
   it("presets resolve to real scopes", () => {
     for (const scopes of Object.values(PRESETS)) {
       for (const s of scopes) expect(ALL_SCOPES).toContain(s);
+    }
+  });
+});
+
+describe("MCP dispatch/registry parity (no scope-free tool)", () => {
+  it("every tool defined in mcp/server.ts TOOLS is registered in MCP_TOOLS with a non-empty scope", () => {
+    const server = fs.readFileSync(
+      path.join(process.cwd(), "src/server/mcp/server.ts"),
+      "utf8"
+    );
+    // Pull the names declared in the dispatch-side TOOLS array.
+    const start = server.indexOf("const TOOLS: ToolDef[]");
+    const end = server.indexOf("async function requireScopes", start);
+    const block = server.slice(start, end);
+    const dispatchNames = [...block.matchAll(/name: "([^"]+)"/g)].map((m) => m[1]);
+    expect(dispatchNames.length).toBeGreaterThan(0);
+
+    for (const name of dispatchNames) {
+      const entry = MCP_TOOLS.find((t) => t.tool === name);
+      expect(entry, `dispatch tool "${name}" is missing from MCP_TOOLS (scope-free bypass)`).toBeDefined();
+      // get_capabilities / read_agent_manual are intentionally scope-free; all
+      // other dispatch tools MUST carry a scope so they cannot be called by any token.
+      if (name !== "get_capabilities" && name !== "read_agent_manual") {
+        expect(entry!.scopes.length, `dispatch tool "${name}" has no scope`).toBeGreaterThan(0);
+      }
     }
   });
 });

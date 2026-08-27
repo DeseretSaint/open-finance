@@ -107,6 +107,7 @@ export const MCP_TOOLS: McpToolEntry[] = [
   { tool: "list_transactions", scopes: ["read:banking", "read:investments"], endpoint: "/api/transactions" },
   { tool: "search_transactions", scopes: ["read:banking", "read:investments"], endpoint: "/api/transactions" },
   { tool: "get_transaction", scopes: ["read:banking", "read:investments"], endpoint: "/api/transactions/:id" },
+  { tool: "list_uncategorized_transactions", scopes: ["read:banking", "read:investments"], endpoint: "/api/transactions" },
   { tool: "get_spending_by_category", scopes: ["read:reports"], endpoint: "/api/reports/spending-by-category" },
   { tool: "get_cashflow", scopes: ["read:reports"], endpoint: "/api/reports/cashflow" },
   { tool: "get_net_worth", scopes: ["read:reports"], endpoint: "/api/reports/net-worth" },
