@@ -171,10 +171,10 @@ export default function TransactionsPage() {
         let failed = 0;
         for (const it of items.items) {
           const label = it.institution_name ?? it.accounts?.[0]?.name ?? "Bank";
+          // SAFETY: null is assignable to string|null; the assertion just fixes the literal's inferred type.
           const r = await api.post<{ ok: boolean; added: number; oldestDate: string | null; error?: string | null }>(
             "/api/plaid/resync",
             { itemId: it.id }
-          // SAFETY: null is assignable to string|null; the assertion just fixes the literal's inferred type.
           ).catch(() => ({ ok: false, added: 0, oldestDate: null as string | null, error: "request failed" }));
           if (r.ok) {
             totalAdded += r.added;
