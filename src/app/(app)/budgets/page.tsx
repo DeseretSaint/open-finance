@@ -207,6 +207,15 @@ export default function BudgetsPage() {
     setCategoryIds((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));
   }
 
+  // Inline guard so a non-numeric / zero / negative amount is caught before it
+  // round-trips to the server (which rejects with a generic 400). Server stays
+  // authoritative for the final int().positive() check.
+  const amountNum = Number(amount);
+  const amountError =
+    amount !== "" && (!Number.isFinite(amountNum) || amountNum <= 0)
+      ? "Enter an amount greater than 0"
+      : null;
+
   return (
     <div className="space-y-6">
       {/* Widgets your AI added (dev:ui) */}
@@ -492,7 +501,11 @@ export default function BudgetsPage() {
                   inputMode="decimal"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
+                  aria-invalid={!!amountError}
                 />
+                {amountError && (
+                  <p role="alert" className="mt-1 text-xs text-danger">{amountError}</p>
+                )}
               </div>
               <div>
                 <label id="budget-period-label" className="mb-1 block text-xs font-medium text-text-muted">
@@ -534,7 +547,7 @@ export default function BudgetsPage() {
                   {error}
                 </p>
               )}
-              <Button type="submit" disabled={create.isPending || !name || !amount}>
+              <Button type="submit" disabled={create.isPending || !name || !amount || !!amountError}>
                 {create.isPending ? "Creating…" : "Create budget"}
               </Button>
             </form>
