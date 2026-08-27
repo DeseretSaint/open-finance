@@ -377,17 +377,14 @@ function RemoteAccessCard() {
       setNativeReady(false);
       throw new Error("This build has no native remote server — install the APK release.");
     }
-    // SAFETY: RemoteServer global exists only in native APK builds; absent on web, optional chaining guards the read.
-    const w = window as unknown as { RemoteServer?: { start?: (o: { port: number }) => Promise<unknown> } };
+    const w = window;
     await (w.RemoteServer?.start ?? (async () => {
       throw new Error("Remote server plugin not available on this build.");
     }))({ port: 8787 });
     setNativeReady(true);
   }
   async function stopRemoteServer() {
-    // SAFETY: RemoteServer global exists only in native APK builds; absent on web, optional chaining guards the read.
-    const w = window as unknown as { RemoteServer?: { stop?: () => Promise<unknown> } };
-    if (w.RemoteServer?.stop) await w.RemoteServer.stop();
+    if (window.RemoteServer?.stop) await window.RemoteServer.stop();
   }
 
   async function enable() {

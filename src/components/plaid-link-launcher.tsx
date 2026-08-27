@@ -28,8 +28,7 @@ export function PlaidLinkLauncher({ token, onSuccess, onExit }: Props) {
   const [useWebLink, setUseWebLink] = useState(false);
   useEffect(() => {
     if (!hasWindow()) return;
-    // SAFETY: window.Capacitor is absent on web/non-native; optional chaining guards the read.
-    const cap = (window as unknown as { Capacitor?: { getPlatform?: () => string } }).Capacitor;
+    const cap = window.Capacitor;
     if (cap?.getPlatform?.() === "ios") setUseWebLink(true);
   }, []);
 

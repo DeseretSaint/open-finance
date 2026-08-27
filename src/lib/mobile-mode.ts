@@ -21,21 +21,12 @@ export type MobileMode = "solo" | "connected";
 
 import { hasWindow } from "@/lib/browser-env";
 
-interface NativeRuntime {
-  Capacitor?: { isNativePlatform?: () => boolean };
-  Keystore?: {
-    getHubUrl: (opts: Record<string, never>) => Promise<{ url: string | null }>;
-  };
-}
-
-function nativeRuntime(): NativeRuntime {
-  // SAFETY: globalThis carries the native runtime globals (Capacitor/Keystore) injected by the bridge.
-  const g = globalThis as unknown as NativeRuntime;
-  if (g?.Capacitor || g?.Keystore) return g;
-  if (hasWindow())
-    // SAFETY: window also receives the native globals on the webview; cast to NativeRuntime.
-    return window as unknown as NativeRuntime;
-  return {};
+function nativeRuntime(): { Capacitor?: typeof globalThis.Capacitor; Keystore?: typeof globalThis.Keystore } {
+  // Native bridge globals are declared in src/lib/native-globals.d.ts, so
+  // globalThis.Capacitor / window.Capacitor are typed — no assertions needed.
+  if (globalThis.Capacitor || globalThis.Keystore) return globalThis;
+  if (hasWindow() && (window.Capacitor || window.Keystore)) return window;
+  return { Capacitor: undefined, Keystore: undefined };
 }
 
 export function isNativePlatform(): boolean {
@@ -47,9 +38,10 @@ export function isNativePlatform(): boolean {
 export async function getStoredHubUrl(): Promise<string | null> {
   const rt = nativeRuntime();
   if (isNativePlatform()) {
-    if (!rt.Keystore) return null;
+    const ks = rt.Keystore;
+    if (!ks) return null;
     try {
-      const { url } = await rt.Keystore.getHubUrl({});
+      const { url } = await ks.getHubUrl({});
       return url || null;
     } catch {
       return null;

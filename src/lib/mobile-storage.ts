@@ -12,18 +12,17 @@ type KeystorePlugin = {
   getSessionToken: () => Promise<{ token: string | null }>;
   clearSessionToken: () => Promise<{ ok: boolean }>;
   setHubUrl: (opts: { url: string }) => Promise<{ ok: boolean }>;
-  getHubUrl: () => Promise<{ url: string | null }>;
+  getHubUrl: (opts?: Record<string, never>) => Promise<{ url: string | null }>;
 };
 
 import { hasWindow } from "@/lib/browser-env";
 
 function plugin(): KeystorePlugin | null {
   if (!hasWindow()) return null;
-  // SAFETY: window is the only handle to the Capacitor bridge on native; cast to read its shape.
-  const cap = (window as unknown as { Capacitor?: { isNativePlatform: () => boolean } }).Capacitor;
+  // Native bridge globals are declared in src/lib/native-globals.d.ts.
+  const cap = window.Capacitor;
   if (!cap?.isNativePlatform?.()) return null;
-  // SAFETY: Keystore is a dynamically-registered native plugin; read it off window as our interface.
-  const p = (window as unknown as Record<string, unknown>).Keystore as KeystorePlugin | undefined;
+  const p = window.Keystore as KeystorePlugin | undefined;
   return p ?? null;
 }
 

@@ -35,8 +35,7 @@ export function DeviceLockGate({ children }: { children: React.ReactNode }) {
   const [bioBusy, setBioBusy] = useState(false);
 
   useEffect(() => {
-    // SAFETY: window.Capacitor is undefined on web; optional chaining guards the read.
-    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    const cap = window.Capacitor;
     setIsMobile(!!cap?.isNativePlatform?.());
   }, []);
 

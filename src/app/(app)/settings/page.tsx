@@ -684,8 +684,7 @@ function NotificationsSecurityCard({ setMsg, setErr }: { setMsg: (s: string | nu
   });
 
   useEffect(() => {
-    // SAFETY: window.Capacitor is undefined on web; optional chaining guards the read.
-    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    const cap = window.Capacitor;
     setIsMobile(!!cap?.isNativePlatform?.());
     if (cap?.isNativePlatform?.()) {
       import("@/lib/biometric")

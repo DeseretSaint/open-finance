@@ -21,20 +21,13 @@ interface UpdateStatus {
 }
 
 function isNativeApp(): boolean {
-  // SAFETY: window hosts the Capacitor bridge on native; read isNativePlatform off it.
-  return hasWindow() && !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.();
+  // Native bridge globals are declared in src/lib/native-globals.d.ts.
+  return hasWindow() && !!window.Capacitor?.isNativePlatform?.();
 }
 
 function updaterPlugin() {
-  // SAFETY: window hosts the native Updater plugin; read it as a loose record.
-  const w = window as unknown as {
-    Updater?: {
-      downloadAndInstall?: (o: { url: string; sha256?: string | null; fileName?: string }) => Promise<unknown>;
-      canInstallUnknownApps?: () => Promise<{ canInstall: boolean }>;
-      openInstallSettings?: () => Promise<unknown>;
-    };
-  };
-  return w.Updater ?? null;
+  // Native bridge globals are declared in src/lib/native-globals.d.ts.
+  return window.Updater ?? null;
 }
 
 /**

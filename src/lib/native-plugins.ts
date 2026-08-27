@@ -16,19 +16,18 @@ import { hasWindow } from "@/lib/browser-env";
 
 export function ensureNativePlugins(): void {
   if (!hasWindow()) return;
-  // SAFETY: window hosts dynamically-registered native plugins; read it as a loose record.
-  const w = window as unknown as Record<string, unknown>;
-  // SAFETY: Capacitor.registerPlugin is the native bridge entry point; read it off the window record.
-  const cap = (w as { Capacitor?: { registerPlugin?: (name: string) => unknown } }).Capacitor;
+  // Native bridge globals are declared in src/lib/native-globals.d.ts — no
+  // casts needed; all handles are optional (absent on plain web/PWA).
+  const cap = window.Capacitor;
   if (!cap?.registerPlugin) return; // plain web / PWA — no native bridge
-  if (!w.PlaidProxy) w.PlaidProxy = cap.registerPlugin("PlaidProxy");
-  if (!w.Keystore) w.Keystore = cap.registerPlugin("Keystore");
-  if (!w.RemoteServer) w.RemoteServer = cap.registerPlugin("RemoteServer");
-  if (!w.Updater) w.Updater = cap.registerPlugin("Updater");
+  if (!window.PlaidProxy) window.PlaidProxy = cap.registerPlugin("PlaidProxy");
+  if (!window.Keystore) window.Keystore = cap.registerPlugin<OfKeystorePlugin>("Keystore");
+  if (!window.RemoteServer) window.RemoteServer = cap.registerPlugin<OfRemoteServerPlugin>("RemoteServer");
+  if (!window.Updater) window.Updater = cap.registerPlugin<OfUpdaterPlugin>("Updater");
   // Remote-agent bridge: the native HTTP server calls this with the parsed
   // request; we dispatch it through the same solo router the webview uses.
-  if (!w.__ofRemoteDispatch) {
-    w.__ofRemoteDispatch = async (req: { method: string; path: string; query: string; body: unknown; headers?: Record<string, string> }) => {
+  if (!window.__ofRemoteDispatch) {
+    window.__ofRemoteDispatch = async (req: OfRemoteDispatchRequest) => {
       const { soloDispatch } = await import("@/lib/solo-router");
       const url = new URL(req.path + (req.query ? `?${req.query}` : ""), "http://solo.local");
       return soloDispatch({
@@ -49,11 +48,8 @@ export function ensureNativePlugins(): void {
  */
 export async function getRemoteServerStatus(): Promise<{ available: boolean; listening: boolean }> {
   if (!hasWindow()) return { available: false, listening: false };
-  // SAFETY: window hosts the native RemoteServer plugin with an optional status probe.
-  const w = window as unknown as {
-    RemoteServer?: { start?: unknown; status?: () => Promise<{ running: boolean } | null> };
-  };
-  const plugin = w.RemoteServer;
+  // Native bridge globals are declared in src/lib/native-globals.d.ts.
+  const plugin = window.RemoteServer;
   if (!plugin?.status) return { available: false, listening: false };
   try {
     const s = await plugin.status();

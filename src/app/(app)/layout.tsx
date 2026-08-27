@@ -82,17 +82,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // survive app restarts, not just the toggle moment. No-op on plain web.
   useEffect(() => {
     if (!data || onboarding.data?.completed === false || !hasWindow()) return;
-    // SAFETY: window.Capacitor is undefined on web; optional chaining guards the read.
-    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    const cap = window.Capacitor;
     if (!cap?.isNativePlatform?.()) return;
     let cancelled = false;
     (async () => {
       try {
         const remote = await api.get<{ enabled: boolean; port: number }>("/api/agent/remote");
         if (cancelled || !remote.enabled) return;
-        // SAFETY: RemoteServer global exists only in native APK builds; absent on web, optional chaining guards the read.
-        const w = window as unknown as { RemoteServer?: { start?: (o: { port: number }) => Promise<unknown>; status?: () => Promise<{ running: boolean }> } };
-        const plugin = w.RemoteServer;
+        const plugin = window.RemoteServer;
         if (!plugin?.start) return;
         // Always call start() — it is idempotent and re-registers the native
         // dispatcher, which is a static and is nulled if the process was killed
@@ -113,8 +110,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!data || onboarding.data?.completed === false) return;
     if (!hasWindow()) return;
-    // SAFETY: window.Capacitor is undefined on web; optional chaining guards the read.
-    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    const cap = window.Capacitor;
     if (!cap?.isNativePlatform?.()) return;
     let cancelled = false;
     (async () => {

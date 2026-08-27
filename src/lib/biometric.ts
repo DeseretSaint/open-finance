@@ -17,11 +17,31 @@ export interface BiometricAvailability {
   type: "fingerprint" | "face" | "iris" | "none";
 }
 
+/**
+ * The native plugin returns the BiometryType enum ORDINAL (0 none, 1 touchId,
+ * 2 faceId, 3 fingerprintAuthentication, 4 faceAuthentication, 5 iris), not a
+ * string — so it must be mapped, never coerced. A bare `as` would leave a
+ * number in the UI ("Unlock with your 3").
+ */
+function biometryTypeLabel(value: unknown): BiometricAvailability["type"] {
+  switch (value) {
+    case 1: // touchId (iOS)
+    case 3: // fingerprintAuthentication (Android)
+      return "fingerprint";
+    case 2: // faceId (iOS)
+    case 4: // faceAuthentication (Android)
+      return "face";
+    case 5: // irisAuthentication
+      return "iris";
+    default:
+      return "none";
+  }
+}
+
 function nativeAvailable(): boolean {
   if (!hasWindow()) return false;
-  // SAFETY: window is the only handle to the Capacitor bridge on native; cast to read its shape.
-  const cap = (window as unknown as { Capacitor?: { isNativePlatform: () => boolean } }).Capacitor;
-  return !!cap?.isNativePlatform?.();
+  // Native bridge globals are declared in src/lib/native-globals.d.ts.
+  return !!window.Capacitor?.isNativePlatform?.();
 }
 
 export async function checkBiometricAvailability(): Promise<BiometricAvailability> {
@@ -31,8 +51,7 @@ export async function checkBiometricAvailability(): Promise<BiometricAvailabilit
     return {
       available: r.isAvailable,
       strong: r.strongBiometryIsAvailable,
-      // SAFETY: native biometryType is a free-form string; coerce to our closed union, defaulting to "none".
-      type: (r.biometryType as unknown as BiometricAvailability["type"]) ?? "none",
+      type: biometryTypeLabel(r.biometryType),
     };
   } catch {
     return { available: false, strong: false, type: "none" };

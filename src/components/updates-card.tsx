@@ -23,8 +23,8 @@ interface UpdateStatus {
 }
 
 function isNativeApp(): boolean {
-  // SAFETY: window.Capacitor is undefined on web; optional chaining guards the read.
-  return hasWindow() && !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.();
+  // Native bridge globals are declared in src/lib/native-globals.d.ts.
+  return hasWindow() && !!window.Capacitor?.isNativePlatform?.();
 }
 
 /** Settings → Updates: check, update now, schedule, stop-notifying, and the
@@ -41,15 +41,8 @@ export function UpdatesCard() {
   const [installMsg, setInstallMsg] = useState<string | null>(null);
 
   function updaterPlugin() {
-    // SAFETY: the Updater global exists only in the native APK build; absent on web, optional chaining guards the read.
-    const w = window as unknown as {
-      Updater?: {
-        downloadAndInstall?: (o: { url: string; sha256?: string | null; fileName?: string }) => Promise<unknown>;
-        canInstallUnknownApps?: () => Promise<{ canInstall: boolean }>;
-        openInstallSettings?: () => Promise<unknown>;
-      };
-    };
-    return w.Updater ?? null;
+    // Native bridge globals are declared in src/lib/native-globals.d.ts.
+    return window.Updater ?? null;
   }
 
   /** Native in-app update: grant install permission once, then download+install. */
