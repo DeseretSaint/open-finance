@@ -163,6 +163,15 @@ export default function ReportsPage() {
       return api.get<{ netWorth: { assetsCents: number; liabilitiesCents: number; netCents: number } }>(`/api/reports/net-worth${qs ? `?${qs}` : ""}`);
     },
   });
+  const netWorthTrend = useQuery({
+    queryKey: ["reports", "net-worth-trend", includeExcluded],
+    queryFn: () => {
+      // Balance-history points are sync-time snapshots; no includePending param.
+      return api.get<{ trend: Array<{ date: string; netCents: number; assetsCents: number; liabilitiesCents: number }> }>(
+        `/api/reports/net-worth/trend?months=6${includeExcluded ? "&includeExcluded=1" : ""}`
+      );
+    },
+  });
   const projection = useQuery({
     queryKey: ["planning", "projection", includePending],
     queryFn: () => api.get<Projection>(`/api/planning/projection?months=12${includePending ? "" : "&includePending=0"}`),
@@ -185,6 +194,14 @@ export default function ReportsPage() {
     Balance: Math.round(p.balanceCents / 100),
   }));
   const hasProjection = projData.length > 0;
+
+  const trendData = (netWorthTrend.data?.trend ?? []).map((r) => ({
+    date: r.date,
+    Net: r.netCents / 100,
+    Assets: r.assetsCents / 100,
+    Liabilities: r.liabilitiesCents / 100,
+  }));
+  const hasTrend = trendData.length > 0;
 
   const s = monthSummary.data?.summary;
   const isCurrentMonth = monthOffset === 0;
@@ -409,6 +426,46 @@ export default function ReportsPage() {
           </p>
         </Card>
       </div>
+
+      {/* Net worth trend — daily balance history */}
+      <Card>
+        <CardTitle>Net worth trend — last 6 months</CardTitle>
+        {!hasTrend ? (
+          <ChartEmpty>No balance history yet — sync a bank or add an account to start tracking.</ChartEmpty>
+        ) : (
+          <div className="mt-4 h-56 sm:h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={trendData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fill: "var(--text-muted)", fontSize: 12 }}
+                  tickFormatter={(d: string) => new Date(`${d}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  minTickGap={48}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  tick={{ fill: "var(--text-muted)", fontSize: 12 }}
+                  tickFormatter={(v: number) => `$${v}`}
+                  tickLine={false}
+                  axisLine={false}
+                  width={60}
+                />
+                <Tooltip
+                  formatter={(value) => `$${Number(value).toFixed(2)}`}
+                  contentStyle={TOOLTIP_STYLE}
+                  wrapperStyle={{ pointerEvents: "none" }}
+                />
+                <Legend wrapperStyle={{ fontSize: 12, color: "var(--text-muted)" }} />
+                <Line type="monotone" dataKey="Net" stroke="var(--accent)" strokeWidth={2.5} dot={false} />
+                <Line type="monotone" dataKey="Assets" stroke="var(--success)" strokeWidth={2.5} dot={false} />
+                <Line type="monotone" dataKey="Liabilities" stroke="var(--danger)" strokeWidth={2.5} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }
