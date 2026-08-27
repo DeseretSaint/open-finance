@@ -5,6 +5,31 @@ import { createCategoriesService } from "@/server/domain/categories";
 import { dedupeName } from "@/server/domain/txn-dedupe";
 
 /**
+ * Hard cap on an uploaded CSV body (25 MB). A bank statement export is at most
+ * a few MB of text; the cap exists so a hostile or misconfigured upload cannot
+ * exhaust server memory — the route buffers the whole JSON body into RAM via
+ * req.json() before parsing. Mirrors the backup-restore size cap (run 81).
+ */
+export const MAX_CSV_BYTES = 25 * 1024 * 1024;
+
+/**
+ * Reject oversized CSV uploads BEFORE buffering the JSON body into RAM
+ * (declared Content-Length header; the string length is re-checked after parse
+ * for chunked/lying headers). Either exceeding MAX_CSV_BYTES throws 413. A
+ * non-numeric Content-Length is ignored here (the length check after parsing
+ * still applies).
+ */
+export function assertCsvSize(declaredContentLength: string | null, bodyLength: number | null): void {
+  const declared = declaredContentLength === null ? NaN : Number(declaredContentLength);
+  if (
+    (Number.isFinite(declared) && declared > MAX_CSV_BYTES) ||
+    (bodyLength !== null && bodyLength > MAX_CSV_BYTES)
+  ) {
+    throw apiErrors.payloadTooLarge("CSV file is too large (limit 25 MB).");
+  }
+}
+
+/**
  * Bank-CSV transaction import. Handles the common bank statement export
  * formats (Capital One, America First, generic "Date, Description, Amount",
  * or a debit/credit pair). Rows are deduped against existing transactions on
