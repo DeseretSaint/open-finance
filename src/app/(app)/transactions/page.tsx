@@ -62,6 +62,7 @@ export default function TransactionsPage() {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [accountId, setAccountId] = useState("");
+  const [categoryId, setCategoryId] = useState("");
   const [pendingOnly, setPendingOnly] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -76,9 +77,10 @@ export default function TransactionsPage() {
     const p = new URLSearchParams({ limit: String(limit) });
     if (q.trim()) p.set("q", q.trim());
     if (accountId) p.set("accountId", accountId);
+    if (categoryId) p.set("categoryId", categoryId);
     if (pendingOnly) p.set("pending", "1");
     return p.toString();
-  }, [q, accountId, pendingOnly, limit]);
+  }, [q, accountId, categoryId, pendingOnly, limit]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["transactions", params],
@@ -307,6 +309,15 @@ export default function TransactionsPage() {
               onChange={setAccountId}
               placeholder="All accounts"
               options={(accounts.data?.accounts ?? []).map((a) => ({ value: a.id, label: a.name }))}
+            />
+          </div>
+          <div className="min-w-40">
+            <CustomSelect
+              ariaLabel="Filter by category"
+              value={categoryId}
+              onChange={setCategoryId}
+              placeholder="All categories"
+              options={(categories.data?.categories ?? []).map((c) => ({ value: c.id, label: c.name }))}
             />
           </div>
           <button
@@ -691,7 +702,7 @@ export default function TransactionsPage() {
           <RowSkeleton />
         ) : data.rows.length === 0 ? (
           <div className="px-6 py-12 text-center">
-            {q || accountId || pendingOnly ? (
+            {q || accountId || categoryId || pendingOnly ? (
               <>
                 <p className="text-sm text-text-muted">No transactions match your filters.</p>
                 <button
@@ -699,6 +710,7 @@ export default function TransactionsPage() {
                   onClick={() => {
                     setQ("");
                     setAccountId("");
+                    setCategoryId("");
                     setPendingOnly(false);
                   }}
                 >
