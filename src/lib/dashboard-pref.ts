@@ -26,6 +26,7 @@ export const DEFAULT_DASHBOARD_LAYOUT: DashboardLayout = {
 };
 
 function isWidgetId(v: unknown): v is DashboardWidgetId {
+  // SAFETY: DASHBOARD_WIDGET_IDS is the source of truth; read as string[] to test membership.
   return typeof v === "string" && (DASHBOARD_WIDGET_IDS as readonly string[]).includes(v);
 }
 
@@ -40,6 +41,7 @@ export function normalizeDashboardLayout(value: unknown): DashboardLayout {
     hidden: [...DEFAULT_DASHBOARD_LAYOUT.hidden],
   });
   if (typeof value !== "object" || value === null) return fallback();
+  // SAFETY: value is unknown from localStorage; treat as a loose object and validate fields below.
   const raw = value as { order?: unknown; hidden?: unknown };
   if (!Array.isArray(raw.order) || !Array.isArray(raw.hidden)) return fallback();
 

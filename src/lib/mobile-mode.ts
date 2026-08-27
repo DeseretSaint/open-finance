@@ -27,9 +27,12 @@ interface NativeRuntime {
 }
 
 function nativeRuntime(): NativeRuntime {
+  // SAFETY: globalThis carries the native runtime globals (Capacitor/Keystore) injected by the bridge.
   const g = globalThis as unknown as NativeRuntime;
   if (g?.Capacitor || g?.Keystore) return g;
-  if (typeof window !== "undefined") return window as unknown as NativeRuntime;
+  if (typeof window !== "undefined")
+    // SAFETY: window also receives the native globals on the webview; cast to NativeRuntime.
+    return window as unknown as NativeRuntime;
   return {};
 }
 

@@ -96,6 +96,7 @@ const PRESET_TEXT_DARK: Record<Accent, string> = {
  * better of white/near-black is ≥ sqrt(19.7) ≈ 4.44, and the pure-black
  * fallback covers the mid-tone edge (product of ratios = 21 → ≥ 4.58). */
 export function accentForeground(accent: string): string {
+  // SAFETY: accent arrives as an arbitrary string; table lookup is keyed only by Accent presets.
   const preset = PRESET_FOREGROUNDS[accent as Accent];
   if (preset) return preset;
   const rw = contrastRatio("#ffffff", accent);
@@ -108,6 +109,7 @@ export function accentForeground(accent: string): string {
  * use the verified table; custom colors are nudged toward black (light) or
  * white (dark) in 5% steps until they clear AA. */
 export function accentText(accent: string, dark: boolean): string {
+  // SAFETY: accent arrives as an arbitrary string; dark/light text tables keyed only by Accent presets.
   const preset = dark ? PRESET_TEXT_DARK[accent as Accent] : PRESET_TEXT_LIGHT[accent as Accent];
   if (preset) return preset;
   const bg = dark ? DARK_TEXT_BG : LIGHT_TEXT_BG;

@@ -17,8 +17,10 @@ type KeystorePlugin = {
 
 function plugin(): KeystorePlugin | null {
   if (typeof window === "undefined") return null;
+  // SAFETY: window is the only handle to the Capacitor bridge on native; cast to read its shape.
   const cap = (window as unknown as { Capacitor?: { isNativePlatform: () => boolean } }).Capacitor;
   if (!cap?.isNativePlatform?.()) return null;
+  // SAFETY: Keystore is a dynamically-registered native plugin; read it off window as our interface.
   const p = (window as unknown as Record<string, unknown>).Keystore as KeystorePlugin | undefined;
   return p ?? null;
 }

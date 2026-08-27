@@ -24,6 +24,7 @@ async function soloFetch(path: string, init: RequestInit): Promise<Response> {
     method: init.method ?? "GET",
     path: url.pathname,
     query: url.searchParams,
+    // SAFETY: body was JSON.stringify'd before dispatch; parse back to unknown for the solo router.
     body:
       init.body && typeof init.body === "string"
         ? (JSON.parse(init.body) as unknown)
@@ -42,6 +43,7 @@ export async function apiFetch<T = unknown>(
   path: string,
   init: Omit<RequestInit, "body"> & { body?: unknown } = {}
 ): Promise<T> {
+  // SAFETY: init.headers is typed Omit<RequestInit,"body">&{body?:unknown}; values are string-keyed.
   const headers: Record<string, string> = {
     ...(init.headers as Record<string, string> | undefined),
   };
@@ -58,7 +60,9 @@ export async function apiFetch<T = unknown>(
   const useSolo =
     typeof window !== "undefined" && isSoloCandidate(window.location.origin) && path.startsWith("/api/");
 
+  // SAFETY: body is BodyInit|undefined; narrow to string|undefined for the solo bridge.
   const bodyStr = body as string | undefined;
+  // SAFETY: soloDispatch takes a plain object; cast the RequestInit-shaped argument.
   const res = useSolo
     ? await soloFetch(path, { ...init, headers, body: bodyStr } as RequestInit)
     : await fetch(path, {
@@ -79,12 +83,15 @@ export async function apiFetch<T = unknown>(
   const data = contentType.includes("application/json") ? await res.json() : null;
 
   if (!res.ok) {
+    // SAFETY: non-JSON/empty responses leave data=null; the error shape exists only on failure.
     const code = (data as { error?: { code?: string; message?: string } })?.error?.code ?? "error";
+    // SAFETY: same failure-shape narrowing as the code lookup above.
     const message =
       (data as { error?: { code?: string; message?: string } })?.error?.message ??
       `Request failed (${res.status}).`;
     throw new ApiClientError(res.status, code, message);
   }
+  // SAFETY: data is unknown; callers supply T and the endpoint contract guarantees the shape.
   return data as T;
 }
 

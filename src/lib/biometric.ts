@@ -17,6 +17,7 @@ export interface BiometricAvailability {
 
 function nativeAvailable(): boolean {
   if (typeof window === "undefined") return false;
+  // SAFETY: window is the only handle to the Capacitor bridge on native; cast to read its shape.
   const cap = (window as unknown as { Capacitor?: { isNativePlatform: () => boolean } }).Capacitor;
   return !!cap?.isNativePlatform?.();
 }
@@ -28,6 +29,7 @@ export async function checkBiometricAvailability(): Promise<BiometricAvailabilit
     return {
       available: r.isAvailable,
       strong: r.strongBiometryIsAvailable,
+      // SAFETY: native biometryType is a free-form string; coerce to our closed union, defaulting to "none".
       type: (r.biometryType as unknown as BiometricAvailability["type"]) ?? "none",
     };
   } catch {

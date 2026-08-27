@@ -20,10 +20,12 @@ interface UpdateStatus {
 }
 
 function isNativeApp(): boolean {
+  // SAFETY: window hosts the Capacitor bridge on native; read isNativePlatform off it.
   return typeof window !== "undefined" && !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.();
 }
 
 function updaterPlugin() {
+  // SAFETY: window hosts the native Updater plugin; read it as a loose record.
   const w = window as unknown as {
     Updater?: {
       downloadAndInstall?: (o: { url: string; sha256?: string | null; fileName?: string }) => Promise<unknown>;

@@ -14,7 +14,9 @@
  */
 export function ensureNativePlugins(): void {
   if (typeof window === "undefined") return;
+  // SAFETY: window hosts dynamically-registered native plugins; read it as a loose record.
   const w = window as unknown as Record<string, unknown>;
+  // SAFETY: Capacitor.registerPlugin is the native bridge entry point; read it off the window record.
   const cap = (w as { Capacitor?: { registerPlugin?: (name: string) => unknown } }).Capacitor;
   if (!cap?.registerPlugin) return; // plain web / PWA — no native bridge
   if (!w.PlaidProxy) w.PlaidProxy = cap.registerPlugin("PlaidProxy");
@@ -45,6 +47,7 @@ export function ensureNativePlugins(): void {
  */
 export async function getRemoteServerStatus(): Promise<{ available: boolean; listening: boolean }> {
   if (typeof window === "undefined") return { available: false, listening: false };
+  // SAFETY: window hosts the native RemoteServer plugin with an optional status probe.
   const w = window as unknown as {
     RemoteServer?: { start?: unknown; status?: () => Promise<{ running: boolean } | null> };
   };
