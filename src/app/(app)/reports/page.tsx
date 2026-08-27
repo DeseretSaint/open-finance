@@ -216,8 +216,8 @@ export default function ReportsPage() {
       <Card>
         <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-border bg-surface-muted px-3 py-2">
           <div>
-            <p className="text-sm font-medium text-text">Removed-account history</p>
-            <p className="text-xs text-text-muted">{includeExcluded ? "Included in these report totals." : "Excluded from these report totals by default."}</p>
+            <p className="text-sm font-medium text-text">Include deleted accounts</p>
+            <p className="text-xs text-text-muted">{includeExcluded ? "Included in these report totals." : "Deleted accounts are excluded from these report totals by default."}</p>
           </div>
           <Button size="sm" variant={includeExcluded ? "primary" : "secondary"} onClick={() => toggleExcluded(!includeExcluded)}>
             {includeExcluded ? "Exclude" : "Include"}

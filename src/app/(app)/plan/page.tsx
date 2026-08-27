@@ -610,7 +610,7 @@ export default function PlanPage() {
         {projection.data && (
           <p className="mt-2 text-xs text-text-muted">
             Emergency fund: <Money cents={projection.data.emergencyFund.recommendedCents} /> recommended (
-            {projection.data.emergencyFund.monthsCovered ?? "—"} months covered). <em>Estimate — all things constant.</em>
+            {projection.data.emergencyFund.monthsCovered ?? "—"} months covered). <em>Estimate — assumes income and expenses stay the same.</em>
           </p>
         )}
         <div className="mt-4 h-56">
