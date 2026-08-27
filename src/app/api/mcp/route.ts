@@ -18,6 +18,31 @@ export const dynamic = "force-dynamic";
 
 const transports = new Map<string, WebStandardStreamableHTTPServerTransport>();
 
+/**
+ * Hard cap on concurrent MCP sessions. The Map is keyed by session id, and a
+ * caller can mint a fresh id on every request (no header → random UUID; a
+ * client-supplied header is honored verbatim), so without a bound a stream of
+ * requests would grow the Map — each entry holds a transport + MCP server —
+ * without limit in the long-running server process. Oldest sessions evict
+ * first (Map preserves insertion order); an evicted client simply
+ * re-initializes.
+ */
+const MAX_MCP_SESSIONS = 128;
+
+function evictOldestSessions(): void {
+  while (transports.size > MAX_MCP_SESSIONS) {
+    const oldest = transports.keys().next().value;
+    if (oldest === undefined) break;
+    const transport = transports.get(oldest);
+    transports.delete(oldest);
+    try {
+      void transport?.close();
+    } catch {
+      /* best effort */
+    }
+  }
+}
+
 function getTransport(sid: string, getAuth: () => Promise<McpAuth>): WebStandardStreamableHTTPServerTransport {
   let transport = transports.get(sid);
   if (!transport) {
@@ -28,11 +53,19 @@ function getTransport(sid: string, getAuth: () => Promise<McpAuth>): WebStandard
         transports.set(sessionId, transport!);
       },
     });
+    // Clean the Map entry whenever the transport closes for any reason
+    // (client DELETE, SDK-driven close, eviction) so dead sessions can't
+    // accumulate.
+    const boundSid = sid;
+    transport.onclose = () => {
+      transports.delete(boundSid);
+    };
     const server = createOpenFinanceMcpServer(getAuth);
     // connect() starts the transport's message pump; fire-and-forget is fine
     // here because handleRequest awaits the transport internally.
     void server.connect(transport);
     transports.set(sid, transport);
+    evictOldestSessions();
   }
   return transport;
 }
@@ -97,4 +130,9 @@ export async function DELETE(req: NextRequest) {
     transports.delete(sid);
   }
   return NextResponse.json({ ok: true });
+}
+
+/** Test-only: current live MCP session count (the Map is module-private). */
+export function __mcpTransportCountForTest(): number {
+  return transports.size;
 }
