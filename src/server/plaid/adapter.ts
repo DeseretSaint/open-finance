@@ -69,5 +69,9 @@ export interface PlaidClient {
     end: string
   ): Promise<PlaidTransaction[]>;
   removeItem(creds: PlaidCreds, accessToken: string): Promise<void>;
-  testCredentials(creds: PlaidCreds): Promise<{ ok: boolean; message?: string }>;
+  testCredentials(creds: PlaidCreds): Promise<PlaidTestResult>;
 }
+
+/** Result of validating Plaid credentials: ok=true when the keys work,
+ *  otherwise a user-facing explanation of what went wrong. */
+export type PlaidTestResult = { ok: boolean; message?: string };
