@@ -139,6 +139,7 @@ export default function TransactionsPage() {
     mutationFn: ({ id, exclude }: { id: string; exclude: boolean }) =>
       api.patch(`/api/transactions/${id}`, { excludeFromBudgets: exclude }),
     onSuccess: invalidate,
+    onError: (e) => setError(e instanceof Error ? e.message : "Failed to update exclude flag."),
   });
 
   const remove = useMutation({

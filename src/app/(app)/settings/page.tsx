@@ -85,6 +85,7 @@ export default function SettingsPage() {
   const revoke = useMutation({
     mutationFn: (id: string) => api.del(`/api/auth/sessions/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["sessions"] }),
+    onError: (e) => setErr(e instanceof Error ? e.message : "Failed to revoke session."),
   });
   const logoutAll = useMutation({
     mutationFn: () => api.post("/api/auth/logout-all"),
@@ -92,6 +93,7 @@ export default function SettingsPage() {
       setConfirmLogoutAll(false);
       window.location.href = "/login";
     },
+    onError: (e) => setErr(e instanceof Error ? e.message : "Failed to log out all devices."),
   });
 
   // plaid
@@ -1021,6 +1023,7 @@ function AgentWiringCard({ setMsg, setErr }: { setMsg: (s: string | null) => voi
       auditEnabled?: boolean;
     }) => api.put("/api/agent/prefs", patch),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["agent-prefs"] }),
+    onError: (e) => setErr(e instanceof Error ? e.message : "Failed to save agent preference."),
   });
 
   // "Apply — start categorizing now": runs the app-side categorizer over the
