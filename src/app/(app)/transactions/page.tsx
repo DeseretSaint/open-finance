@@ -6,7 +6,7 @@ import { useEscapeToClose } from "@/lib/use-escape-to-close";
 import { useDialogA11y } from "@/lib/use-dialog-a11y";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search, X, Trash2, ChevronDown, RefreshCw, Upload } from "lucide-react";
+import { Search, X, Trash2, Pencil, ChevronDown, RefreshCw, Upload } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -75,6 +75,23 @@ export default function TransactionsPage() {
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [limit, setLimit] = useState(200);
 
+  // Manual-transaction edit modal (name/amount/date). Bank-imported rows are
+  // owned by the source and shouldn't be hand-edited, so only `source==="manual"`
+  // rows get the Edit affordance — the PATCH endpoint already accepts these fields.
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editDate, setEditDate] = useState(new Date().toISOString().slice(0, 10));
+  const editNum = Number(editAmount);
+  const editAmountError =
+    editAmount !== "" && (!Number.isFinite(editNum) || editNum === 0)
+      ? !Number.isFinite(editNum)
+        ? "Enter a valid number."
+        : "Amount cannot be zero."
+      : null;
+  useEscapeToClose(() => { if (!edit.isPending) setEditId(null); }, editId !== null);
+  const editDialogA11yRef = useDialogA11y(editId !== null);
+
   // Debounce the search term so we don't fire a /api/transactions query on every
   // keystroke — the input stays responsive (driven by `q`) but the query only
   // runs once the user pauses typing.
@@ -127,6 +144,27 @@ export default function TransactionsPage() {
   const remove = useMutation({
     mutationFn: (id: string) => api.del(`/api/transactions/${id}`),
     onSuccess: invalidate,
+  });
+
+  // Manual-row edit (name/amount/date) — PATCH /api/transactions/:id already
+  // accepts exactly these fields; the server stays authoritative for the int +
+  // non-zero amount checks. Only manual rows get the affordance (bank rows are
+  // source-owned and would be clobbered on the next sync).
+  const edit = useMutation({
+    mutationFn: () =>
+      api.patch(`/api/transactions/${editId}`, {
+        name: editName,
+        amountCents: Math.round(editNum * 100),
+        date: editDate,
+      }),
+    onSuccess: () => {
+      setEditId(null);
+      setEditName("");
+      setEditAmount("");
+      setError(null);
+      invalidate();
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : "Update failed."),
   });
 
   // Manual refresh: pull posted + pending transactions straight from the bank.
@@ -575,6 +613,86 @@ export default function TransactionsPage() {
         </div>
       )}
 
+      {/* Edit-transaction modal — manual rows only (name/amount/date). */}
+      {editId !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm md:items-center md:p-6"
+          onClick={() => !edit.isPending && setEditId(null)}
+          style={{ paddingBottom: kbdHeight > 0 ? `${kbdHeight}px` : undefined }}
+        >
+          <div
+            ref={editDialogA11yRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Edit transaction"
+            onClick={(e) => e.stopPropagation()}
+            className="flex w-full max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-t-3xl border border-border bg-surface shadow-2xl md:max-h-[calc(100dvh-3rem)] md:max-w-lg md:rounded-3xl"
+            style={{
+              maxHeight: `calc(100dvh - ${kbdHeight}px - 1rem)`,
+              paddingBottom: "env(safe-area-inset-bottom)",
+            }}
+          >
+            <div className="overflow-y-auto p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border md:hidden" />
+            <div className="mb-4 flex items-center justify-between">
+              <CardTitle>Edit transaction</CardTitle>
+              <button
+                aria-label="Close"
+                onClick={() => !edit.isPending && setEditId(null)}
+                className="flex h-9 w-9 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-muted hover:text-text"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form
+              className="flex flex-col gap-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                edit.mutate();
+              }}
+            >
+              <div>
+                <label htmlFor="edit-name" className="mb-1 block text-xs font-medium text-text-muted">
+                  Name
+                </label>
+                <Input id="edit-name" value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus />
+              </div>
+              <div>
+                <label htmlFor="edit-amount" className="mb-1 block text-xs font-medium text-text-muted">
+                  Amount ($)
+                </label>
+                <Input
+                  id="edit-amount"
+                  inputMode="decimal"
+                  value={editAmount}
+                  onChange={(e) => setEditAmount(e.target.value)}
+                  aria-invalid={!!editAmountError}
+                />
+                {editAmountError && (
+                  <p role="alert" className="mt-1 text-xs text-danger">{editAmountError}</p>
+                )}
+              </div>
+              <div>
+                <label htmlFor="edit-date" className="mb-1 block text-xs font-medium text-text-muted">
+                  Date
+                </label>
+                <CustomDatePicker ariaLabel="Transaction date" value={editDate} onChange={setEditDate} max={new Date().toISOString().slice(0, 10)} />
+              </div>
+              <p className="text-xs text-text-muted">Expenses are negative, income is positive.</p>
+              {error && (
+                <p role="alert" className="rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-sm text-danger">
+                  {error}
+                </p>
+              )}
+              <Button type="submit" disabled={edit.isPending || !editName || !editAmount || !!editAmountError}>
+                {edit.isPending ? "Saving…" : "Save changes"}
+              </Button>
+            </form>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* CSV import modal — the built-in path for older history that banks
           won't serve through Plaid (~90-day caps). User picks the account,
           uploads the bank's CSV, and we parse/dedupe/insert. */}
@@ -885,6 +1003,23 @@ export default function TransactionsPage() {
                         options={(categories.data?.categories ?? []).map((c) => ({ value: c.id, label: c.name }))}
                       />
                       <div className="flex-1" />
+                      {t.source === "manual" && (
+                        <button
+                          aria-label={`Edit ${t.name}`}
+                          title="Edit transaction"
+                          onClick={() => {
+                            setError(null);
+                            setEditId(t.id);
+                            setEditName(t.name);
+                            setEditAmount((t.amount_cents / 100).toFixed(2));
+                            setEditDate(t.date);
+                          }}
+                          className="flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-text-muted transition-colors hover:bg-surface-muted hover:text-text"
+                        >
+                          <Pencil size={14} />
+                          Edit
+                        </button>
+                      )}
                       {t.source === "manual" && (
                         <button
                           aria-label={`Delete ${t.name}`}
