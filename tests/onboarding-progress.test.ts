@@ -28,4 +28,26 @@ describe("onboarding wizard progress indicator", () => {
   it("hides the indicator on welcome and done (idx === -1 guard)", () => {
     expect(src).toContain("if (idx === -1) return null;");
   });
+
+  it("defines a prevStep helper for back navigation", () => {
+    expect(src).toContain("function prevStep(s: Step): Step {");
+  });
+
+  it("renders a Back button on every numbered step (5 total, none on welcome/done)", () => {
+    const backCount = (src.match(/← Back/g) || []).length;
+    expect(backCount).toBe(5);
+    // Each footer wires Back to prevStep.
+    expect((src.match(/onClick=\{\(\) => setStep\(prevStep\(step\)\)\}/g) || []).length).toBe(5);
+  });
+
+  it("bank step advances via one conditional button (no duplicate Continue + Done linking)", () => {
+    // Bug fixed: the bank footer previously rendered a sibling secondary "Continue"
+    // button AND a conditional primary "Done linking"/"Skip" button at once. Now a
+    // single ternary renders one advance button.
+    expect(src).not.toContain('{keysSaved ? "Continue" : "Continue"}');
+    expect(src).not.toContain('variant="secondary" onClick={() => setStep("agent")}');
+    expect(src).toMatch(
+      /\{keysSaved \? \(\s*<Button onClick=\{\(\) => setStep\("agent"\)\}[\s\S]*?\) : \(\s*<Button onClick=\{\(\) => setStep\("agent"\)\}/
+    );
+  });
 });

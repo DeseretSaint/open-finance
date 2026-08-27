@@ -34,6 +34,12 @@ type Step = "welcome" | "paydays" | "security" | "plaid" | "bank" | "agent" | "d
 /** Numbered setup steps between welcome and done — drives the progress dots. */
 const WIZARD_STEPS: Step[] = ["paydays", "security", "plaid", "bank", "agent"];
 
+/** Previous numbered step, or the same step if already first (for Back buttons). */
+function prevStep(s: Step): Step {
+  const i = WIZARD_STEPS.indexOf(s);
+  return i > 0 ? WIZARD_STEPS[i - 1] : s;
+}
+
 /** Calm progress dots for the numbered steps; hidden on welcome/done. */
 function StepProgress({ step }: { step: Step }) {
   const idx = WIZARD_STEPS.indexOf(step);
@@ -406,6 +412,9 @@ export function OnboardingWizard() {
                 )}
               </div>
               <div className="mt-6 flex gap-3">
+                <Button variant="ghost" onClick={() => setStep(prevStep(step))} className="px-3" disabled={busy}>
+                  ← Back
+                </Button>
                 <Button
                   variant="secondary"
                   onClick={async () => {
@@ -480,6 +489,9 @@ export function OnboardingWizard() {
               {err && <p role="alert" className="mt-3 text-sm text-danger">{err}</p>}
               {msg && <p role="status" className="mt-3 text-sm text-success">{msg}</p>}
               <div className="mt-6 flex gap-3">
+                <Button variant="ghost" onClick={() => setStep(prevStep(step))} className="px-3" disabled={busy || (solo && !pinSaved)}>
+                  ← Back
+                </Button>
                 <Button
                   variant="secondary"
                   onClick={() => setStep("plaid")}
@@ -555,6 +567,9 @@ export function OnboardingWizard() {
               {msg && <p role="status" className="mt-3 text-sm text-success">{msg}</p>}
               {keysSaved && !msg && <p role="status" className="mt-3 text-sm text-success">Keys saved.</p>}
               <div className="mt-6 flex gap-3">
+                <Button variant="ghost" onClick={() => setStep(prevStep(step))} className="px-3" disabled={busy}>
+                  ← Back
+                </Button>
                 <Button variant="secondary" onClick={() => setStep("bank")} className="flex-1">
                   Skip
                 </Button>
@@ -587,17 +602,16 @@ export function OnboardingWizard() {
               {err && <p role="alert" className="mt-3 text-sm text-danger">{err}</p>}
 
               <div className="mt-6 flex gap-3">
-                <Button
-                  variant="secondary"
-                  onClick={() => setStep("agent")}
-                  className="flex-1"
-                  disabled={busy}
-                >
-                  {keysSaved ? "Continue" : "Continue"}
+                <Button variant="ghost" onClick={() => setStep(prevStep(step))} className="px-3" disabled={busy}>
+                  ← Back
                 </Button>
-                {keysSaved && (
+                {keysSaved ? (
                   <Button onClick={() => setStep("agent")} className="flex-1" disabled={busy}>
                     {linkedCount > 0 ? "Done linking" : "Skip"}
+                  </Button>
+                ) : (
+                  <Button onClick={() => setStep("agent")} className="flex-1" disabled={busy}>
+                    Continue
                   </Button>
                 )}
               </div>
@@ -859,6 +873,9 @@ export function OnboardingWizard() {
               </div>
 
               <div className="mt-6 flex gap-3">
+                <Button variant="ghost" onClick={() => setStep(prevStep(step))} className="px-3" disabled={busy}>
+                  ← Back
+                </Button>
                 <Button variant="secondary" onClick={() => setStep("done")} className="flex-1">
                   No thanks
                 </Button>
