@@ -77,7 +77,7 @@ function jsonType(schema: z.ZodType): string {
   if (schema instanceof z.ZodArray) return "array";
   if (schema instanceof z.ZodEnum) return "string";
   if (schema instanceof z.ZodOptional || schema instanceof z.ZodDefault) {
-    // zod v4 stores the inner type on `_innerType`; fall back to `_def.innerType`.
+    // SAFETY: read-only access to zod's internal wrapper metadata (_innerType in zod v4, _def.innerType in v3) to derive the JSON Schema type of an optional/default field; falls back to "string" when absent.
     const inner =
       (schema as unknown as { _innerType?: z.ZodType })._innerType ??
       (schema as unknown as { _def?: { innerType?: z.ZodType } })._def?.innerType;
@@ -143,6 +143,7 @@ const TOOLS: ToolDef[] = [
     inputSchema: jsonSchema({ since: z.number().int().min(0).optional() }),
     parse: () => z.object({ since: z.number().int().min(0).optional() }),
     run: async (auth, args) => {
+      // SAFETY: args is the zod-validated output of tool.parse().safeParse() at the MCP dispatch boundary; this cast restates the validated shape.
       const { since } = args as { since?: number };
       const manual = await createAgentManualService(getDb()).get(auth.userId);
       if (since !== undefined && since === manual.version) {
@@ -168,6 +169,7 @@ const TOOLS: ToolDef[] = [
     inputSchema: jsonSchema({ limit: z.number().int().min(1).max(200).optional() }),
     parse: () => z.object({ limit: z.number().int().min(1).max(200).optional() }),
     run: async (auth, args) => {
+      // SAFETY: args is the zod-validated output of tool.parse().safeParse() at the MCP dispatch boundary; this cast restates the validated shape.
       const { limit } = args as { limit?: number };
       const { rows } = await createTransactionsService(getDb()).list(auth.userId, {
         limit: limit ?? 50,
@@ -183,6 +185,7 @@ const TOOLS: ToolDef[] = [
     inputSchema: jsonSchema({ q: z.string().min(1), limit: z.number().int().min(1).max(200).optional() }),
     parse: () => z.object({ q: z.string().min(1), limit: z.number().int().min(1).max(200).optional() }),
     run: async (auth, args) => {
+      // SAFETY: args is the zod-validated output of tool.parse().safeParse() at the MCP dispatch boundary; this cast restates the validated shape.
       const { q, limit } = args as { q: string; limit?: number };
       const { rows } = await createTransactionsService(getDb()).list(auth.userId, {
         q,
@@ -199,6 +202,7 @@ const TOOLS: ToolDef[] = [
     inputSchema: jsonSchema({ transactionId: z.string().min(1) }),
     parse: () => z.object({ transactionId: z.string().min(1) }),
     run: async (auth, args) => {
+      // SAFETY: args is the zod-validated output of tool.parse().safeParse() at the MCP dispatch boundary; this cast restates the validated shape.
       const { transactionId } = args as { transactionId: string };
       const transaction = await createTransactionsService(getDb()).get(auth.userId, transactionId);
       return { transaction };
@@ -219,6 +223,7 @@ const TOOLS: ToolDef[] = [
     }),
     parse: () => z.object({ limit: z.number().int().min(1).max(200).optional(), includeGeneric: z.boolean().optional() }),
     run: async (auth, args) => {
+      // SAFETY: args is the zod-validated output of tool.parse().safeParse() at the MCP dispatch boundary; this cast restates the validated shape.
       const { limit, includeGeneric } = args as { limit?: number; includeGeneric?: boolean };
       const prefs = await createAgentPrefsService(getDb()).get(auth.userId);
       // Smart categorization is gated on its own toggle (P25): even with
@@ -311,6 +316,7 @@ const TOOLS: ToolDef[] = [
     inputSchema: jsonSchema({ from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
     parse: () => z.object({ from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
     run: async (auth, args) => {
+      // SAFETY: args is the zod-validated output of tool.parse().safeParse() at the MCP dispatch boundary; this cast restates the validated shape.
       const { from, to } = args as { from: string; to: string };
       const rows = await createReportsService(getDb()).spendingByCategory(auth.userId, from, to);
       return { rows };
@@ -322,6 +328,7 @@ const TOOLS: ToolDef[] = [
     inputSchema: jsonSchema({ months: z.number().int().min(1).max(36).optional() }),
     parse: () => z.object({ months: z.number().int().min(1).max(36).optional() }),
     run: async (auth, args) => {
+      // SAFETY: args is the zod-validated output of tool.parse().safeParse() at the MCP dispatch boundary; this cast restates the validated shape.
       const { months } = args as { months?: number };
       const rows = await createReportsService(getDb()).cashflow(auth.userId, months ?? 6);
       return { rows };
@@ -343,6 +350,7 @@ const TOOLS: ToolDef[] = [
     inputSchema: jsonSchema({ transactionId: z.string(), categoryId: z.string().nullable() }),
     parse: () => z.object({ transactionId: z.string(), categoryId: z.string().nullable() }),
     run: async (auth, args) => {
+      // SAFETY: args is the zod-validated output of tool.parse().safeParse() at the MCP dispatch boundary; this cast restates the validated shape.
       const { transactionId, categoryId } = args as { transactionId: string; categoryId: string | null };
       const transaction = await createTransactionsService(getDb()).update(auth.userId, transactionId, {
         userCategoryId: categoryId,
@@ -360,6 +368,7 @@ const TOOLS: ToolDef[] = [
     }),
     parse: () => z.object({ name: z.string().min(1), amountCents: money, categoryIds: z.array(z.string()).optional() }),
     run: async (auth, args) => {
+      // SAFETY: args is the zod-validated output of tool.parse().safeParse() at the MCP dispatch boundary; this cast restates the validated shape.
       const { name, amountCents, categoryIds } = args as { name: string; amountCents: number; categoryIds?: string[] };
       const budget = await createBudgetsService(getDb()).create(auth.userId, { name, amountCents, categoryIds });
       return { budget };
@@ -382,6 +391,7 @@ const TOOLS: ToolDef[] = [
         categoryIds: z.array(z.string()).optional(),
       }),
     run: async (auth, args) => {
+      // SAFETY: args is the zod-validated output of tool.parse().safeParse() at the MCP dispatch boundary; this cast restates the validated shape.
       const { budgetId, name, amountCents, categoryIds } = args as {
         budgetId: string;
         name?: string;
@@ -398,6 +408,7 @@ const TOOLS: ToolDef[] = [
     inputSchema: jsonSchema({ budgetId: z.string().min(1) }),
     parse: () => z.object({ budgetId: z.string().min(1) }),
     run: async (auth, args) => {
+      // SAFETY: args is the zod-validated output of tool.parse().safeParse() at the MCP dispatch boundary; this cast restates the validated shape.
       const { budgetId } = args as { budgetId: string };
       await createBudgetsService(getDb()).remove(auth.userId, budgetId);
       return { ok: true, deleted: budgetId };
@@ -436,6 +447,7 @@ const TOOLS: ToolDef[] = [
         currentCents: z.number().int().nonnegative().optional(),
       }),
     run: async (auth, args) => {
+      // SAFETY: args is the zod-validated output of tool.parse().safeParse() at the MCP dispatch boundary; this cast restates the validated shape.
       const a = args as {
         kind: "bill" | "debt" | "goal";
         name: string;
@@ -456,6 +468,7 @@ const TOOLS: ToolDef[] = [
         item = await planning.createBill(auth.userId, {
           name: a.name,
           amountCents: a.amountCents ?? 0,
+          // SAFETY: frequency was validated by the zod enum (weekly|biweekly|monthly|quarterly|yearly|one-time) at parse time; the cast only bridges the local string type to createBill's union parameter.
           frequency: a.frequency as never,
           dueDay: a.dueDay ?? null,
           nextDueDate: a.nextDueDate ?? null,
@@ -484,6 +497,7 @@ const TOOLS: ToolDef[] = [
     inputSchema: jsonSchema({ name: z.string().min(1), color: z.string().optional(), plaidPaths: z.string().optional() }),
     parse: () => z.object({ name: z.string().min(1), color: z.string().optional(), plaidPaths: z.string().optional() }),
     run: async (auth, args) => {
+      // SAFETY: args is the zod-validated output of tool.parse().safeParse() at the MCP dispatch boundary; this cast restates the validated shape.
       const { name, color, plaidPaths } = args as { name: string; color?: string; plaidPaths?: string };
       const category = await createCategoriesService(getDb()).create(auth.userId, { name, color, plaidPaths });
       return { category };
@@ -516,6 +530,7 @@ const TOOLS: ToolDef[] = [
         plaidPaths: z.string().optional(),
       }),
     run: async (auth, args) => {
+      // SAFETY: args is the zod-validated output of tool.parse().safeParse() at the MCP dispatch boundary; this cast restates the validated shape.
       const { categoryId, name, color, plaidPaths } = args as {
         categoryId: string;
         name?: string;
@@ -532,6 +547,7 @@ const TOOLS: ToolDef[] = [
     inputSchema: jsonSchema({ categoryId: z.string().min(1) }),
     parse: () => z.object({ categoryId: z.string().min(1) }),
     run: async (auth, args) => {
+      // SAFETY: args is the zod-validated output of tool.parse().safeParse() at the MCP dispatch boundary; this cast restates the validated shape.
       const { categoryId } = args as { categoryId: string };
       await createCategoriesService(getDb()).remove(auth.userId, categoryId);
       return { ok: true, deleted: categoryId };
@@ -551,6 +567,7 @@ const TOOLS: ToolDef[] = [
     inputSchema: jsonSchema({ tab: z.enum(["dashboard", "budgets", "reports"]).optional() }),
     parse: () => z.object({ tab: z.enum(["dashboard", "budgets", "reports"]).optional() }),
     run: async (auth, args) => {
+      // SAFETY: args is the zod-validated output of tool.parse().safeParse() at the MCP dispatch boundary; this cast restates the validated shape.
       const { tab } = args as { tab?: "dashboard" | "budgets" | "reports" };
       const { createCustomViewsService } = await import("@/server/domain/custom-views");
       const views = await createCustomViewsService(getDb()).list(auth.userId, tab);
@@ -579,6 +596,7 @@ const TOOLS: ToolDef[] = [
         widget: z.record(z.string(), z.unknown()),
       }),
     run: async (auth, args) => {
+      // SAFETY: args is the zod-validated output of tool.parse().safeParse() at the MCP dispatch boundary; this cast restates the validated shape.
       const { tab, name, widget } = args as { tab: "dashboard" | "budgets" | "reports"; name: string; widget: unknown };
       const { createCustomViewsService } = await import("@/server/domain/custom-views");
       const view = await createCustomViewsService(getDb()).create(auth.userId, auth.token.id, { tab, name, widget });
@@ -604,6 +622,7 @@ const TOOLS: ToolDef[] = [
         enabled: z.boolean().optional(),
       }),
     run: async (auth, args) => {
+      // SAFETY: args is the zod-validated output of tool.parse().safeParse() at the MCP dispatch boundary; this cast restates the validated shape.
       const { viewId, name, widget, position, enabled } = args as {
         viewId: string;
         name?: string;
@@ -622,6 +641,7 @@ const TOOLS: ToolDef[] = [
     inputSchema: jsonSchema({ viewId: z.string().min(1) }),
     parse: () => z.object({ viewId: z.string().min(1) }),
     run: async (auth, args) => {
+      // SAFETY: args is the zod-validated output of tool.parse().safeParse() at the MCP dispatch boundary; this cast restates the validated shape.
       const { viewId } = args as { viewId: string };
       const { createCustomViewsService } = await import("@/server/domain/custom-views");
       await createCustomViewsService(getDb()).remove(auth.userId, viewId);
@@ -726,6 +746,7 @@ export async function authFromToken(raw: string): Promise<McpAuth> {
     // would bypass a Settings access reduction until the token was revoked.
     scopes: await effectiveScopes(token),
     userId: token.user_id,
+    // SAFETY: account_ids is only ever written via JSON.stringify of a string[] (tokens.create/update).
     accountIds: token.account_ids ? (JSON.parse(token.account_ids) as string[]) : null,
   };
 }
