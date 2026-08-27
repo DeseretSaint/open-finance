@@ -10,6 +10,7 @@ import { Sidebar } from "@/components/sidebar";
 import { OfflineToast } from "@/components/offline-toast";
 import { hasWindow } from "@/lib/browser-env";
 import { DeviceLockGate } from "@/components/device-lock-gate";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { UpdateBanner } from "@/components/update-banner";
 
 // First-run only: lazy-loaded so its (demo/sample-data) strings stay out of the
@@ -201,7 +202,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <h1 className="text-2xl font-bold leading-tight">{data.user.display_name}</h1>
             </div>
           </header>
-          {children}
+          <ErrorBoundary>{children}</ErrorBoundary>
           <OfflineToast />
         </main>
       </div>
