@@ -161,6 +161,39 @@ describe("auth service", () => {
     const s = await db.get("SELECT id FROM sessions WHERE user_id = ?", user.id);
     expect(s).toBeUndefined();
   });
+
+  it("login is timing-safe: nonexistent user costs the same as a wrong password", async () => {
+    // Both paths must run a full bcrypt compare (cost 12 => hundreds of ms).
+    // A fast early-return for unknown usernames would let an attacker measure
+    // response time to enumerate valid accounts (username-existence oracle).
+    const time = async (p: () => Promise<unknown>) => {
+      const t0 = performance.now();
+      await p().catch(() => {});
+      return performance.now() - t0;
+    };
+    const [tNonexistent, tWrong] = await Promise.all([
+      time(() =>
+        auth().login({
+          username: "this-user-definitely-does-not-exist-xyz",
+          password: "whatever-strong-pass",
+          duration: "30d",
+          device_label: "t",
+        })
+      ),
+      time(() =>
+        auth().login({
+          username: "alice",
+          password: "this-is-the-wrong-password-zzz",
+          duration: "30d",
+          device_label: "t",
+        })
+      ),
+    ]);
+    // Both must clear a bcrypt cost-12 floor, proving the nonexistent path runs
+    // a real compare (the dummy hash) instead of returning before hashing.
+    expect(tNonexistent).toBeGreaterThan(50);
+    expect(tWrong).toBeGreaterThan(50);
+  });
 });
 
 describe("rate limiter", () => {

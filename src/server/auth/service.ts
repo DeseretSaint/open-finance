@@ -6,6 +6,11 @@ import { getDb, type Db } from "@/server/db/adapter";
 import { createSession, getSessionFromRequest, type Duration, type SessionInfo } from "./sessions";
 import { hashPassword, validatePasswordPolicy, verifyPassword } from "./password";
 
+// Static bcrypt hash (cost 12) used ONLY to burn CPU time in the login
+// nonexistent-user path so it matches real-user timing. It is NOT a real
+// credential and is never compared for equality — only fed to bcrypt.compare.
+const DUMMY_BCRYPT_HASH = "$2b$12$g5oLIndHPbDMHP.uNueCAexOAjamCKOriA41DfOCQOq7F8fUGACwG";
+
 export interface PublicUser {
   id: string;
   username: string | null;
@@ -86,7 +91,15 @@ export function createAuthService(db: Db = getDb()) {
         id: string; username: string | null; display_name: string; email: string | null;
         is_demo: number; created_at: string; password_hash: string | null;
       }>("SELECT * FROM users WHERE lower(username) = lower(?)", username);
-      if (!row || !row.password_hash || !(await verifyPassword(input.password, row.password_hash))) {
+      // Timing-safe: always run a bcrypt compare so a nonexistent/invalid user
+      // takes the same wall-clock time as a real user with a wrong password.
+      // This blocks username enumeration via login-response timing (the
+      // 2026-08-07 audit's timing-safe pattern, extended to the existence oracle).
+      const knownHash = row?.password_hash ?? null;
+      const passwordOk = knownHash
+        ? await verifyPassword(input.password, knownHash)
+        : await verifyPassword(input.password, DUMMY_BCRYPT_HASH);
+      if (!row || !knownHash || !passwordOk) {
         throw apiErrors.badRequest("Incorrect username or password.");
       }
       const session = await createSession(row.id, input.duration, input.device_label.slice(0, 100), db);
