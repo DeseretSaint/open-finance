@@ -164,9 +164,29 @@ export type PermissionService = ReturnType<typeof createPermissionService>;
 type SseClient = { send: (event: string, data: unknown) => void };
 const sseClients = new Set<SseClient>();
 
-export function subscribeSse(client: SseClient): () => void {
+/**
+ * Cap on concurrent SSE subscribers. Each subscriber holds an open HTTP
+ * connection plus a 25s heartbeat interval; without a bound, any caller with
+ * a valid session or agent token could open unlimited parallel streams and
+ * grow the long-running server process without limit (same class as the
+ * /mcp session-Map cap). No eviction — a legit client that hits the cap gets
+ * a 429 and can retry; 64 streams is far above any real single-user load.
+ */
+export const MAX_SSE_CLIENTS = 64;
+
+/**
+ * Atomically check the cap and subscribe. Returns the unsubscribe function,
+ * or null when the cap is reached (the caller should respond 429).
+ */
+export function subscribeSse(client: SseClient): (() => void) | null {
+  if (sseClients.size >= MAX_SSE_CLIENTS) return null;
   sseClients.add(client);
   return () => sseClients.delete(client);
+}
+
+/** Test-only: current subscriber count. */
+export function __sseClientCountForTest(): number {
+  return sseClients.size;
 }
 
 export function emitSse(event: string, data: unknown): void {

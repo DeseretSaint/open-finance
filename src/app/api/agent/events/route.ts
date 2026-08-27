@@ -36,18 +36,27 @@ export async function GET(req: NextRequest) {
   }
 
   const encoder = new TextEncoder();
+  // start() runs synchronously during ReadableStream construction, so the
+  // cap check inside subscribeSse completes before we decide the response.
+  let overCap = false;
   const stream = new ReadableStream({
     start(controller) {
-      controller.enqueue(encoder.encode(`event: connected\ndata: {"identity":"${identity}"}\n\n`));
       const unsubscribe = subscribeSse({
         send: (event, data) => {
           try {
             controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
           } catch {
-            unsubscribe();
+            unsubscribe?.();
           }
         },
       });
+      if (!unsubscribe) {
+        // Concurrent-subscriber cap reached — refuse the stream (429 below).
+        overCap = true;
+        controller.close();
+        return;
+      }
+      controller.enqueue(encoder.encode(`event: connected\ndata: {"identity":"${identity}"}\n\n`));
       // Heartbeat every 25s keeps proxies from closing the stream.
       const heartbeat = setInterval(() => {
         try {
@@ -68,6 +77,13 @@ export async function GET(req: NextRequest) {
       });
     },
   });
+
+  if (overCap) {
+    return new Response(JSON.stringify({ error: { code: "rate_limited", message: "Too many concurrent event streams — retry shortly." } }), {
+      status: 429,
+      headers: { "content-type": "application/json" },
+    });
+  }
 
   return new Response(stream, {
     headers: {
