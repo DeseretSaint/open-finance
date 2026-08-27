@@ -82,6 +82,7 @@ export class CapSqliteDb implements Db {
     const conn = await this.connection();
     await conn.execute("CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)", false);
     const rows = await conn.query("SELECT version FROM _migrations");
+    // SAFETY: _migrations.version is an INTEGER column; r is a row-shaped record.
     const applied = new Set((rows.values ?? []).map((r) => Number((r as { version: number }).version)));
 
     // Sentinel tables per migration — used to re-apply versions whose DDL was
@@ -147,6 +148,7 @@ export class CapSqliteDb implements Db {
       // saveToStore is a persistence hint; the DB is already usable in-memory.
     }
     const currentRows = await conn.query("SELECT COALESCE(MAX(version), 0) AS v FROM _migrations");
+    // SAFETY: the query projects COALESCE(MAX(version),0) AS v — a single numeric column.
     const current = Number((currentRows.values?.[0] as { v: number } | undefined)?.v ?? 0);
     return { applied: count, current };
   }
@@ -157,6 +159,7 @@ export class CapSqliteDb implements Db {
     // params (String(null) === "null" corrupts nullable columns).
     const values = params.map((p) => (p === undefined ? null : p));
     const r = await conn.query(sql, values);
+    // SAFETY: T is the caller-declared row shape; r.values is the raw tuple array from cap-sqlite.
     return (r.values ?? []) as T[];
   }
 

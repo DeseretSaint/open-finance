@@ -147,8 +147,10 @@ export function capScopes(prefs: AgentPrefs): string[] {
 function parseTabs(raw: string | null | undefined, fallback: AgentTab[]): AgentTab[] {
   if (!raw) return fallback;
   try {
+    // SAFETY: parseTabs validates via Array.isArray + AGENT_TABS membership below; unknown is narrowed before use.
     const parsed = JSON.parse(raw) as unknown;
     if (Array.isArray(parsed)) {
+      // SAFETY: AGENT_TABS is a static readonly string[] of the valid tab ids.
       const valid = parsed.filter((t): t is AgentTab => (AGENT_TABS as readonly string[]).includes(String(t)));
       return valid.length > 0 ? valid : fallback;
     }
@@ -179,6 +181,7 @@ export function createAgentPrefsService(db: Db = getDb()) {
       const tabs = parseTabs(row.agent_tabs, DEFAULTS.tabs);
       const tabsWrite = parseTabs(row.agent_tabs_write, DEFAULTS.tabsWrite);
       let backlog = Number(row.agent_categorize_backlog_months ?? DEFAULT_CATEGORIZE_BACKLOG);
+      // SAFETY: CATEGORIZE_BACKLOGS is a static readonly number[] of the valid backlog options.
       if (!(CATEGORIZE_BACKLOGS as readonly number[]).includes(backlog)) backlog = DEFAULT_CATEGORIZE_BACKLOG;
       return {
         tabs,

@@ -76,6 +76,7 @@ export async function requireAgentScope(req: NextRequest, requiredScopes: string
     throw new InsufficientScopeError(missing, token.id, token.name, tool);
   }
 
+  // SAFETY: account_ids is only ever written via JSON.stringify of a string[] (tokens.ts create/update).
   const accountIds = token.account_ids ? (JSON.parse(token.account_ids) as string[]) : null;
   return {
     token,
@@ -99,6 +100,7 @@ export async function effectiveScopes(token: { user_id: string; scopes: string; 
   // both directions: reducing access takes effect immediately, and expanding
   // access does not require creating a replacement token.
   if (token.follow_settings === 1) return caps;
+  // SAFETY: scopes is only ever written via JSON.stringify of a string[] (tokens.ts create/update).
   const tokenScopes = JSON.parse(token.scopes ?? "[]") as string[];
   return tokenScopes.filter((s) => caps.includes(s));
 }
@@ -134,6 +136,7 @@ export function agentRoute(
           const stillMissing = e.missing.filter((s) => !autoGrantable.includes(s));
 
           if (autoGrantable.length > 0 && tokenRow) {
+            // SAFETY: scopes is only ever written via JSON.stringify of a string[] (tokens.ts create/update).
             const scopes = JSON.parse(tokenRow.scopes ?? "[]") as string[];
             let changed = false;
             for (const s of autoGrantable) {
@@ -216,6 +219,7 @@ export async function requireAnyAgentScope(req: NextRequest, anyOf: string[], to
   if (anyOf.length > 0 && !anyOf.some((s) => scopes.includes(s))) {
     throw new InsufficientScopeError(anyOf, token.id, token.name, tool);
   }
+  // SAFETY: account_ids is only ever written via JSON.stringify of a string[] (tokens.ts create/update).
   const accountIds = token.account_ids ? (JSON.parse(token.account_ids) as string[]) : null;
   return {
     token,

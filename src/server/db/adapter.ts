@@ -17,14 +17,17 @@ export class SqliteDb implements Db {
   }
 
   async all<T = DbRow>(sql: string, ...params: unknown[]): Promise<T[]> {
+    // SAFETY: better-sqlite3.prepare accepts any[]; params are spread as bound values.
     return this.db.prepare(sql).all(...(params as never[])) as T[];
   }
 
   async get<T = DbRow>(sql: string, ...params: unknown[]): Promise<T | undefined> {
+    // SAFETY: better-sqlite3.prepare accepts any[]; params are spread as bound values.
     return this.db.prepare(sql).get(...(params as never[])) as T | undefined;
   }
 
   async run(sql: string, ...params: unknown[]): Promise<{ changes: number; lastInsertRowid: number | bigint }> {
+    // SAFETY: better-sqlite3.prepare accepts any[]; params are spread as bound values.
     const r = this.db.prepare(sql).run(...(params as never[]));
     return { changes: r.changes, lastInsertRowid: r.lastInsertRowid };
   }
@@ -73,6 +76,7 @@ export function resetDb(): void {
 
 /** Access the underlying SqliteDb instance for file-level ops (backup/restore). */
 export function getSqliteDb(): SqliteDb {
+  // SAFETY: getDb() returns the SqliteDb instance for this better-sqlite3 build.
   const db = getDb() as SqliteDb;
   return db;
 }

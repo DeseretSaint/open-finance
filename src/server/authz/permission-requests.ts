@@ -87,6 +87,7 @@ export function createPermissionService(db: Db = getDb()) {
         tokenId: row.token_id,
         tokenName: row.token_name ?? "Unknown token",
         scope: row.scope,
+        // SAFETY: status is only ever written as 'pending' (default), 'granted', or 'denied' (resolve below).
         status: row.status as PermissionRequest["status"],
         requestedAt: row.requested_at,
         resolvedAt: row.resolved_at,
@@ -117,6 +118,7 @@ export function createPermissionService(db: Db = getDb()) {
         tokenId: r.token_id,
         tokenName: r.token_name,
         scope: r.scope,
+        // SAFETY: status is only ever written as 'pending' (default), 'granted', or 'denied' (resolve below).
         status: r.status as PermissionRequest["status"],
         requestedAt: r.requested_at,
         resolvedAt: r.resolved_at,
@@ -141,6 +143,7 @@ export function createPermissionService(db: Db = getDb()) {
           "SELECT scopes, preset FROM agent_tokens WHERE id = ?",
           req.token_id
         );
+        // SAFETY: scopes is only ever written via JSON.stringify of a string[] (tokens.ts create/update).
         const scopes = JSON.parse(token?.scopes ?? "[]") as string[];
         if (!scopes.includes(req.scope)) {
           scopes.push(req.scope);

@@ -88,6 +88,7 @@ function now(): string {
 }
 
 function toPublic(row: AgentTokenRow): PublicAgentToken {
+  // SAFETY: scopes is only ever written via JSON.stringify of a string[] (create/update below).
   const scopes = JSON.parse(row.scopes ?? "[]") as string[];
   const preset = row.preset || "read-only";
   const presetScopes = PRESETS[preset] ?? [];
@@ -98,7 +99,9 @@ function toPublic(row: AgentTokenRow): PublicAgentToken {
     tokenPrefix: row.token_prefix,
     preset,
     scopes,
+    // SAFETY: account_ids/ui_tabs are only ever written via JSON.stringify of string[] (create/update).
     accountIds: row.account_ids ? (JSON.parse(row.account_ids) as string[]) : null,
+    // SAFETY: ui_tabs is only ever written via JSON.stringify of a string[] (create/update).
     uiTabs: row.ui_tabs ? (JSON.parse(row.ui_tabs) as string[]) : null,
     expiresAt: row.expires_at,
     followSettings: row.follow_settings === 1,
