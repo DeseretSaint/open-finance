@@ -62,7 +62,7 @@ describe("device lock (P8a)", () => {
     expect((await svc.state(user.id)).biometricEnabled).toBe(false);
   });
 
-  it("setPin while locked does NOT clear the lockout (bypass guard)", async () => {
+  it("setPin while locked is REJECTED and cannot swap the PIN (bypass guard)", async () => {
     const db = createTestDb();
     const user = await seedUser(db);
     const svc = createDeviceLockService(db);
@@ -74,15 +74,34 @@ describe("device lock (P8a)", () => {
     await expect(svc.unlock(user.id, "0000")).rejects.toMatchObject({ status: 423 });
     const before = await svc.state(user.id);
     expect(before.locked).toBe(true);
-    // A locked device must NOT be silently unlocked by changing the PIN —
-    // that path is device-lock exempt at the API layer, so setPin must not
-    // clear locked_until / failed_attempts.
-    await svc.setPin(user.id, "1111");
+    // The PIN-change route is device-lock exempt at the API layer, so the
+    // service itself must refuse to REPLACE the PIN mid-lockout — otherwise
+    // an attacker swaps the PIN, waits out the cooldown, and unlocks with
+    // their own PIN.
+    await expect(svc.setPin(user.id, "1111")).rejects.toMatchObject({ status: 423 });
     const after = await svc.state(user.id);
     expect(after.locked).toBe(true);
     expect(after.retryAfterMs).toBeGreaterThan(0);
-    // The lockout still blocks the (old) PIN.
-    await expect(svc.unlock(user.id, "9876")).rejects.toMatchObject({ status: 423 });
+    // PIN was NOT replaced: once the lockout expires, the ORIGINAL PIN still
+    // unlocks (attacker's PIN never got installed).
+    await db.run("UPDATE device_lock SET locked_until = NULL, failed_attempts = 0 WHERE user_id = ?", user.id);
+    await svc.unlock(user.id, "9876");
+    await expect(svc.unlock(user.id, "1111")).rejects.toMatchObject({ status: 401 });
+  });
+
+  it("recovery (force) can still reset the PIN mid-lockout", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const svc = createDeviceLockService(db);
+    await svc.setPin(user.id, "9876");
+    for (let i = 0; i < 5; i++) {
+      await expect(svc.unlock(user.id, "0000")).rejects.toMatchObject({});
+    }
+    expect((await svc.state(user.id)).locked).toBe(true);
+    // force=true is reserved for the verified-recovery path (resetPin).
+    await svc.setPin(user.id, "5555", true);
+    await db.run("UPDATE device_lock SET locked_until = NULL, failed_attempts = 0 WHERE user_id = ?", user.id);
+    await svc.unlock(user.id, "5555");
   });
 
   it("derivePinHash is deterministic and differs across salts", async () => {

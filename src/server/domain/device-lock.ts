@@ -44,21 +44,33 @@ export function createDeviceLockService(db: Db = getDb()) {
       return (await db.get<DeviceLockRow>("SELECT * FROM device_lock WHERE user_id = ?", userId)) ?? null;
     },
 
-    /** Set or change the PIN. Returns nothing; caller decides session handling. */
-    async setPin(userId: string, pin: string): Promise<void> {
+    /**
+     * Set or change the PIN. Returns nothing; caller decides session handling.
+     * Rejected with 423 while the device is locked out: the PIN-change route
+     * sits inside the device-lock exemption prefix (the lock screen's own
+     * surface), so without this check an attacker with in-app access could
+     * REPLACE the PIN mid-lockout and unlock with their own PIN once the
+     * cooldown expires. Pass force=true only from a verified recovery flow
+     * (resetPin) — recovery is the sanctioned way to regain access.
+     */
+    async setPin(userId: string, pin: string, force = false): Promise<void> {
       if (!PIN_RE.test(pin)) throw apiErrors.badRequest("PIN must be 4–12 digits.");
+      const existing = await this.get(userId);
+      if (!force && existing) {
+        const now = Date.now();
+        const lockedUntil = existing.locked_until ? new Date(existing.locked_until).getTime() : null;
+        if (lockedUntil !== null && now < lockedUntil) {
+          throw apiErrors.locked("Device is locked. Unlock it (or use your recovery code) before changing the PIN.");
+        }
+      }
       const salt = randomSaltHex();
       const hash = await derivePinHash(pin, salt);
-      const existing = await this.get(userId);
       if (existing) {
         // NOTE: setPin deliberately does NOT touch failed_attempts/locked_until.
         // A locked device's lockout must survive a PIN change — only unlock(),
         // unlockWithBiometric(), and recovery (resetPin) are allowed to clear it.
-        // Otherwise a locked phone could be silently unlocked by POSTing a new PIN
-        // to /api/device-lock/pin (that path is inside the device-lock exemption
-        // prefix, so the API-layer lock gate does not block it). A legit PIN change
-        // happens while already unlocked, at which point unlock() has already reset
-        // the counters, so leaving them untouched is a no-op for the normal flow.
+        // (Run 48 closed the counter-clearing hole; the locked-out rejection
+        // above closes the replace-PIN-then-unlock-after-expiry hole.)
         await db.run(
           `UPDATE device_lock SET pin_hash = ?, pin_salt = ?, updated_at = ?
            WHERE user_id = ?`,

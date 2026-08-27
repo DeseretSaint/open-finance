@@ -197,7 +197,9 @@ export function createSoloBootstrapService(db: Db = getDb()) {
       }
       const user = await this.getDeviceUser();
       if (!user) throw apiErrors.notFound("Device user");
-      await deviceLock.setPin(user.id, newPin);
+      // force=true: recovery is the sanctioned way to regain access and must
+      // work even mid-lockout (that is what "I forgot my PIN" is for).
+      await deviceLock.setPin(user.id, newPin, true);
     },
 
     /** True when the device user has a PIN configured. */
