@@ -100,9 +100,14 @@ export function createReportsService(db: Db = getDb()) {
       const byType: Record<string, number> = {};
       for (const r of rows) {
         const t = r.type ?? "other";
-        byType[t] = r.balance;
-        if (t === "depository" || t === "investment") assets += r.balance;
-        else if (t === "credit" || t === "loan") liabilities += r.balance;
+        // Accumulate: NULL-type and 'other'-type rows are distinct GROUP BY
+        // groups that both map to the "other" bucket.
+        byType[t] = (byType[t] ?? 0) + r.balance;
+        // credit/loan are liabilities; every other type (depository, investment,
+        // 'other', NULL) counts as an asset — matches the SQL ELSE branch above
+        // and summary.totalBalanceCents, so dashboard total = reports net worth.
+        if (t === "credit" || t === "loan") liabilities += r.balance;
+        else assets += r.balance;
       }
       // credit/loan balances are stored negative (owed); liabilities shown positive.
       const liabilityTotal = -liabilities;

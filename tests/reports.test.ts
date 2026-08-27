@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { createReportsService } from "@/server/domain/reports";
+import { createSummaryService } from "@/server/domain/summary";
 import { createTestDb, seedManualAccount, seedUser } from "./helpers";
 
 async function seedCategory(db: ReturnType<typeof createTestDb>, userId: string, name: string) {
@@ -110,6 +111,39 @@ describe("reports (P6)", () => {
     expect(nw.assetsCents).toBe(1000000);
     expect(nw.liabilitiesCents).toBe(250000);
     expect(nw.netCents).toBe(750000);
+  });
+
+  it("net worth includes 'other'/NULL-type accounts and matches the dashboard total", async () =>
+  {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const now = new Date().toISOString();
+    const seedAccount = (name: string, type: string | null, balance: number) =>
+      db.run(
+        "INSERT INTO accounts (id, user_id, item_id, name, type, currency, current_balance_cents, created_at) VALUES (?, ?, NULL, ?, ?, 'USD', ?, ?)",
+        randomUUID(),
+        user.id,
+        name,
+        type,
+        balance,
+        now
+      );
+    await seedAccount("Checking", "depository", 1000000); // +10,000
+    await seedAccount("Brokerage", "investment", 500000); // +5,000
+    await seedAccount("Cash box", "other", 200000); // +2,000
+    await seedAccount("Mystery", null, 100000); // +1,000 (NULL type)
+    await seedAccount("Visa", "credit", -250000); // -2,500 (stored negative)
+
+    const nw = await createReportsService(db).netWorth(user.id);
+    // 'other' + NULL must count as assets, not vanish.
+    expect(nw.assetsCents).toBe(1800000);
+    expect(nw.liabilitiesCents).toBe(250000);
+    expect(nw.netCents).toBe(1550000);
+    expect(nw.byType.other).toBe(300000);
+    // Dashboard total (summary) sums every type — the two must agree.
+    const summary = await createSummaryService(db).get(user.id);
+    expect(summary.totalBalanceCents).toBe(nw.netCents);
+    expect(summary.byType.other).toBe(300000);
   });
 
   it("spendingTrend mirrors cashflow expenses", async () => {

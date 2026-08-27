@@ -69,7 +69,10 @@ export function createSummaryService(db: Db = getDb()) {
       const byType: Record<string, number> = {};
       let totalBalanceCents = 0;
       for (const t of totals) {
-        byType[t.type ?? "other"] = t.balance;
+        // Accumulate: NULL-type and 'other'-type rows are distinct GROUP BY
+        // groups that both map to the "other" bucket.
+        const key = t.type ?? "other";
+        byType[key] = (byType[key] ?? 0) + t.balance;
         totalBalanceCents += t.balance;
       }
 
