@@ -13,6 +13,7 @@ import { SettingsGroup } from "@/components/ui/settings-group";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { CustomTimePicker } from "@/components/ui/custom-time-picker";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -222,8 +223,8 @@ export default function SettingsPage() {
                   changePassword.mutate();
                 }}
               >
-                <Input aria-label={"Current password"} type="password" placeholder="Current password" value={cur} onChange={(e) => setCur(e.target.value)} />
-                <Input aria-label={"New password"} type="password" placeholder="New password" value={next} onChange={(e) => setNext(e.target.value)} />
+                <PasswordInput aria-label={"Current password"} placeholder="Current password" value={cur} onChange={(e) => setCur(e.target.value)} />
+                <PasswordInput aria-label={"New password"} placeholder="New password" value={next} onChange={(e) => setNext(e.target.value)} />
                 <Button type="submit" variant="secondary" disabled={changePassword.isPending || !cur || !next}>
                   Change password
                 </Button>
@@ -330,7 +331,7 @@ export default function SettingsPage() {
           </div>
           <div className="min-w-48 flex-1">
             <label className="mb-1 block text-xs text-text-muted">Secret</label>
-            <Input aria-label={"Plaid secret"} type="password" placeholder="sandbox_… / production_…" value={secret} onChange={(e) => setSecret(e.target.value)} />
+            <PasswordInput aria-label={"Plaid secret"} placeholder="sandbox_… / production_…" value={secret} onChange={(e) => setSecret(e.target.value)} />
           </div>
           <div className="min-w-32">
             <label id="plaid-env-label" className="mb-1 block text-xs text-text-muted">
@@ -1958,7 +1959,7 @@ function BackupPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; s
         </div>
         <div className="min-w-48 flex-1">
           <label className="mb-1 block text-xs text-text-muted">Confirm password</label>
-          <Input aria-label={"Account password"} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Your account password" />
+          <PasswordInput aria-label={"Account password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Your account password" />
         </div>
         <label className="flex items-center gap-2 pb-2 text-sm text-text-muted">
           <input type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} />

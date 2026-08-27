@@ -7,6 +7,7 @@ import { api } from "@/lib/api-client";
 import { storeHubUrl, storeSessionToken } from "@/lib/mobile-storage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 
 /**
  * Mobile pairing (P8a §10.4): the hub shows a QR encoding <hub>/pair?code=….
@@ -155,7 +156,7 @@ function PairPage() {
           <label className="block text-xs font-medium text-text-muted">Hub display name</label>
           <Input value={importDisplayName} onChange={(e) => setImportDisplayName(e.target.value)} placeholder="Your name" />
           <label className="block text-xs font-medium text-text-muted">Hub password</label>
-          <Input type="password" value={importPassword} onChange={(e) => setImportPassword(e.target.value)} placeholder="Choose a hub password" />
+          <PasswordInput value={importPassword} onChange={(e) => setImportPassword(e.target.value)} placeholder="Choose a hub password" />
           <label className="block text-xs font-medium text-text-muted">Phone backup (.ofbak.json)</label>
           <Input type="file" accept=".json,.ofbak.json" onChange={(e) => setImportFile(e.target.files?.[0] ?? null)} />
           <label className="block text-xs font-medium text-text-muted">Phone device PIN</label>

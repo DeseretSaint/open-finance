@@ -9,6 +9,7 @@ import { isSoloCandidate } from "@/lib/mobile-mode";
 import { hasWindow } from "@/lib/browser-env";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { LogoMark } from "@/components/sidebar";
 import { MotifHero } from "@/components/motif-hero";
@@ -158,9 +159,8 @@ export default function LoginPage() {
                 <label htmlFor="login-password" className="mb-1 block text-xs font-medium text-text-muted">
                   Password
                 </label>
-                <Input
+                <PasswordInput
                   id="login-password"
-                  type="password"
                   autoComplete="current-password"
                   placeholder="Password"
                   value={password}

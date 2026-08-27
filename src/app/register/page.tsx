@@ -8,6 +8,7 @@ import { isSoloCandidate } from "@/lib/mobile-mode";
 import { hasWindow } from "@/lib/browser-env";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { MotifHero } from "@/components/motif-hero";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 
@@ -146,9 +147,8 @@ export default function RegisterPage() {
                 <label htmlFor="reg-password" className="mb-1 block text-xs font-medium text-text-muted">
                   Password
                 </label>
-                <Input
+                <PasswordInput
                   id="reg-password"
-                  type="password"
                   autoComplete="new-password"
                   placeholder="Choose a password"
                   value={password}

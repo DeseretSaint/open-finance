@@ -8,6 +8,7 @@ import { isSoloCandidate } from "@/lib/mobile-mode";
 import { hasWindow } from "@/lib/browser-env";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { MotifHero } from "@/components/motif-hero";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
@@ -502,8 +503,7 @@ export function OnboardingWizard() {
               </p>
               <div className="mt-4 space-y-3">
                 <Input aria-label={"Plaid client ID"} placeholder="Client ID (starts with 5f…)" value={clientId} onChange={(e) => setClientId(e.target.value)} />
-                <Input aria-label={"Plaid secret"}
-                  type="password"
+                <PasswordInput aria-label={"Plaid secret"}
                   placeholder="Secret"
                   value={secret}
                   onChange={(e) => setSecret(e.target.value)}
