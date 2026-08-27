@@ -122,4 +122,24 @@ describe("solo bootstrap (P8b)", () => {
     expect(recoveryCode).toMatch(/^[A-Z2-9]{4}(-[A-Z2-9]{4}){9}$/);
     expect(await solo.verifyRecoveryCode(recoveryCode)).toBe(true);
   });
+
+  it("compares the recovery-code hash in constant time (regression)", async () => {
+    // verifyRecoveryCode is the sole "I forgot my PIN" reset path. Every other
+    // secret comparison in the codebase is constant-time (server-mode
+    // safeEqual, device-lock timingSafeEqualHex, remote-access constEq); a
+    // plain === here would leak hash-prefix timing. Source guard: the compare
+    // goes through timingSafeEqualHex, never a bare === on the hash.
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const src = readFileSync(resolve(__dirname, "../src/server/domain/solo-bootstrap.ts"), "utf8");
+    expect(src).toMatch(/timingSafeEqualHex\(\s*row\.recovery_code_hash/);
+    expect(src).not.toMatch(/recovery_code_hash\s*===/);
+
+    // Behavior unchanged: correct code verifies, wrong code does not.
+    const db = createTestDb();
+    const solo = createSoloBootstrapService(db);
+    const { recoveryCode } = await solo.bootstrap({});
+    expect(await solo.verifyRecoveryCode(recoveryCode)).toBe(true);
+    expect(await solo.verifyRecoveryCode("AAAA-AAAA-AAAA-AAAA-AAAA-AAAA-AAAA-AAAA-AAAA-AAAA")).toBe(false);
+  });
 });

@@ -1,4 +1,5 @@
 import { apiErrors } from "@/lib/api-error";
+import { timingSafeEqualHex } from "@/lib/pin-crypto";
 import { getDb, type Db } from "@/server/db/registry";
 import { createDeviceLockService } from "@/server/domain/device-lock";
 
@@ -194,7 +195,10 @@ export function createSoloBootstrapService(db: Db = getDb()) {
         user.id
       );
       if (!row?.recovery_code_hash) return false;
-      return row.recovery_code_hash === (await hashSecret(code.trim().toUpperCase()));
+      // Constant-time compare (parity with server-mode safeEqual + device-lock
+      // timingSafeEqualHex) — a plain === leaks hash-prefix timing on the
+      // sole "I forgot my PIN" reset path.
+      return timingSafeEqualHex(row.recovery_code_hash, await hashSecret(code.trim().toUpperCase()));
     },
 
     /** Reset the device PIN after a verified recovery code. */
