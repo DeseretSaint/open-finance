@@ -67,6 +67,10 @@ export function createSoloUpdatesService(db: Db) {
           signal: AbortSignal.timeout(10_000),
         });
         if (res.ok) {
+          // SAFETY: I/O parse boundary — GitHub releases API response; every field read
+          // below is optional-chained or null-coalesced (tag_name ?? "", assets ?? [],
+          // releaseApk?.browser_download_url), so a malformed payload degrades to
+          // "no update found" rather than throwing.
           const data = (await res.json()) as {
             tag_name?: string;
             html_url?: string;
@@ -169,7 +173,7 @@ export function createSoloUpdatesService(db: Db) {
  */
 export function soloCurrentVersion(): string {
   try {
-    return (process.env.NEXT_PUBLIC_APP_VERSION as string | undefined) ?? "0.0.0";
+    return process.env.NEXT_PUBLIC_APP_VERSION ?? "0.0.0";
   } catch {
     return "0.0.0";
   }

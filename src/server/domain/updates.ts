@@ -117,6 +117,9 @@ export function createUpdatesService(db: Db = getDb()) {
           source = "custom-url";
           const res = await fetch(UPDATE_CHECK_URL, { signal: AbortSignal.timeout(10_000) });
           if (res.ok) {
+            // SAFETY: I/O parse boundary — operator-controlled update-check URL; only two
+            // optional fields are read and each is null-coalesced, so a malformed payload
+            // degrades to "no update" rather than throwing.
             const data = (await res.json()) as { version?: string; url?: string };
             latestVersion = data.version ?? null;
             latestUrl = data.url ?? null;
@@ -129,6 +132,9 @@ export function createUpdatesService(db: Db = getDb()) {
             signal: AbortSignal.timeout(10_000),
           });
           if (res.ok) {
+            // SAFETY: I/O parse boundary — GitHub releases API response; only optional
+            // string fields are read, each null-coalesced / regex-stripped below, so a
+            // malformed payload degrades to "no update" rather than throwing.
             const data = (await res.json()) as { tag_name?: string; html_url?: string };
             latestVersion = (data.tag_name ?? "").replace(/^v/i, "");
             latestUrl = data.html_url ?? null;
@@ -213,6 +219,9 @@ export function createUpdatesService(db: Db = getDb()) {
       await setState(db, "dismissed", null);
 
       // Detached so the server restart doesn't kill the update mid-flight.
+      // SAFETY: `detached`/`stdio` are SpawnOptions fields that execFile forwards to
+      // spawn at runtime but its ExecFileOptions type omits; the cast restores the
+      // exact runtime behavior with no other options changed.
       const child = execFile(script, [], {
         detached: true,
         stdio: "ignore",

@@ -136,6 +136,8 @@ export function createAccountsService(db: Db = getDb()) {
       const name = input.name.trim().slice(0, 100);
       if (!name) throw apiErrors.badRequest("Account name cannot be empty.");
       const type = input.type ?? "other";
+      // SAFETY: widens only the includes() parameter type so an arbitrary user string
+      // can be membership-checked against the literal tuple; tuple contents unchanged.
       if (!(ACCOUNT_TYPES as readonly string[]).includes(type)) {
         throw apiErrors.badRequest(`Account type must be one of: ${ACCOUNT_TYPES.join(", ")}.`);
       }
@@ -254,6 +256,8 @@ export function createAccountsService(db: Db = getDb()) {
     /** User override for Plaid's inferred account type. */
     async setType(userId: string, id: string, type: string): Promise<AccountRow> {
       await this.get(userId, id);
+      // SAFETY: widens only the includes() parameter type so an arbitrary user string
+      // can be membership-checked against the literal tuple; tuple contents unchanged.
       if (!(ACCOUNT_TYPES as readonly string[]).includes(type)) {
         throw apiErrors.badRequest(`Account type must be one of: ${ACCOUNT_TYPES.join(", ")}.`);
       }
