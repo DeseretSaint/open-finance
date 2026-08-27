@@ -132,13 +132,14 @@ export function createNativePlaidClient(): PlaidClient {
     },
 
     async createLinkToken(creds: PlaidCreds, clientUserId: string, accessToken?: string) {
-      const r = await p.createLinkToken({
+      const opts: Parameters<PlaidProxy["createLinkToken"]>[0] = {
         clientId: creds.clientId,
         secret: creds.secret,
         environment: creds.environment,
         config: { client_user_id: clientUserId },
-        ...(accessToken ? { accessToken } : {}),
-      });
+      };
+      if (accessToken) opts.accessToken = accessToken;
+      const r = await p.createLinkToken(opts);
       return r.linkToken;
     },
 
