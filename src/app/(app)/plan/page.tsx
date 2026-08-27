@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useEscapeToClose } from "@/lib/use-escape-to-close";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import { CalendarClock, CalendarDays, X } from "lucide-react";
@@ -105,6 +106,7 @@ export default function PlanPage() {
   const [customUntil, setCustomUntil] = useState("");
   const [paycheckDate, setPaycheckDate] = useState<string | null>(null);
   const [showPaydays, setShowPaydays] = useState(false);
+  useEscapeToClose(() => setShowPaydays(false), showPaydays);
 
   // Manual payday schedule (012) — used for "Next paycheck" + projections.
   const paydays = useQuery({
@@ -223,6 +225,7 @@ export default function PlanPage() {
 
   // ── Add sheet (FAB) ──
   const [showAdd, setShowAdd] = useState(false);
+  useEscapeToClose(() => setShowAdd(false), showAdd);
   const [addKind, setAddKind] = useState<"bill" | "debt" | "goal" | "expense" | null>(null);
   const [err, setErr] = useState<string | null>(null);
 

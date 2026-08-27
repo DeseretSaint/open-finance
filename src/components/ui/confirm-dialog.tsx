@@ -1,5 +1,7 @@
 "use client";
 
+import { useEscapeToClose } from "@/lib/use-escape-to-close";
+
 /**
  * Custom confirmation dialog — replaces window.confirm() (which pops the
  * stock Android dialog). Bottom sheet on mobile, centered dialog on desktop,
@@ -26,6 +28,8 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  useEscapeToClose(() => { if (!busy) onCancel(); }, open);
+
   if (!open) return null;
   return (
     <div

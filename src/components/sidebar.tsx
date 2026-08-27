@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useEscapeToClose } from "@/lib/use-escape-to-close";
 import {
   ArrowLeftRight,
   Bot,
@@ -73,6 +74,7 @@ export function Sidebar() {
   const router = useRouter();
   const { dark, setDark } = useTheme();
   const [moreOpen, setMoreOpen] = useState(false);
+  useEscapeToClose(() => setMoreOpen(false), moreOpen);
 
   // Close the sheet on navigation.
   useEffect(() => {

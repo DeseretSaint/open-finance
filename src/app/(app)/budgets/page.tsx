@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useEscapeToClose } from "@/lib/use-escape-to-close";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarRange, ChevronDown, Pencil, Trash2, X } from "lucide-react";
 import { api } from "@/lib/api-client";
@@ -243,6 +244,7 @@ export default function BudgetsPage() {
     setCategoryIds([]);
     setError(null);
   }
+  useEscapeToClose(closeModal, showAdd);
 
   function toggleCategory(id: string) {
     setCategoryIds((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));

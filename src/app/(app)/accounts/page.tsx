@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useEscapeToClose } from "@/lib/use-escape-to-close";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { CreditCard, Landmark, PiggyBank, TrendingUp, Wallet, CircleHelp, X, ChevronUp, ChevronDown, Pencil, RotateCcw } from "lucide-react";
@@ -88,6 +89,7 @@ export default function AccountsPage() {
   const [balance, setBalance] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  useEscapeToClose(() => { if (!create.isPending) setShowAdd(false); }, showAdd);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [editingDesc, setEditingDesc] = useState<string | null>(null);
   const [descDraft, setDescDraft] = useState("");

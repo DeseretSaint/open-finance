@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useEscapeToClose } from "@/lib/use-escape-to-close";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search, X, Trash2, ChevronDown, RefreshCw, Upload } from "lucide-react";
@@ -63,6 +64,7 @@ export default function TransactionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  useEscapeToClose(() => { if (!add.isPending) setShowAdd(false); }, showAdd);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [limit, setLimit] = useState(200);
 
@@ -151,6 +153,7 @@ export default function TransactionsPage() {
     // caps history at ~90 days through Plaid), pop up a suggestion to import
     // older history from bank-downloaded CSV files instead.
     const [showCsvSuggestion, setShowCsvSuggestion] = useState(false);
+    useEscapeToClose(() => setShowCsvSuggestion(false), showCsvSuggestion);
     const pullHistory = useMutation({
       mutationFn: async () => {
         setHistoryMsg(null);
@@ -233,6 +236,7 @@ export default function TransactionsPage() {
   // insert. This is the built-in path for history the bank won't serve through
   // Plaid (institution ~90-day caps).
   const [showImport, setShowImport] = useState(false);
+  useEscapeToClose(() => { if (!importCsv.isPending) setShowImport(false); }, showImport);
   const [importAccount, setImportAccount] = useState("");
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const importCsv = useMutation({

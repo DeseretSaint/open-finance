@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useEscapeToClose } from "@/lib/use-escape-to-close";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import jsQR from "jsqr";
 import { Moon, Sun, ExternalLink, QrCode, X } from "lucide-react";
@@ -94,6 +95,7 @@ export default function SettingsPage() {
   const [reconnectItemId, setReconnectItemId] = useState<string | null>(null);
   const [reconnectingItem, setReconnectingItem] = useState<string | null>(null);
   const [showPlaidHelp, setShowPlaidHelp] = useState(false);
+  useEscapeToClose(() => setShowPlaidHelp(false), showPlaidHelp);
 
   const saveCreds = useMutation({
     mutationFn: () => api.put("/api/plaid/credentials", { clientId, secret, environment }),
@@ -906,6 +908,7 @@ function CategoriesCard({ setMsg, setErr }: { setMsg: (s: string | null) => void
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [showAdd, setShowAdd] = useState(false);
+  useEscapeToClose(() => setShowAdd(false), showAdd);
   const categories = useQuery({
     queryKey: ["categories"],
     queryFn: () => api.get<{ categories: Array<{ id: string; name: string; is_system: number; enabled: number }> }>("/api/categories?all=1"),
