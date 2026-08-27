@@ -79,8 +79,10 @@ const MAX_NAME = 60;
 function toPublic(row: Row): CustomView {
   return {
     id: row.id,
+    // SAFETY: custom_views.tab carries a CHECK constraint (migration 001) limiting it to WIDGET_TABS, and every write goes through create() which validates membership first.
     tab: row.tab as WidgetTab,
     name: row.name,
+    // SAFETY: widget_def is only ever written via JSON.stringify of a validateWidgetDef()-passed WidgetDef (create/update below), so it always parses back to a WidgetDef.
     widget: JSON.parse(row.widget_def) as WidgetDef,
     position: row.position,
     enabled: row.enabled === 1,
@@ -108,7 +110,9 @@ export function validateWidgetDef(input: unknown): WidgetDef {
   if (typeof input !== "object" || input === null) {
     throw apiErrors.badRequest("Widget must be a JSON object.");
   }
+  // SAFETY: input was just checked to be a non-null object above; this is the I/O parse boundary for agent-supplied JSON, and every field read below is re-validated (cleanText/cents/kind membership).
   const w = input as Record<string, unknown>;
+  // SAFETY: validated against WIDGET_KINDS by the includes() check immediately below — throws 400 if it is not a known kind.
   const kind = w.kind as WidgetKind;
   if (!WIDGET_KINDS.includes(kind)) {
     throw apiErrors.badRequest(`Widget kind must be one of: ${WIDGET_KINDS.join(", ")}.`);
@@ -137,6 +141,7 @@ export function validateWidgetDef(input: unknown): WidgetDef {
   if (kind === "list") {
     if (!Array.isArray(w.rows)) throw apiErrors.badRequest("A list widget needs a rows array.");
     def.rows = w.rows.slice(0, MAX_LIST_ROWS).map((r, i) => {
+      // SAFETY: r is one element of the agent-supplied rows array (unknown); non-object elements yield undefined fields and are rejected by the label check below, and every field read is re-validated by cleanText/cents.
       const row = r as Record<string, unknown>;
       const label = cleanText(row?.label, 80);
       if (!label) throw apiErrors.badRequest(`List row ${i + 1} needs a label.`);
@@ -148,6 +153,7 @@ export function validateWidgetDef(input: unknown): WidgetDef {
       throw apiErrors.badRequest("A line widget needs at least 2 points.");
     }
     def.points = w.points.slice(0, MAX_POINTS).map((p, i) => {
+      // SAFETY: p is one element of the agent-supplied points array (unknown); non-object elements yield undefined fields and are rejected by the label/value check below, and every field read is re-validated.
       const pt = p as Record<string, unknown>;
       const label = cleanText(pt?.label, 20);
       const value = typeof pt?.value === "number" && Number.isFinite(pt.value) ? pt.value : undefined;
@@ -160,6 +166,7 @@ export function validateWidgetDef(input: unknown): WidgetDef {
       throw apiErrors.badRequest("A donut widget needs a slices array.");
     }
     def.slices = w.slices.slice(0, MAX_SLICES).map((s, i) => {
+      // SAFETY: s is one element of the agent-supplied slices array (unknown); non-object elements yield undefined fields and are rejected by the label/valueCents check below, and every field read is re-validated.
       const sl = s as Record<string, unknown>;
       const label = cleanText(sl?.label, 40);
       const valueCents = cents(sl?.valueCents);
@@ -191,6 +198,7 @@ export function createCustomViewsService(db: Db) {
       tokenId: string | null,
       input: { tab: string; name: string; widget: unknown; position?: number }
     ): Promise<CustomView> {
+      // SAFETY: the cast only feeds WIDGET_TABS.includes() — the membership check itself is the validation gate (throws 400 on non-members), so no unvalidated value escapes.
       if (!WIDGET_TABS.includes(input.tab as WidgetTab)) {
         throw apiErrors.badRequest(`Widgets can be added to: ${WIDGET_TABS.join(", ")}.`);
       }
@@ -232,6 +240,7 @@ export function createCustomViewsService(db: Db) {
       if (!existing) throw apiErrors.notFound("Widget");
       const name = input.name !== undefined ? cleanText(input.name, MAX_NAME) : existing.name;
       if (!name) throw apiErrors.badRequest("Widget needs a name.");
+      // SAFETY: existing.widget_def was only ever written via JSON.stringify of a validateWidgetDef()-passed WidgetDef, so it always parses back to a WidgetDef.
       const widget = input.widget !== undefined ? validateWidgetDef(input.widget) : (JSON.parse(existing.widget_def) as WidgetDef);
       await db.run(
         "UPDATE custom_views SET name = ?, widget_def = ?, position = ?, enabled = ?, updated_at = ? WHERE id = ?",
