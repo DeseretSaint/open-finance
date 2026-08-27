@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useEscapeToClose } from "@/lib/use-escape-to-close";
+import { useDialogA11y } from "@/lib/use-dialog-a11y";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import { CalendarClock, CalendarDays, X } from "lucide-react";
@@ -226,6 +227,7 @@ export default function PlanPage() {
   // ── Add sheet (FAB) ──
   const [showAdd, setShowAdd] = useState(false);
   useEscapeToClose(() => setShowAdd(false), showAdd);
+  const addDialogA11yRef = useDialogA11y(showAdd);
   const [addKind, setAddKind] = useState<"bill" | "debt" | "goal" | "expense" | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -811,6 +813,7 @@ export default function PlanPage() {
           style={{ paddingBottom: kbdHeight > 0 ? `${kbdHeight}px` : undefined }}
         >
           <div
+            ref={addDialogA11yRef}
             role="dialog"
             aria-modal="true"
             aria-label="Add to plan"

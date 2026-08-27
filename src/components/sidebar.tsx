@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useEscapeToClose } from "@/lib/use-escape-to-close";
+import { useDialogA11y } from "@/lib/use-dialog-a11y";
 import {
   ArrowLeftRight,
   Bot,
@@ -74,6 +75,7 @@ export function Sidebar() {
   const router = useRouter();
   const { dark, setDark } = useTheme();
   const [moreOpen, setMoreOpen] = useState(false);
+  const moreDialogA11yRef = useDialogA11y(moreOpen);
   useEscapeToClose(() => setMoreOpen(false), moreOpen);
 
   // Close the sheet on navigation.
@@ -172,7 +174,13 @@ export function Sidebar() {
 
       {/* Mobile "More" sheet — every remaining destination, one tap away. */}
       {moreOpen && (
-        <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="More">
+        <div
+          ref={moreDialogA11yRef}
+          className="fixed inset-0 z-50 md:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="More"
+        >
           <button
             aria-label="Close"
             className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"

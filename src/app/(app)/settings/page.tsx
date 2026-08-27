@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useEscapeToClose } from "@/lib/use-escape-to-close";
+import { useDialogA11y } from "@/lib/use-dialog-a11y";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import jsQR from "jsqr";
 import { Moon, Sun, ExternalLink, QrCode, X } from "lucide-react";
@@ -1595,6 +1596,7 @@ function HubPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; setE
   const [hubUrl, setHubUrl] = useState("");
   // Phone → computer hub pairing (issue #16): camera QR scan.
   const [scanning, setScanning] = useState(false);
+  const scannerA11yRef = useDialogA11y(scanning);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [scanErr, setScanErr] = useState<string | null>(null);
@@ -1755,6 +1757,7 @@ function HubPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; setE
         {/* Camera scanner modal */}
         {scanning && (
           <div
+            ref={scannerA11yRef}
             className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4"
             onClick={() => setScanning(false)}
             role="dialog"

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useEscapeToClose } from "@/lib/use-escape-to-close";
+import { useDialogA11y } from "@/lib/use-dialog-a11y";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search, X, Trash2, ChevronDown, RefreshCw, Upload } from "lucide-react";
@@ -65,6 +66,7 @@ export default function TransactionsPage() {
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   useEscapeToClose(() => { if (!add.isPending) setShowAdd(false); }, showAdd);
+  const addDialogA11yRef = useDialogA11y(showAdd);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [limit, setLimit] = useState(200);
 
@@ -154,6 +156,7 @@ export default function TransactionsPage() {
     // older history from bank-downloaded CSV files instead.
     const [showCsvSuggestion, setShowCsvSuggestion] = useState(false);
     useEscapeToClose(() => setShowCsvSuggestion(false), showCsvSuggestion);
+    const csvSuggestionA11yRef = useDialogA11y(showCsvSuggestion);
     const pullHistory = useMutation({
       mutationFn: async () => {
         setHistoryMsg(null);
@@ -237,6 +240,7 @@ export default function TransactionsPage() {
   // Plaid (institution ~90-day caps).
   const [showImport, setShowImport] = useState(false);
   useEscapeToClose(() => { if (!importCsv.isPending) setShowImport(false); }, showImport);
+  const importDialogA11yRef = useDialogA11y(showImport);
   const [importAccount, setImportAccount] = useState("");
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const importCsv = useMutation({
@@ -382,6 +386,7 @@ export default function TransactionsPage() {
           style={{ paddingBottom: kbdHeight > 0 ? `${kbdHeight}px` : undefined }}
         >
           <div
+            ref={addDialogA11yRef}
             role="dialog"
             aria-modal="true"
             aria-label="Add a transaction"
@@ -504,6 +509,7 @@ export default function TransactionsPage() {
           onClick={() => !importCsv.isPending && setShowImport(false)}
         >
           <div
+            ref={importDialogA11yRef}
             role="dialog"
             aria-modal="true"
             aria-label="Import bank CSV"
@@ -595,6 +601,7 @@ export default function TransactionsPage() {
           onClick={() => setShowCsvSuggestion(false)}
         >
           <div
+            ref={csvSuggestionA11yRef}
             role="dialog"
             aria-modal="true"
             aria-label="Import older history"

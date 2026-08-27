@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useEscapeToClose } from "@/lib/use-escape-to-close";
+import { useDialogA11y } from "@/lib/use-dialog-a11y";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { CreditCard, Landmark, PiggyBank, TrendingUp, Wallet, CircleHelp, X, ChevronUp, ChevronDown, Pencil, RotateCcw } from "lucide-react";
@@ -90,6 +91,7 @@ export default function AccountsPage() {
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   useEscapeToClose(() => { if (!create.isPending) setShowAdd(false); }, showAdd);
+  const dialogA11yRef = useDialogA11y(showAdd);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [editingDesc, setEditingDesc] = useState<string | null>(null);
   const [descDraft, setDescDraft] = useState("");
@@ -414,6 +416,7 @@ export default function AccountsPage() {
           style={{ paddingBottom: kbdHeight > 0 ? `${kbdHeight}px` : undefined }}
         >
           <div
+            ref={dialogA11yRef}
             role="dialog"
             aria-modal="true"
             aria-label="Add a manual account"

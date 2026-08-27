@@ -1,6 +1,7 @@
 "use client";
 
 import { useEscapeToClose } from "@/lib/use-escape-to-close";
+import { useDialogA11y } from "@/lib/use-dialog-a11y";
 
 /**
  * Custom confirmation dialog — replaces window.confirm() (which pops the
@@ -29,10 +30,12 @@ export function ConfirmDialog({
   onCancel: () => void;
 }) {
   useEscapeToClose(() => { if (!busy) onCancel(); }, open);
+  const ref = useDialogA11y(open);
 
   if (!open) return null;
   return (
     <div
+      ref={ref}
       className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm md:items-center md:p-6"
       onClick={() => !busy && onCancel()}
       role="alertdialog"

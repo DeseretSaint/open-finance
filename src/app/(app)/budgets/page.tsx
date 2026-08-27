@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useEscapeToClose } from "@/lib/use-escape-to-close";
+import { useDialogA11y } from "@/lib/use-dialog-a11y";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarRange, ChevronDown, Pencil, Trash2, X } from "lucide-react";
 import { api } from "@/lib/api-client";
@@ -172,6 +173,7 @@ export default function BudgetsPage() {
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const dialogA11yRef = useDialogA11y(showAdd);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -506,6 +508,7 @@ export default function BudgetsPage() {
           style={{ paddingBottom: kbdHeight > 0 ? `${kbdHeight}px` : undefined }}
         >
           <div
+            ref={dialogA11yRef}
             role="dialog"
             aria-modal="true"
             aria-label={editingId ? "Edit budget" : "Create a budget"}
