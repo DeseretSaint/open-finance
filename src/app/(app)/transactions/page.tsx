@@ -64,6 +64,8 @@ export default function TransactionsPage() {
   const [accountId, setAccountId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [pendingOnly, setPendingOnly] = useState(false);
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
@@ -88,8 +90,10 @@ export default function TransactionsPage() {
     if (accountId) p.set("accountId", accountId);
     if (categoryId) p.set("categoryId", categoryId);
     if (pendingOnly) p.set("pending", "1");
+    if (from) p.set("from", from);
+    if (to) p.set("to", to);
     return p.toString();
-  }, [debouncedQ, accountId, categoryId, pendingOnly, limit]);
+  }, [debouncedQ, accountId, categoryId, pendingOnly, from, to, limit]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["transactions", params],
@@ -346,6 +350,36 @@ export default function TransactionsPage() {
             )}
             Pending
           </button>
+          <div className="min-w-36">
+            <CustomDatePicker
+              ariaLabel="From date"
+              value={from}
+              onChange={setFrom}
+              max={to || undefined}
+            />
+          </div>
+          <div className="min-w-36">
+            <CustomDatePicker
+              ariaLabel="To date"
+              value={to}
+              onChange={setTo}
+              min={from || undefined}
+            />
+          </div>
+          {(from || to) && (
+            <button
+              type="button"
+              aria-label="Clear date range"
+              onClick={() => {
+                setFrom("");
+                setTo("");
+              }}
+              className="flex h-9 items-center gap-1.5 rounded-lg border border-border bg-surface px-3 text-xs font-medium text-text-muted transition-colors hover:text-text"
+            >
+              <X size={14} />
+              Clear dates
+            </button>
+          )}
           <button
             type="button"
             onClick={() => {
@@ -711,7 +745,7 @@ export default function TransactionsPage() {
           <RowSkeleton />
         ) : data.rows.length === 0 ? (
           <div className="px-6 py-12 text-center">
-            {q || accountId || categoryId || pendingOnly ? (
+            {q || accountId || categoryId || pendingOnly || from || to ? (
               <>
                 <p className="text-sm text-text-muted">No transactions match your filters.</p>
                 <button
@@ -722,6 +756,8 @@ export default function TransactionsPage() {
                     setAccountId("");
                     setCategoryId("");
                     setPendingOnly(false);
+                    setFrom("");
+                    setTo("");
                   }}
                 >
                   Clear filters

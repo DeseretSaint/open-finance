@@ -14,10 +14,10 @@ describe("transactions category filter", () => {
     // state + query wiring
     expect(src).toContain("const [categoryId, setCategoryId] = useState");
     expect(src).toContain('if (categoryId) p.set("categoryId", categoryId);');
-    expect(src).toMatch(/\[\s*debouncedQ,\s*accountId,\s*categoryId,\s*pendingOnly,\s*limit\s*\]/);
+    expect(src).toMatch(/\[\s*debouncedQ,\s*accountId,\s*categoryId,\s*pendingOnly,\s*from,\s*to,\s*limit\s*\]/);
     // clear-filters branch clears the new filter too
-    expect(src).toContain('{q || accountId || categoryId || pendingOnly ? (');
-    expect(src).toContain("setCategoryId(\"\");");
+    expect(src).toContain('{q || accountId || categoryId || pendingOnly || from || to ? (');
+    expect(src).toContain('setCategoryId("");');
   });
 
   it("backend transactions route accepts categoryId", () => {
