@@ -34,7 +34,42 @@ const IDB_STORE = "db";
 const IDB_KEY = "sqlite";
 const SAVE_DEBOUNCE_MS = 400;
 
+// Cross-tab sync: every successful IndexedDB save is announced on this channel
+// so other open tabs reload the bytes from IDB instead of clobbering each other.
+// Without this, two tabs each keep an in-memory copy and the LAST one to flush
+// silently overwrites the other tab's writes (data-integrity bug).
+const SYNC_CHANNEL = "open-finance-solo-db";
+
 let sqlJsPromise: Promise<SqlJsModule> | null = null;
+
+// Monotonic logical clock shared across all instances in this tab. Incremented
+// on every save we perform and on every remote save we accept, so we can tell
+// whether an incoming update is newer than what we last saw (and drop echoes).
+let syncSeq = 0;
+const TAB_ID =
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2);
+
+/**
+ * Pure decision: should this tab adopt a remote DB update?
+ * Adopt only when the message is from ANOTHER tab, is strictly newer than the
+ * last seq we saw, and we have NO pending local writes (a pending debounce
+ * means our in-memory copy is ahead of what's in IDB — keep ours, it flushes
+ * soon and would otherwise be discarded).
+ */
+export function syncShouldAdopt(
+  msg: { tabId?: string; seq?: number } | null,
+  tabId: string,
+  lastSeq: number,
+  hasPendingWrite: boolean
+): boolean {
+  if (!msg) return false;
+  if (msg.tabId === tabId) return false;
+  if (typeof msg.seq !== "number" || msg.seq <= lastSeq) return false;
+  if (hasPendingWrite) return false;
+  return true;
+}
 
 function wasmUrl(): string {
   // basePath is inlined at build time (empty for the APK/root builds).
@@ -104,6 +139,16 @@ async function idbSave(bytes: Uint8Array): Promise<void> {
   }
 }
 
+// Lazily create the cross-tab BroadcastChannel (browser only). Returns null in
+// non-browser contexts (SSR / node tests) so the sync path is a no-op.
+let channelSingleton: BroadcastChannel | null | undefined = undefined;
+function getChannel(): BroadcastChannel | null {
+  if (typeof BroadcastChannel === "undefined") return null;
+  if (channelSingleton !== undefined) return channelSingleton;
+  channelSingleton = new BroadcastChannel(SYNC_CHANNEL);
+  return channelSingleton;
+}
+
 export class BrowserSqliteDb implements Db {
   // SAFETY: sql.js Database instance; typed any because sql.js ships no TS types.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -132,6 +177,9 @@ export class BrowserSqliteDb implements Db {
     try {
       const bytes = this.db.export() as Uint8Array;
       await idbSave(bytes);
+      // Announce the save so other tabs reload from IDB instead of clobbering us.
+      syncSeq += 1;
+      getChannel()?.postMessage({ tabId: TAB_ID, seq: syncSeq });
     } catch {
       // best-effort
     }
@@ -156,6 +204,32 @@ export class BrowserSqliteDb implements Db {
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") void this.flush();
     });
+    // Adopt other tabs' saves so two tabs don't clobber each other's writes.
+    const ch = getChannel();
+    if (ch) {
+      ch.onmessage = (ev: MessageEvent) => {
+        void this.onRemoteUpdate(ev.data);
+      };
+    }
+  }
+
+  /**
+   * A different tab announced a DB save. Reload the bytes from IndexedDB into
+   * memory — but only when we have NO pending local writes (a pending debounce
+   * means our in-memory copy is ahead of what's persisted, and adopting now
+   * would discard those writes; it flushes shortly). Echoes and stale seqs are
+   * ignored via syncShouldAdopt + the shared syncSeq clock.
+   */
+  private async onRemoteUpdate(msg: { tabId?: string; seq?: number }): Promise<void> {
+    if (!syncShouldAdopt(msg, TAB_ID, syncSeq, this.saveTimer !== null)) return;
+    syncSeq = msg.seq as number;
+    if (!this.db || !this.SQL) return;
+    try {
+      const bytes = await idbLoad();
+      if (bytes) this.db = new this.SQL.Database(bytes);
+    } catch {
+      // best-effort
+    }
   }
 
   /**
