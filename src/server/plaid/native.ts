@@ -20,6 +20,14 @@ import type {
   PlaidTransaction,
 } from "@/server/plaid/adapter";
 
+/**
+ * The only config field the web layer sends across the native bridge; the
+ * Kotlin proxy builds the rest of Plaid's link/token/create body itself.
+ */
+interface PlaidLinkTokenConfig {
+  client_user_id: string;
+}
+
 interface PlaidProxy {
   testCredentials: (opts: {
     clientId: string;
@@ -30,7 +38,7 @@ interface PlaidProxy {
     clientId: string;
     secret: string;
     environment: string;
-    config?: Record<string, unknown>;
+    config?: PlaidLinkTokenConfig;
     accessToken?: string;
   }) => Promise<{ linkToken: string }>;
   exchangePublicToken: (opts: {
@@ -81,6 +89,9 @@ interface PlaidProxy {
 
 function proxy(): PlaidProxy | null {
   if (typeof globalThis === "undefined") return null;
+  // SAFETY: globalThis is the Capacitor webview global at runtime; the
+  // PlaidProxy handle on it is only ever assigned by this module (the
+  // self-heal bridge below), and the field is read optional-chained only.
   const g = globalThis as unknown as { PlaidProxy?: PlaidProxy };
   if (g.PlaidProxy) return g.PlaidProxy;
   // Self-heal: bridge the native plugin lazily at the moment it's needed.
@@ -89,6 +100,9 @@ function proxy(): PlaidProxy | null {
   // window isn't the global). Capacitor exposes native plugins via
   // Capacitor.registerPlugin(name); we assign the proxy to the same handle.
   try {
+    // SAFETY: read-only probe of the runtime global for the Capacitor
+    // bridge; every field accessed is optional-chained, so any other shape
+    // is inert and falls through to the null return.
     const w = globalThis as unknown as {
       window?: { Capacitor?: { registerPlugin?: (name: string) => PlaidProxy } };
       Capacitor?: { registerPlugin?: (name: string) => PlaidProxy };
@@ -108,11 +122,15 @@ function proxy(): PlaidProxy | null {
 export function createNativePlaidClient(): PlaidClient {
   const p = proxy();
   if (!p) {
+    // SAFETY: diagnostic-only read of the runtime global to build the
+    // error message; every field is optional-chained and never invoked.
     const g = globalThis as unknown as {
       Capacitor?: unknown;
       window?: { Capacitor?: unknown };
       PlaidProxy?: unknown;
     };
+    // SAFETY: cap is only probed for a truthy registerPlugin in the
+    // diagnostic string below; no field is invoked or trusted.
     const cap = (g.window?.Capacitor ?? g.Capacitor) as { registerPlugin?: unknown } | undefined;
     throw new Error(
       "PlaidProxy plugin unavailable (solo mode requires the native APK). " +
@@ -283,7 +301,7 @@ export async function launchNativeLink(linkToken: string): Promise<{
   return {
     cancelled: r.cancelled,
     publicToken: r.publicToken,
-    institutionName: (r as { metadata?: { institutionName?: string | null } }).metadata?.institutionName ?? null,
+    institutionName: r.metadata?.institutionName ?? null,
     exit: r.exit,
   };
 }
