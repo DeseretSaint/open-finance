@@ -187,7 +187,7 @@ export default function ReportsPage() {
     Expenses: r.expenseCents / 100,
     Net: r.netCents / 100,
   }));
-  const hasCashflow = barData.length > 0 && barData.some((r) => r.Income !== 0 || r.Expenses !== 0 || r.Net !== 0);
+  const hasCashflow = barData.some((r) => r.Income !== 0 || r.Expenses !== 0 || r.Net !== 0);
 
   const projData = (projection.data?.points ?? []).map((p) => ({
     month: new Date(`${p.month}-01T00:00:00`).toLocaleDateString("en-US", { month: "short" }),
