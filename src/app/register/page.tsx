@@ -12,6 +12,23 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { MotifHero } from "@/components/motif-hero";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 
+// Mirror of server-side validatePasswordPolicy (src/server/auth/password.ts) for
+// immediate inline guidance. The server remains authoritative; this only gives
+// feedback before submit so the user isn't round-tripped to a generic 400.
+const COMMON_PASSWORDS = new Set([
+  "password", "12345678", "123456789", "qwertyuiop", "abc123456", "letmein1",
+  "iloveyou1", "admin1234", "welcome1", "monkey123", "dragon123", "passw0rd",
+  "password1", "baseball1", "football1", "sunshine1", "princess1", "trustno1",
+]);
+
+function registerPasswordError(pw: string, user: string): string | null {
+  if (!pw) return null;
+  if (new TextEncoder().encode(pw).length > 72) return "Password must be at most 72 bytes.";
+  if (user && pw.toLowerCase() === user.toLowerCase()) return "Password cannot be the same as your username.";
+  if (COMMON_PASSWORDS.has(pw.toLowerCase())) return "That password is too common — choose a unique one.";
+  return null;
+}
+
 export default function RegisterPage() {
   const kbdHeight = useKeyboardHeight();
   const router = useRouter();
@@ -22,6 +39,7 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
+  const passwordError = !solo ? registerPasswordError(password, username) : null;
 
   useEffect(() => {
     if (hasWindow()) {
@@ -153,7 +171,11 @@ export default function RegisterPage() {
                   placeholder="Choose a password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  aria-invalid={!!passwordError}
                 />
+                {passwordError && (
+                  <p role="alert" className="mt-1.5 text-xs text-danger">{passwordError}</p>
+                )}
                 <ul className="mt-1.5 list-inside list-disc space-y-0.5 text-xs text-text-muted">
                   <li>Anything you&apos;ll remember — no minimum length</li>
                   <li>Not your username or a common password</li>
@@ -168,7 +190,7 @@ export default function RegisterPage() {
           )}
           <Button
             type="submit"
-            disabled={busy || (!solo && (!username || !password))}
+            disabled={busy || (!solo && (!username || !password || !!passwordError))}
             className="w-full"
             size="lg"
           >
