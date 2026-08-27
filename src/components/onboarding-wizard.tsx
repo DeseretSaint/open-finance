@@ -234,6 +234,23 @@ export function OnboardingWizard() {
     await finish();
   }
 
+  // Demo-first entry: log into the seeded demo account (same endpoint the
+  // /demo page uses) so a first-run user can explore real-looking data before
+  // committing to setup. "Start fresh" (skipAll) is the explicit empty-account
+  // exit one line below.
+  async function tryDemo() {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api.post("/api/auth/demo");
+      router.push("/dashboard");
+      router.refresh();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Demo unavailable.");
+      setBusy(false);
+    }
+  }
+
   return (
     <div
       className="forced-dark flex min-h-dvh items-center justify-center bg-background px-4 py-8"
@@ -268,12 +285,20 @@ export function OnboardingWizard() {
               </p>
               <div className="mt-6 flex gap-3">
                 <Button variant="secondary" onClick={skipAll} className="flex-1" disabled={busy}>
-                  Skip
+                  Start fresh
                 </Button>
-                <Button onClick={() => setStep("paydays")} className="flex-1">
+                <Button onClick={() => setStep("paydays")} className="flex-1" disabled={busy}>
                   Get started
                 </Button>
               </div>
+              <button
+                type="button"
+                onClick={tryDemo}
+                disabled={busy}
+                className="mt-3 w-full text-center text-sm font-medium text-accent-text transition-colors hover:text-accent disabled:opacity-50"
+              >
+                Or explore with sample data first →
+              </button>
             </>
           )}
 
