@@ -136,6 +136,18 @@ describe("auth service", () => {
     expect(login.user.username).toBe("frank");
   });
 
+  it("makes the recovery code single-use", async () => {
+    const { user } = await auth().register({ username: "hank", display_name: "Hank", password: "hank-has-a-strong-pass" });
+    const code = await auth().createRecoveryCode(user.id);
+    await auth().resetPasswordWithRecovery("hank", code, "hank-first-reset-pass");
+    // The same code must not reset the password a second time.
+    await expect(
+      auth().resetPasswordWithRecovery("hank", code, "hank-second-reset-pass")
+    ).rejects.toMatchObject({ code: "bad_request" });
+    const login = await auth().login({ username: "hank", password: "hank-first-reset-pass", duration: "30d", device_label: "t" });
+    expect(login.user.username).toBe("hank");
+  });
+
   it("deletes a user and their related rows", async () => {
     const { user } = await auth().register({ username: "grace", display_name: "Grace", password: "grace-has-a-strong-pass" });
     await createSession(user.id, "30d", "dev", db);

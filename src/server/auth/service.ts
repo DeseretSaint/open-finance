@@ -182,7 +182,12 @@ export function createAuthService(db: Db = getDb()) {
       if (!row?.recovery_code_hash || !safeEqual(row.recovery_code_hash, hashSecret(recoveryCode))) {
         throw apiErrors.badRequest("Recovery code is incorrect.");
       }
-      await db.run("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?", await hashPassword(newPassword), now(), row.id);
+      // Single-use code: clear it in the same write as the password reset so a
+      // leaked/shoulder-surfed code can't reset the password again later.
+      await db.run(
+        "UPDATE users SET password_hash = ?, recovery_code_hash = NULL, updated_at = ? WHERE id = ?",
+        await hashPassword(newPassword), now(), row.id
+      );
       await db.run("DELETE FROM sessions WHERE user_id = ?", row.id);
       return { ok: true };
     },
