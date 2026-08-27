@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePageTitle } from "@/lib/use-page-title";
 import { useEscapeToClose } from "@/lib/use-escape-to-close";
 import { useDialogA11y } from "@/lib/use-dialog-a11y";
@@ -73,14 +73,23 @@ export default function TransactionsPage() {
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [limit, setLimit] = useState(200);
 
+  // Debounce the search term so we don't fire a /api/transactions query on every
+  // keystroke — the input stays responsive (driven by `q`) but the query only
+  // runs once the user pauses typing.
+  const [debouncedQ, setDebouncedQ] = useState(q);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(q), 300);
+    return () => clearTimeout(t);
+  }, [q]);
+
   const params = useMemo(() => {
     const p = new URLSearchParams({ limit: String(limit) });
-    if (q.trim()) p.set("q", q.trim());
+    if (debouncedQ.trim()) p.set("q", debouncedQ.trim());
     if (accountId) p.set("accountId", accountId);
     if (categoryId) p.set("categoryId", categoryId);
     if (pendingOnly) p.set("pending", "1");
     return p.toString();
-  }, [q, accountId, categoryId, pendingOnly, limit]);
+  }, [debouncedQ, accountId, categoryId, pendingOnly, limit]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["transactions", params],
