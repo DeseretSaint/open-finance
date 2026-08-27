@@ -718,6 +718,7 @@ export default function TransactionsPage() {
                   className="mt-1 text-sm font-medium text-accent-text hover:underline"
                   onClick={() => {
                     setQ("");
+                    setDebouncedQ("");
                     setAccountId("");
                     setCategoryId("");
                     setPendingOnly(false);

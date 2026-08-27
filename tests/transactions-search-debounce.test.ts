@@ -20,4 +20,13 @@ describe("transactions search debounce", () => {
     // memo deps reference debouncedQ, not q
     expect(src).toMatch(/\[\s*debouncedQ,\s*accountId,\s*categoryId,\s*pendingOnly,\s*limit\s*\]/);
   });
+
+  it("Clear filters resets the debounced search immediately", () => {
+    const src = read("src/app/(app)/transactions/page.tsx");
+    // the Clear filters handler must clear both q AND debouncedQ so the
+    // search drops instantly instead of lingering for the 300ms debounce
+    expect(src).toMatch(/setQ\(""\);\s*setDebouncedQ\(""\);/);
+    // it lives inside the "No transactions match your filters" empty-state branch
+    expect(src).toContain("No transactions match your filters.");
+  });
 });
