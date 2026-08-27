@@ -28,6 +28,6 @@ describe("budget create-amount validation UX", () => {
 
   it("blocks submit while the amount is invalid", () => {
     // disabled prop must include the invalid-amount guard
-    expect(src).toContain("disabled={create.isPending || !name || !amount || !!amountError}");
+    expect(src).toContain("disabled={create.isPending || update.isPending || !name || !amount || !!amountError}");
   });
 });

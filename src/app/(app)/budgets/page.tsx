@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarRange, ChevronDown, Trash2, X } from "lucide-react";
+import { CalendarRange, ChevronDown, Pencil, Trash2, X } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/badge";
@@ -170,6 +170,7 @@ export default function BudgetsPage() {
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -202,6 +203,46 @@ export default function BudgetsPage() {
     mutationFn: (id: string) => api.del(`/api/budgets/${id}`),
     onSuccess: invalidate,
   });
+
+  const update = useMutation({
+    mutationFn: () =>
+      api.patch(`/api/budgets/${editingId}`, {
+        name,
+        amountCents: Math.round(parseFloat(amount) * 100),
+        period,
+        categoryIds,
+      }),
+    onSuccess: () => {
+      setName("");
+      setAmount("");
+      setCategoryIds([]);
+      setError(null);
+      setShowAdd(false);
+      setEditingId(null);
+      invalidate();
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : "Failed to update budget."),
+  });
+
+  function openEdit(b: Budget) {
+    setName(b.name);
+    setAmount((b.amount_cents / 100).toFixed(2));
+    setPeriod((b.period === "weekly" || b.period === "yearly" ? b.period : "monthly") as "weekly" | "monthly" | "yearly");
+    setCategoryIds(b.categoryIds);
+    setError(null);
+    setEditingId(b.id);
+    setShowAdd(true);
+  }
+
+  function closeModal() {
+    if (create.isPending || update.isPending) return;
+    setShowAdd(false);
+    setEditingId(null);
+    setName("");
+    setAmount("");
+    setCategoryIds([]);
+    setError(null);
+  }
 
   function toggleCategory(id: string) {
     setCategoryIds((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));
@@ -395,6 +436,14 @@ export default function BudgetsPage() {
                       <ChevronDown size={15} />
                     </button>
                     <button
+                      aria-label={`Edit budget ${b.name}`}
+                      title="Edit budget"
+                      onClick={() => openEdit(b)}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-muted hover:text-text"
+                    >
+                      <Pencil size={15} />
+                    </button>
+                    <button
                       aria-label={`Delete budget ${b.name}`}
                       title="Delete budget"
                       onClick={() => setConfirmDelete({ id: b.id, name: b.name })}
@@ -447,17 +496,17 @@ export default function BudgetsPage() {
         </div>
       )}
 
-      {/* Create-budget modal */}
+      {/* Create/edit-budget modal */}
       {showAdd && (
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm md:items-center md:p-6"
-          onClick={() => !create.isPending && setShowAdd(false)}
+          onClick={closeModal}
           style={{ paddingBottom: kbdHeight > 0 ? `${kbdHeight}px` : undefined }}
         >
           <div
             role="dialog"
             aria-modal="true"
-            aria-label="Create a budget"
+            aria-label={editingId ? "Edit budget" : "Create a budget"}
             onClick={(e) => e.stopPropagation()}
             className="flex w-full max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-t-3xl border border-border bg-surface shadow-2xl md:max-h-[calc(100dvh-3rem)] md:max-w-lg md:rounded-3xl"
             style={{
@@ -468,21 +517,24 @@ export default function BudgetsPage() {
             <div className="overflow-y-auto p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
             <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border md:hidden" />
             <div className="mb-4 flex items-center justify-between">
-              <CardTitle>Create a budget</CardTitle>
+              <CardTitle>{editingId ? "Edit budget" : "Create a budget"}</CardTitle>
               <button
                 aria-label="Close"
-                onClick={() => !create.isPending && setShowAdd(false)}
+                onClick={closeModal}
                 className="flex h-9 w-9 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-muted hover:text-text"
               >
                 <X size={18} />
               </button>
             </div>
-            <p className="mb-4 text-sm text-text-muted">Track spending in one or more categories per period.</p>
+            <p className="mb-4 text-sm text-text-muted">
+              {editingId ? "Update the name, amount, period, or categories." : "Track spending in one or more categories per period."}
+            </p>
             <form
               className="flex flex-col gap-4"
               onSubmit={(e) => {
                 e.preventDefault();
-                create.mutate();
+                if (editingId) update.mutate();
+                else create.mutate();
               }}
             >
               <div>
@@ -547,8 +599,10 @@ export default function BudgetsPage() {
                   {error}
                 </p>
               )}
-              <Button type="submit" disabled={create.isPending || !name || !amount || !!amountError}>
-                {create.isPending ? "Creating…" : "Create budget"}
+              <Button type="submit" disabled={create.isPending || update.isPending || !name || !amount || !!amountError}>
+                {create.isPending || update.isPending
+                  ? editingId ? "Saving…" : "Creating…"
+                  : editingId ? "Save changes" : "Create budget"}
               </Button>
             </form>
             </div>
