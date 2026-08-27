@@ -155,10 +155,11 @@ export default function BudgetsPage() {
   }
   if (!includePending) params.set("includePending", "0");
 
-  const { data, isLoading } = useQuery({
+  const budgetsQuery = useQuery({
     queryKey: ["budgets", frame, customStart, customEnd, includePending],
     queryFn: () => api.get<{ budgets: Budget[] }>(`/api/budgets?${params.toString()}`),
   });
+  const { data, isLoading } = budgetsQuery;
   const categories = useQuery({ queryKey: ["categories"], queryFn: () => api.get<{ categories: Category[] }>("/api/categories") });
   const summary = useQuery({
     queryKey: ["summary", frame, customStart, customEnd, includePending],
@@ -167,6 +168,13 @@ export default function BudgetsPage() {
         `/api/summary?${params.toString()}`
       ),
   });
+
+  // Surface fetch failures instead of leaving the user on BudgetsSkeleton forever.
+  // Gated on no-data so a background refetch error never blanks already-rendered budgets.
+  const failedQueries = [budgetsQuery, categories, summary].filter((q) => q.isError && !q.data);
+  const hasFailed = failedQueries.length > 0;
+  const isRetrying = failedQueries.some((q) => q.isFetching);
+  const retry = () => failedQueries.forEach((q) => q.refetch());
 
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
@@ -273,6 +281,21 @@ export default function BudgetsPage() {
     <div className="space-y-6">
       {/* Widgets your AI added (dev:ui) */}
       <AgentWidgets tab="budgets" />
+
+      {hasFailed && (
+        <Card className="border-danger/30 bg-[var(--danger-soft)]">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p role="alert" className="text-sm text-danger">
+              Couldn&apos;t load your budgets —{" "}
+              {failedQueries.flatMap((q) => (q.error instanceof Error ? [q.error.message] : [])).join("; ") ||
+                "Request failed"}
+            </p>
+            <Button variant="outline" disabled={isRetrying} onClick={retry}>
+              {isRetrying ? "Retrying…" : "Try again"}
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {/* Time-frame selector */}
       <Card>
