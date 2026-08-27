@@ -88,5 +88,9 @@ export const SOLO_MIGRATIONS: { version: number; sql: string }[] = [
   {
     version: 20,
     sql: "-- 020: version counter for the agent manual (D11) — cheap change detection.\n-- The agent passes ?since=<last version it saw> and only receives the manual\n-- text when the version has changed, so identical instructions are never\n-- re-read (no wasted tokens).\nALTER TABLE agent_manual ADD COLUMN version INTEGER NOT NULL DEFAULT 1;\n",
+  },
+  {
+    version: 21,
+    sql: "-- 021: partial index to speed the per-account pending-balance subquery.\n-- summary/reports/projection/accounts each run a correlated subquery\n--   SELECT SUM(amount_cents) FROM transactions\n--   WHERE account_id = ? AND pending = 1 AND exclude_from_budgets = 0 AND is_transfer = 0\n-- which scans every transaction of an account to isolate the (sparse) pending\n-- rows. A partial index keyed on account_id for pending = 1 rows lets the\n-- planner seek straight to the handful of pending rows instead of scanning the\n-- whole per-account set. Tiny index (only pending rows), zero behavior change.\nCREATE INDEX idx_txn_account_pending ON transactions(account_id) WHERE pending = 1;\n",
   }
 ];
