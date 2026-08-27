@@ -1,5 +1,9 @@
 # GitHub Pages deploy of the browser-solo PWA (PAGES=1 static export).
-# Builds with PAGES_BASE_PATH=/open-finance and publishes dist/mobile to Pages.
+#
+# Deploys via the legacy gh-pages branch: deploy-pages v4 (workflow build_type)
+# kept timing out polling Pages ("Current status:" empty -> Timeout reached),
+# so we build with PAGES_BASE_PATH=/open-finance and push dist/mobile to the
+# gh-pages branch, which Pages serves from "/" of that branch.
 name: pages-deploy
 
 on:
@@ -8,16 +12,14 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  build:
+  build-deploy:
     runs-on: ubuntu-latest
     env:
       ENCRYPTION_KEY: build-time-dummy
@@ -37,17 +39,10 @@ jobs:
           PAGES=1 PAGES_BASE_PATH=/open-finance node scripts/build-mobile.mjs
       - name: SPA-ish fallback (404.html copy of index)
         run: cp dist/mobile/index.html dist/mobile/404.html
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: dist/mobile
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist/mobile
+          publish_branch: gh-pages
+          force_orphan: true
