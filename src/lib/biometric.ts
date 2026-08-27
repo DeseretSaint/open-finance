@@ -9,6 +9,8 @@
 
 import { BiometricAuth } from "@aparajita/capacitor-biometric-auth";
 
+import { hasWindow } from "@/lib/browser-env";
+
 export interface BiometricAvailability {
   available: boolean;
   strong: boolean;
@@ -16,7 +18,7 @@ export interface BiometricAvailability {
 }
 
 function nativeAvailable(): boolean {
-  if (typeof window === "undefined") return false;
+  if (!hasWindow()) return false;
   // SAFETY: window is the only handle to the Capacitor bridge on native; cast to read its shape.
   const cap = (window as unknown as { Capacitor?: { isNativePlatform: () => boolean } }).Capacitor;
   return !!cap?.isNativePlatform?.();

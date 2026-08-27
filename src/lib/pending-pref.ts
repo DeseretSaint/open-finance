@@ -11,10 +11,12 @@
  */
 import { useCallback, useEffect, useState } from "react";
 
+import { hasWindow } from "@/lib/browser-env";
+
 const KEY = "of-include-pending";
 
 export function readIncludePending(): boolean {
-  if (typeof window === "undefined") return true;
+  if (!hasWindow()) return true;
   const v = localStorage.getItem(KEY);
   return v !== "0"; // default true
 }
@@ -26,7 +28,7 @@ export function useIncludePending(): [boolean, (next: boolean) => void] {
   }, []);
   const set = useCallback((next: boolean) => {
     setValue(next);
-    if (typeof window !== "undefined") localStorage.setItem(KEY, next ? "1" : "0");
+    if (hasWindow()) localStorage.setItem(KEY, next ? "1" : "0");
   }, []);
   return [value, set];
 }

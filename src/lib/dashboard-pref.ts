@@ -10,6 +10,8 @@
  */
 import { useCallback, useEffect, useState } from "react";
 
+import { hasWindow } from "@/lib/browser-env";
+
 export const DASHBOARD_WIDGET_IDS = ["balance", "stats", "budgets", "recent"] as const;
 export type DashboardWidgetId = (typeof DASHBOARD_WIDGET_IDS)[number];
 
@@ -27,7 +29,8 @@ export const DEFAULT_DASHBOARD_LAYOUT: DashboardLayout = {
 
 function isWidgetId(v: unknown): v is DashboardWidgetId {
   // SAFETY: DASHBOARD_WIDGET_IDS is the source of truth; read as string[] to test membership.
-  return typeof v === "string" && (DASHBOARD_WIDGET_IDS as readonly string[]).includes(v);
+  // Array.includes uses SameValueZero (no type coercion), so non-string v never matches.
+  return (DASHBOARD_WIDGET_IDS as readonly string[]).includes(v as string);
 }
 
 /**
@@ -40,7 +43,7 @@ export function normalizeDashboardLayout(value: unknown): DashboardLayout {
     order: [...DEFAULT_DASHBOARD_LAYOUT.order],
     hidden: [...DEFAULT_DASHBOARD_LAYOUT.hidden],
   });
-  if (typeof value !== "object" || value === null) return fallback();
+  if (value === null || Object.prototype.toString.call(value) !== "[object Object]") return fallback();
   // SAFETY: value is unknown from localStorage; treat as a loose object and validate fields below.
   const raw = value as { order?: unknown; hidden?: unknown };
   if (!Array.isArray(raw.order) || !Array.isArray(raw.hidden)) return fallback();
@@ -64,7 +67,7 @@ export function normalizeDashboardLayout(value: unknown): DashboardLayout {
 }
 
 export function readDashboardLayout(): DashboardLayout {
-  if (typeof window === "undefined") return DEFAULT_DASHBOARD_LAYOUT;
+  if (!hasWindow()) return DEFAULT_DASHBOARD_LAYOUT;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_DASHBOARD_LAYOUT;
@@ -75,7 +78,7 @@ export function readDashboardLayout(): DashboardLayout {
 }
 
 function writeLayout(layout: DashboardLayout) {
-  if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
+  if (hasWindow()) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
 }
 
 /** Move a widget up/down in the order; no-op at the bounds. Pure. */

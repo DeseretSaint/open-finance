@@ -12,8 +12,10 @@
  * Safe to call anywhere: on plain web/PWA there is no Capacitor bridge and
  * this is a no-op.
  */
+import { hasWindow } from "@/lib/browser-env";
+
 export function ensureNativePlugins(): void {
-  if (typeof window === "undefined") return;
+  if (!hasWindow()) return;
   // SAFETY: window hosts dynamically-registered native plugins; read it as a loose record.
   const w = window as unknown as Record<string, unknown>;
   // SAFETY: Capacitor.registerPlugin is the native bridge entry point; read it off the window record.
@@ -46,7 +48,7 @@ export function ensureNativePlugins(): void {
  * the live server state on the device. Returns nulls if it can't be probed.
  */
 export async function getRemoteServerStatus(): Promise<{ available: boolean; listening: boolean }> {
-  if (typeof window === "undefined") return { available: false, listening: false };
+  if (!hasWindow()) return { available: false, listening: false };
   // SAFETY: window hosts the native RemoteServer plugin with an optional status probe.
   const w = window as unknown as {
     RemoteServer?: { start?: unknown; status?: () => Promise<{ running: boolean } | null> };

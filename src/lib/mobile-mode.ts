@@ -19,6 +19,8 @@
 
 export type MobileMode = "solo" | "connected";
 
+import { hasWindow } from "@/lib/browser-env";
+
 interface NativeRuntime {
   Capacitor?: { isNativePlatform?: () => boolean };
   Keystore?: {
@@ -30,7 +32,7 @@ function nativeRuntime(): NativeRuntime {
   // SAFETY: globalThis carries the native runtime globals (Capacitor/Keystore) injected by the bridge.
   const g = globalThis as unknown as NativeRuntime;
   if (g?.Capacitor || g?.Keystore) return g;
-  if (typeof window !== "undefined")
+  if (hasWindow())
     // SAFETY: window also receives the native globals on the webview; cast to NativeRuntime.
     return window as unknown as NativeRuntime;
   return {};

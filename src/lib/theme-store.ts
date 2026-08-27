@@ -17,6 +17,7 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { ensureNativePlugins } from "@/lib/native-plugins";
+import { hasDocument, hasWindow } from "@/lib/browser-env";
 import {
   ACCENTS,
   accentForeground,
@@ -45,10 +46,6 @@ export const DEFAULT_THEME: ThemeState = {
 let state: ThemeState = DEFAULT_THEME;
 let initialized = false;
 const listeners = new Set<() => void>();
-
-function hasWindow(): boolean {
-  return typeof window !== "undefined";
-}
 
 // One-time dark-mode migrations (kept in sync with the pre-hydration inline
 // script in app/layout.tsx). Pre-dark-default installs stored of-dark="0";
@@ -114,7 +111,7 @@ function syncFromStorage(): void {
 
 function ensureStorageSync(): void {
   if (storageSyncInstalled || !hasWindow()) return;
-  if (typeof window.addEventListener !== "function") return;
+  if (!("addEventListener" in window)) return;
   storageSyncInstalled = true;
   window.addEventListener("storage", (e: StorageEvent) => {
     // key === null means storage.clear() in another tab → re-read everything.
@@ -140,7 +137,7 @@ function ensureLoaded(): ThemeState {
 // in one pass. Idempotent; safe to call from setters and from an effect.
 export function applyTheme(): void {
   ensureLoaded();
-  if (typeof document === "undefined") return;
+  if (!hasDocument()) return;
   const root = document.documentElement;
   const fg = accentForeground(state.accent);
   const text = accentText(state.accent, state.dark);
