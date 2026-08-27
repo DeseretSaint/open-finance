@@ -418,7 +418,7 @@ export function OnboardingWizard() {
               </p>
               {solo ? (
                 <div className="mt-4 space-y-3">
-                  <Input
+                  <Input aria-label={"New PIN"}
                     type="password"
                     inputMode="numeric"
                     autoComplete="off"
@@ -428,7 +428,7 @@ export function OnboardingWizard() {
                     value={pin}
                     onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ""))}
                   />
-                  <Input
+                  <Input aria-label={"Confirm PIN"}
                     type="password"
                     inputMode="numeric"
                     autoComplete="off"
@@ -501,8 +501,8 @@ export function OnboardingWizard() {
                 — pick &ldquo;Sandbox&rdquo; below for those.
               </p>
               <div className="mt-4 space-y-3">
-                <Input placeholder="Client ID (starts with 5f…)" value={clientId} onChange={(e) => setClientId(e.target.value)} />
-                <Input
+                <Input aria-label={"Plaid client ID"} placeholder="Client ID (starts with 5f…)" value={clientId} onChange={(e) => setClientId(e.target.value)} />
+                <Input aria-label={"Plaid secret"}
                   type="password"
                   placeholder="Secret"
                   value={secret}

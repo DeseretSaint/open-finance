@@ -708,7 +708,7 @@ export default function AgentsPage() {
               </div>
 
               <div className="mt-4 space-y-3">
-                <Input placeholder="Token name — e.g. trading-bot" value={name} onChange={(e) => setName(e.target.value)} />
+                <Input aria-label={"Token name"} placeholder="Token name — e.g. trading-bot" value={name} onChange={(e) => setName(e.target.value)} />
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="w-12 text-xs text-text-muted">Scopes</span>
                   <Disclosure label="Choose custom scopes" defaultOpen={preset === "custom"}>
@@ -872,7 +872,7 @@ export default function AgentsPage() {
           it at the endpoint above.
         </p>
         <div className="mt-3 space-y-3">
-          <Input placeholder="Token name — e.g. trading-bot" value={name} onChange={(e) => setName(e.target.value)} />
+          <Input aria-label={"Token name"} placeholder="Token name — e.g. trading-bot" value={name} onChange={(e) => setName(e.target.value)} />
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {PRESET_CARDS.map((p) => (
               <button

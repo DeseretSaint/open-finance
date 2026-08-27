@@ -199,7 +199,7 @@ export default function SettingsPage() {
               saveName.mutate();
             }}
           >
-            <Input placeholder="Display name" value={displayName || (me.data?.user.display_name ?? "")} onChange={(e) => setDisplayName(e.target.value)} />
+            <Input aria-label={"Display name"} placeholder="Display name" value={displayName || (me.data?.user.display_name ?? "")} onChange={(e) => setDisplayName(e.target.value)} />
             <Button type="submit" disabled={saveName.isPending || !displayName}>
               Save display name
             </Button>
@@ -222,8 +222,8 @@ export default function SettingsPage() {
                   changePassword.mutate();
                 }}
               >
-                <Input type="password" placeholder="Current password" value={cur} onChange={(e) => setCur(e.target.value)} />
-                <Input type="password" placeholder="New password" value={next} onChange={(e) => setNext(e.target.value)} />
+                <Input aria-label={"Current password"} type="password" placeholder="Current password" value={cur} onChange={(e) => setCur(e.target.value)} />
+                <Input aria-label={"New password"} type="password" placeholder="New password" value={next} onChange={(e) => setNext(e.target.value)} />
                 <Button type="submit" variant="secondary" disabled={changePassword.isPending || !cur || !next}>
                   Change password
                 </Button>
@@ -326,11 +326,11 @@ export default function SettingsPage() {
         <div className="mt-4 flex flex-wrap items-end gap-3">
           <div className="min-w-48 flex-1">
             <label className="mb-1 block text-xs text-text-muted">Client ID</label>
-            <Input placeholder="6543a1b2…" value={clientId} onChange={(e) => setClientId(e.target.value)} />
+            <Input aria-label={"Plaid client ID"} placeholder="6543a1b2…" value={clientId} onChange={(e) => setClientId(e.target.value)} />
           </div>
           <div className="min-w-48 flex-1">
             <label className="mb-1 block text-xs text-text-muted">Secret</label>
-            <Input type="password" placeholder="sandbox_… / production_…" value={secret} onChange={(e) => setSecret(e.target.value)} />
+            <Input aria-label={"Plaid secret"} type="password" placeholder="sandbox_… / production_…" value={secret} onChange={(e) => setSecret(e.target.value)} />
           </div>
           <div className="min-w-32">
             <label id="plaid-env-label" className="mb-1 block text-xs text-text-muted">
@@ -828,7 +828,7 @@ function NotificationsSecurityCard({ setMsg, setErr }: { setMsg: (s: string | nu
         </label>
         {p?.emailEnabled && (
           <div className="flex flex-wrap items-center gap-3">
-            <Input
+            <Input aria-label={"Digest email address"}
               type="email"
               placeholder="you@example.com"
               value={p.emailAddress ?? ""}
@@ -883,13 +883,13 @@ function NotificationsSecurityCard({ setMsg, setErr }: { setMsg: (s: string | nu
             setup, plus a new PIN. This is the only way to reset it without wiping the app.
           </p>
           <div className="mt-3 flex flex-wrap items-end gap-3">
-            <Input
+            <Input aria-label={"Recovery code"}
               placeholder="Recovery code"
               value={resetCode}
               onChange={(e) => setResetCode(e.target.value)}
               className="min-w-40 flex-1 font-mono"
             />
-            <Input
+            <Input aria-label={"New PIN"}
               type="password"
               inputMode="numeric"
               autoComplete="off"
@@ -1839,7 +1839,7 @@ function HubPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; setE
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-64 flex-1">
               <label className="mb-1 block text-xs text-text-muted">This computer&apos;s address (found automatically)</label>
-              <Input value={hubUrl} onChange={(e) => setHubUrl(e.target.value)} placeholder="http://192.168.x.x:3000" />
+              <Input aria-label={"Hub URL"} value={hubUrl} onChange={(e) => setHubUrl(e.target.value)} placeholder="http://192.168.x.x:3000" />
             </div>
             <Button onClick={() => apply.mutate()} disabled={apply.isPending || !hubUrl}>
               {apply.isPending ? "Saving…" : "Save"}
@@ -1958,7 +1958,7 @@ function BackupPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; s
         </div>
         <div className="min-w-48 flex-1">
           <label className="mb-1 block text-xs text-text-muted">Confirm password</label>
-          <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Your account password" />
+          <Input aria-label={"Account password"} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Your account password" />
         </div>
         <label className="flex items-center gap-2 pb-2 text-sm text-text-muted">
           <input type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} />
@@ -2031,7 +2031,7 @@ function PhoneImportPanel({ setMsg, setErr }: { setMsg: (s: string | null) => vo
       <p className="mt-1 text-sm text-text-muted">Already linked your banks on your phone? Export the encrypted phone backup from its Settings, then import it here. This is additive and deduplicates Plaid accounts and transactions. It does not clear the phone, disconnect Plaid, or replace hub data.</p>
       <div className="mt-4 grid gap-3 sm:grid-cols-3 sm:items-end">
         <div className="sm:col-span-1"><label className="mb-1 block text-xs text-text-muted">Phone backup (.ofbak.json)</label><input ref={fileRef} type="file" accept=".json,.ofbak.json" className="w-full text-sm text-text-muted" /></div>
-        <div><label className="mb-1 block text-xs text-text-muted">Phone device PIN</label><Input type="password" inputMode="numeric" autoComplete="off" value={pin} onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ""))} placeholder="PIN used on phone" /></div>
+        <div><label htmlFor="phone-device-pin" className="mb-1 block text-xs text-text-muted">Phone device PIN</label><Input id="phone-device-pin" aria-label="Phone device PIN" type="password" inputMode="numeric" autoComplete="off" value={pin} onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ""))} placeholder="PIN used on phone" /></div>
         <Button onClick={importPhone} disabled={busy || !pin}>{busy ? "Importing…" : "Add phone data"}</Button>
       </div>
     </Card>
@@ -2104,7 +2104,7 @@ function SoloBackupPanel({ setMsg, setErr }: { setMsg: (s: string | null) => voi
       <div className="mt-4 flex flex-wrap items-end gap-3">
         <div className="min-w-48 flex-1">
           <label className="mb-1 block text-xs text-text-muted">Device PIN</label>
-          <Input
+          <Input aria-label={"Unlock PIN"}
             type="password"
             inputMode="numeric"
             autoComplete="off"

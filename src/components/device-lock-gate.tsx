@@ -94,7 +94,7 @@ export function DeviceLockGate({ children }: { children: React.ReactNode }) {
             {bioBusy ? "Checking…" : "Unlock with biometrics"}
           </Button>
         )}
-        <Input
+        <Input aria-label={"Device PIN"}
           type="password"
           inputMode="numeric"
           autoFocus
