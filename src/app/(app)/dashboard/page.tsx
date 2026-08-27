@@ -87,7 +87,7 @@ export default function DashboardPage() {
               </span>
             </p>
           </div>
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/10 text-accent" aria-hidden>
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/10 text-accent-text" aria-hidden>
             <Wallet size={24} />
           </div>
         </div>
@@ -128,7 +128,7 @@ export default function DashboardPage() {
         <Card className="min-w-0">
           <div className="flex items-center justify-between">
             <CardTitle>Budgets</CardTitle>
-            <Link href="/budgets" className="text-sm font-medium text-accent hover:underline">
+            <Link href="/budgets" className="text-sm font-medium text-accent-text hover:underline">
               View all
             </Link>
           </div>
@@ -136,7 +136,7 @@ export default function DashboardPage() {
             {s.budgetOverview.length === 0 && (
               <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
                 <p className="text-sm text-text-muted">No budgets yet.</p>
-                <Link href="/budgets" className="mt-1 inline-block text-sm font-medium text-accent hover:underline">
+                <Link href="/budgets" className="mt-1 inline-block text-sm font-medium text-accent-text hover:underline">
                   Create your first budget →
                 </Link>
               </div>
@@ -158,7 +158,7 @@ export default function DashboardPage() {
         <Card className="min-w-0">
           <div className="flex items-center justify-between">
             <CardTitle>Recent transactions</CardTitle>
-            <Link href="/transactions" className="text-sm font-medium text-accent hover:underline">
+            <Link href="/transactions" className="text-sm font-medium text-accent-text hover:underline">
               View all
             </Link>
           </div>
@@ -167,11 +167,11 @@ export default function DashboardPage() {
               <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
                 <p className="text-sm text-text-muted">Nothing here yet.</p>
                 <p className="mt-1 text-sm">
-                  <Link href="/settings" className="font-medium text-accent hover:underline">
+                  <Link href="/settings" className="font-medium text-accent-text hover:underline">
                     Connect a bank
                   </Link>
                   <span className="text-text-muted"> or </span>
-                  <Link href="/transactions" className="font-medium text-accent hover:underline">
+                  <Link href="/transactions" className="font-medium text-accent-text hover:underline">
                     add a transaction manually
                   </Link>
                 </p>

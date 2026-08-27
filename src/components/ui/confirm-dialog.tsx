@@ -56,8 +56,8 @@ export function ConfirmDialog({
             type="button"
             onClick={onConfirm}
             disabled={busy}
-            className="h-11 flex-1 rounded-xl px-4 text-sm font-semibold text-white transition-colors hover:brightness-110 disabled:opacity-50"
-            style={tone === "danger" ? { background: "var(--danger)" } : { background: "var(--accent)" }}
+            className="h-11 flex-1 rounded-xl px-4 text-sm font-semibold transition-colors hover:brightness-110 disabled:opacity-50"
+            style={tone === "danger" ? { background: "var(--danger)", color: "var(--danger-foreground)" } : { background: "var(--accent)", color: "var(--accent-foreground)" }}
           >
             {busy ? "Working…" : confirmLabel}
           </button>

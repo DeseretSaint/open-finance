@@ -79,7 +79,7 @@ export function CustomSelect({
                   }}
                   className={cn(
                     "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left text-sm transition-colors",
-                    o.value === value ? "bg-accent/10 font-medium text-accent" : "text-text hover:bg-surface-muted"
+                    o.value === value ? "bg-accent/10 font-medium text-accent-text" : "text-text hover:bg-surface-muted"
                   )}
                 >
                   <span className="min-w-0">

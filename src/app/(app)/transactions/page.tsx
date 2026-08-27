@@ -290,7 +290,7 @@ export default function TransactionsPage() {
             onClick={() => setPendingOnly((v) => !v)}
             className={`flex h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors ${
               pendingOnly
-                ? "border-accent bg-accent/15 text-accent"
+                ? "border-accent bg-accent/15 text-accent-text"
                 : "border-border bg-surface text-text-muted hover:text-text"
             }`}
           >
@@ -662,7 +662,7 @@ export default function TransactionsPage() {
               <>
                 <p className="text-sm text-text-muted">No transactions match your filters.</p>
                 <button
-                  className="mt-1 text-sm font-medium text-accent hover:underline"
+                  className="mt-1 text-sm font-medium text-accent-text hover:underline"
                   onClick={() => {
                     setQ("");
                     setAccountId("");
@@ -676,7 +676,7 @@ export default function TransactionsPage() {
               <div className="rounded-xl border border-dashed border-border px-4 py-8">
                 <p className="text-sm text-text-muted">No transactions yet.</p>
                 <p className="mt-1 text-sm">
-                  <Link href="/settings" className="font-medium text-accent hover:underline">
+                  <Link href="/settings" className="font-medium text-accent-text hover:underline">
                     Connect a bank
                   </Link>
                   <span className="text-text-muted">
@@ -691,7 +691,7 @@ export default function TransactionsPage() {
                   Add one with the + button, or{" "}
                   <button
                     type="button"
-                    className="font-medium text-accent hover:underline"
+                    className="font-medium text-accent-text hover:underline"
                     onClick={() => {
                       setError(null);
                       setImportMsg(null);
@@ -760,7 +760,7 @@ export default function TransactionsPage() {
                       <label
                         className={`flex cursor-pointer select-none items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                           t.exclude_from_budgets === 1
-                            ? "border-accent bg-accent/15 text-accent"
+                            ? "border-accent bg-accent/15 text-accent-text"
                             : "border-border bg-surface text-text"
                         }`}
                       >

@@ -135,7 +135,7 @@ export function CustomDatePicker({
                       c.iso === value
                         ? "bg-accent font-semibold text-[var(--accent-foreground)]"
                         : c.iso === todayStr
-                          ? "font-semibold text-accent hover:bg-surface-muted"
+                          ? "font-semibold text-accent-text hover:bg-surface-muted"
                           : "text-text hover:bg-surface-muted"
                     )}
                   >
@@ -145,7 +145,7 @@ export function CustomDatePicker({
               )}
             </div>
             <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
-              <button type="button" onClick={() => { onChange(todayStr); setOpen(false); }} className="text-xs font-medium text-accent">
+              <button type="button" onClick={() => { onChange(todayStr); setOpen(false); }} className="text-xs font-medium text-accent-text">
                 Today
               </button>
               <button type="button" onClick={() => setOpen(false)} className="text-xs text-text-muted">

@@ -82,7 +82,7 @@ export function ReviewWidget() {
         className="flex w-full items-center justify-between text-left"
       >
         <div className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent/10 text-accent" aria-hidden>
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent/10 text-accent-text" aria-hidden>
             <ListChecks size={18} />
           </span>
           <div>

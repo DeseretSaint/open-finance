@@ -190,7 +190,7 @@ export default function AccountsPage() {
           role="switch"
           aria-checked={includePending}
           onClick={() => setIncludePending(!includePending)}
-          className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors ${includePending ? "border-accent/40 bg-accent/10 text-accent" : "border-border bg-surface-muted text-text-muted"}`}
+          className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors ${includePending ? "border-accent/40 bg-accent/10 text-accent-text" : "border-border bg-surface-muted text-text-muted"}`}
         >
           <span className={`inline-block h-3 w-3 rounded-full ${includePending ? "bg-accent" : "bg-text-muted/40"}`} />
           Include pending
@@ -224,7 +224,7 @@ export default function AccountsPage() {
                           <Button type="submit" size="sm" disabled={rename.isPending}>Save</Button>
                         </form>
                       ) : (
-                        <button type="button" className="block max-w-full truncate text-left text-base font-semibold text-text hover:text-accent" onClick={() => { setEditingName(a.id); setNameDraft(a.name); }}>
+                        <button type="button" className="block max-w-full truncate text-left text-base font-semibold text-text hover:text-accent-text" onClick={() => { setEditingName(a.id); setNameDraft(a.name); }}>
                           {a.name}
                         </button>
                       )}
@@ -357,7 +357,7 @@ export default function AccountsPage() {
               <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
                 <p className="text-sm text-text-muted">No accounts yet.</p>
                 <p className="mt-1 text-sm">
-                  <Link href="/settings" className="font-medium text-accent hover:underline">
+                  <Link href="/settings" className="font-medium text-accent-text hover:underline">
                     Connect a bank
                   </Link>
                   <span className="text-text-muted"> or add a manual account below.</span>
@@ -378,7 +378,7 @@ export default function AccountsPage() {
           <p className="mb-3 text-xs text-text-muted">
             Removed accounts keep their history so they can be brought back. Tap Restore to undo a removal.
           </p>
-          <Link href="/reports?includeExcluded=1" className="mb-3 inline-flex text-sm font-medium text-accent hover:underline">
+          <Link href="/reports?includeExcluded=1" className="mb-3 inline-flex text-sm font-medium text-accent-text hover:underline">
             Review reports including removed-account history →
           </Link>
           <ul className="divide-y divide-border">

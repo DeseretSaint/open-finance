@@ -3,17 +3,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { ensureNativePlugins } from "@/lib/native-plugins";
-
-const ACCENTS = [
-  "#10B981", // emerald (default)
-  "#6366F1", // indigo
-  "#F59E0B", // amber
-  "#EF4444", // red
-  "#8B5CF6", // violet
-  "#06B6D4", // cyan
-  "#EC4899", // pink
-  "#0EA5E9", // sky
-];
+import {
+  ACCENTS,
+  accentForeground,
+  accentText,
+  normalizeAccent,
+} from "@/lib/accents";
 
 export const DENSITIES = [
   { label: "Cozy", value: 1.0 },
@@ -24,7 +19,7 @@ export const DENSITIES = [
 export function useTheme() {
   const [accent, setAccent] = useState<string>(() => {
     if (typeof window === "undefined") return "#10B981";
-    return localStorage.getItem("of-accent") ?? "#10B981";
+    return normalizeAccent(localStorage.getItem("of-accent"));
   });
   // One-time migration (2026-08-03): pre-dark-default builds (v1.2.0 era)
   const [dark, setDark] = useState<boolean>(() => {
@@ -65,9 +60,14 @@ export function useTheme() {
 
   useEffect(() => {
     document.documentElement.style.setProperty("--accent", accent);
-    document.documentElement.style.setProperty("--accent-foreground", "#ffffff");
+    // WCAG AA: white-on-accent fails for the 6 light accents (2.15–3.76:1),
+    // so each accent carries its own verified foreground. Accent-as-text
+    // (links, active labels) needs a darkened/brightened variant per mode —
+    // raw accents on white are 2.15–3.76:1, all below the 4.5:1 AA floor.
+    document.documentElement.style.setProperty("--accent-foreground", accentForeground(accent));
+    document.documentElement.style.setProperty("--accent-text", accentText(accent, dark));
     localStorage.setItem("of-accent", accent);
-  }, [accent]);
+  }, [accent, dark]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);

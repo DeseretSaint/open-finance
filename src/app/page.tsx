@@ -72,16 +72,16 @@ export default function Home() {
           {hasAccount ? (
             <Link
               href="/login"
-              className="w-full rounded-xl px-6 py-3 text-center text-sm font-semibold text-white transition-colors hover:brightness-110"
-              style={{ background: "var(--accent)" }}
+              className="w-full rounded-xl px-6 py-3 text-center text-sm font-semibold transition-colors hover:brightness-110"
+              style={{ background: "var(--accent)", color: "var(--accent-foreground)" }}
             >
               Unlock your account
             </Link>
           ) : (
             <Link
               href="/register"
-              className="w-full rounded-xl px-6 py-3 text-center text-sm font-semibold text-white transition-colors hover:brightness-110"
-              style={{ background: "var(--accent)" }}
+              className="w-full rounded-xl px-6 py-3 text-center text-sm font-semibold transition-colors hover:brightness-110"
+              style={{ background: "var(--accent)", color: "var(--accent-foreground)" }}
             >
               Create an account
             </Link>
@@ -89,11 +89,11 @@ export default function Home() {
           <button
             type="button"
             onClick={() => setShowPair((v) => !v)}
-            className="w-full rounded-xl border border-border px-6 py-2.5 text-center text-sm font-medium text-accent hover:bg-surface"
+            className="w-full rounded-xl border border-border px-6 py-2.5 text-center text-sm font-medium text-accent-text hover:bg-surface"
           >
             Pair an existing standalone phone
           </button>
-          <Link href="/demo" className="w-full rounded-xl px-6 py-2 text-center text-sm font-medium text-accent">
+          <Link href="/demo" className="w-full rounded-xl px-6 py-2 text-center text-sm font-medium text-accent-text">
             Try the live demo →
           </Link>
         </div>
@@ -115,8 +115,8 @@ export default function Home() {
                 try { const base = hubUrl.trim().replace(/\/+$/, ""); localStorage.setItem("of-hub-url", base); window.location.href = `${base}/pair?import=1`; }
                 catch (e) { setPairErr(e instanceof Error ? e.message : "Could not open the phone pairing page."); setPairBusy(false); }
               }}
-              className="mt-3 w-full rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-              style={{ background: "var(--accent)" }}
+              className="mt-3 w-full rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
+              style={{ background: "var(--accent)", color: "var(--accent-foreground)" }}
             >{pairBusy ? "Opening pairing…" : "Pair this hub to my phone"}</button>
             {pairErr && <p className="mt-2 text-xs text-danger">{pairErr}</p>}
           </div>

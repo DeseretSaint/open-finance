@@ -156,7 +156,7 @@ export function CustomTimePicker({
                   onChange(fmtTime(now.getHours(), Math.floor(now.getMinutes() / 15) * 15));
                   setOpen(false);
                 }}
-                className="text-xs font-medium text-accent"
+                className="text-xs font-medium text-accent-text"
               >
                 Now
               </button>

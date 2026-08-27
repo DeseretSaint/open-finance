@@ -235,7 +235,7 @@ export default function SettingsPage() {
               <div key={s.id} className="flex items-center justify-between text-sm">
                 <span className="text-text">
                   {s.device_label || "Unknown device"}
-                  {s.current && <Badge className="ml-2 bg-accent/10 text-accent">current</Badge>}
+                  {s.current && <Badge className="ml-2 bg-accent/10 text-accent-text">current</Badge>}
                 </span>
                 {!s.current && (
                   <button onClick={() => revoke.mutate(s.id)} className="text-xs text-text-muted hover:text-danger">
@@ -272,7 +272,7 @@ export default function SettingsPage() {
             <button
               type="button"
               onClick={() => setShowPlaidHelp(true)}
-              className="flex items-center gap-1.5 text-sm font-medium text-accent transition-colors hover:underline"
+              className="flex items-center gap-1.5 text-sm font-medium text-accent-text transition-colors hover:underline"
             >
               <ExternalLink size={14} aria-hidden /> Need keys? Walk me through getting them
             </button>
@@ -291,14 +291,14 @@ export default function SettingsPage() {
               <ol className="mt-2 list-inside list-decimal space-y-1.5 text-text-muted">
                 <li>
                   Create a free account at{" "}
-                  <a href="https://dashboard.plaid.com/signup" target="_blank" rel="noreferrer" className="font-medium text-accent">
+                  <a href="https://dashboard.plaid.com/signup" target="_blank" rel="noreferrer" className="font-medium text-accent-text">
                     dashboard.plaid.com/signup
                   </a>{" "}
                   (Plaid is free for development; production keys need a quick approval).
                 </li>
                 <li>
                   Open{" "}
-                  <a href="https://dashboard.plaid.com/developers/keys" target="_blank" rel="noreferrer" className="font-medium text-accent">
+                  <a href="https://dashboard.plaid.com/developers/keys" target="_blank" rel="noreferrer" className="font-medium text-accent-text">
                     Dashboard → Developers → Keys
                   </a>{" "}
                   (dashboard.plaid.com/developers/keys).
@@ -433,7 +433,7 @@ export default function SettingsPage() {
                       }
                     }}
                     disabled={reconnectingItem === it.id}
-                    className="text-xs text-accent hover:underline disabled:opacity-50"
+                    className="text-xs text-accent-text hover:underline disabled:opacity-50"
                   >
                     {reconnectingItem === it.id ? "Opening…" : "Reconnect"}
                   </button>
@@ -441,7 +441,7 @@ export default function SettingsPage() {
                 <button
                   onClick={() => resyncItem.mutate(it.id)}
                   disabled={resyncingItem === it.id}
-                  className="text-xs text-text-muted hover:text-accent disabled:opacity-50"
+                  className="text-xs text-text-muted hover:text-accent-text disabled:opacity-50"
                   title="Re-import full transaction history from this bank (up to ~24 months)"
                 >
                   {resyncingItem === it.id ? "Importing…" : "Re-import history"}
@@ -510,7 +510,7 @@ export default function SettingsPage() {
               <div className="mt-4">
                 <div className="flex items-center justify-between text-xs font-medium text-text-muted">
                   {densities.map((d) => (
-                    <span key={d.value} className={densityDraft === d.value ? "text-accent" : undefined}>
+                    <span key={d.value} className={densityDraft === d.value ? "text-accent-text" : undefined}>
                       {d.label}
                     </span>
                   ))}
@@ -946,7 +946,7 @@ function CategoriesCard({ setMsg, setErr }: { setMsg: (s: string | null) => void
         {rows.map((c) => (
           <span key={c.id} className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-muted px-3 py-1 text-xs text-text">
             {c.name}
-            <button type="button" onClick={() => toggle.mutate({ id: c.id, enabled: !c.enabled })} className="ml-1 text-text-muted hover:text-accent">
+            <button type="button" onClick={() => toggle.mutate({ id: c.id, enabled: !c.enabled })} className="ml-1 text-text-muted hover:text-accent-text">
               {c.enabled ? "Disable" : "Enable"}
             </button>
           </span>
@@ -1148,7 +1148,7 @@ function AgentWiringCard({ setMsg, setErr }: { setMsg: (s: string | null) => voi
                       aria-pressed={readOn}
                       className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed ${
                         readOn
-                          ? "border-accent bg-accent/10 text-accent"
+                          ? "border-accent bg-accent/10 text-accent-text"
                           : "border-border text-text-muted hover:text-text"
                       }`}
                     >
@@ -1403,7 +1403,7 @@ function AgentWiringCard({ setMsg, setErr }: { setMsg: (s: string | null) => voi
             </Button>
             <p className="mt-1.5 text-xs text-text-muted">
               Copies a short brief to paste into your agent — what Open Finance is, the money rules, and where its
-              full handbook lives (<code className="text-accent">/api/agent/guide</code>).
+              full handbook lives (<code className="text-accent-text">/api/agent/guide</code>).
             </p>
           </div>
         </div>
@@ -1420,7 +1420,7 @@ function AgentWiringCard({ setMsg, setErr }: { setMsg: (s: string | null) => voi
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs text-text-muted">Connection address</label>
-              <code className="block rounded-md bg-surface-muted px-3 py-2 text-sm text-accent">
+              <code className="block rounded-md bg-surface-muted px-3 py-2 text-sm text-accent-text">
                 {endpoint}/api/mcp
               </code>
             </div>
@@ -1446,13 +1446,13 @@ function AgentWiringCard({ setMsg, setErr }: { setMsg: (s: string | null) => voi
           <details className="mt-3 rounded-lg border border-border px-4 py-3 text-xs text-text-muted">
             <summary className="cursor-pointer font-medium text-text">Technical details</summary>
             <div className="mt-2 space-y-1.5 font-mono">
-              <p>MCP (Streamable HTTP): <span className="text-accent">{endpoint}/api/mcp</span></p>
-              <p>MCP (stdio): <span className="text-accent">node dist/mcp-cli.mjs --url {endpoint} --token &lt;key&gt;</span></p>
-              <p>REST: <span className="text-accent">GET {endpoint}/api/agent/summary</span> (Bearer)</p>
-              <p>OpenAPI: <span className="text-accent">{endpoint}/api/openapi.json</span></p>
-              <p>Agent handbook: <span className="text-accent">GET /api/agent/guide</span></p>
-              <p>Key format: <span className="text-accent">of_…</span> (shown once at creation)</p>
-              <p>curl: <span className="text-accent">curl -H &quot;Authorization: Bearer of_…&quot; {endpoint}/api/agent/capabilities</span></p>
+              <p>MCP (Streamable HTTP): <span className="text-accent-text">{endpoint}/api/mcp</span></p>
+              <p>MCP (stdio): <span className="text-accent-text">node dist/mcp-cli.mjs --url {endpoint} --token &lt;key&gt;</span></p>
+              <p>REST: <span className="text-accent-text">GET {endpoint}/api/agent/summary</span> (Bearer)</p>
+              <p>OpenAPI: <span className="text-accent-text">{endpoint}/api/openapi.json</span></p>
+              <p>Agent handbook: <span className="text-accent-text">GET /api/agent/guide</span></p>
+              <p>Key format: <span className="text-accent-text">of_…</span> (shown once at creation)</p>
+              <p>curl: <span className="text-accent-text">curl -H &quot;Authorization: Bearer of_…&quot; {endpoint}/api/agent/capabilities</span></p>
             </div>
           </details>
         </>
@@ -1529,7 +1529,7 @@ function PaydaysCard({ setMsg, setErr }: { setMsg: (s: string | null) => void; s
             onClick={() => pickMode(mode)}
             disabled={save.isPending}
             className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-              eff.mode === mode ? "border-accent bg-accent/10 text-accent" : "border-border text-text-muted hover:text-text"
+              eff.mode === mode ? "border-accent bg-accent/10 text-accent-text" : "border-border text-text-muted hover:text-text"
             }`}
           >
             {label}
@@ -1546,7 +1546,7 @@ function PaydaysCard({ setMsg, setErr }: { setMsg: (s: string | null) => void; s
               onClick={() => pickInterval(iv)}
               disabled={save.isPending}
               className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                eff.interval === iv ? "border-accent bg-accent/10 font-medium text-accent" : "border-border text-text-muted hover:text-text"
+                eff.interval === iv ? "border-accent bg-accent/10 font-medium text-accent-text" : "border-border text-text-muted hover:text-text"
               }`}
             >
               {iv === "biweekly" ? "Every 2 weeks" : iv === "weekly" ? "Every week" : "Every month"}
@@ -1565,7 +1565,7 @@ function PaydaysCard({ setMsg, setErr }: { setMsg: (s: string | null) => void; s
                 onClick={() => toggleDay(d)}
                 disabled={save.isPending}
                 className={`h-9 w-9 rounded-full border text-xs transition-colors ${
-                  eff.days.includes(d) ? "border-accent bg-accent/10 font-medium text-accent" : "border-border text-text-muted hover:text-text"
+                  eff.days.includes(d) ? "border-accent bg-accent/10 font-medium text-accent-text" : "border-border text-text-muted hover:text-text"
                 }`}
               >
                 {d}

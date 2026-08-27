@@ -133,7 +133,7 @@ function HermesSetupCard({ endpoint, solo, setMsg, setErr }: { endpoint: string;
   return (
     <Card className="border-accent/30">
       <div className="flex items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent" aria-hidden>
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent-text" aria-hidden>
           <ShieldCheck size={18} />
         </span>
         <div className="min-w-0 flex-1">
@@ -196,7 +196,7 @@ function HermesSetupCard({ endpoint, solo, setMsg, setErr }: { endpoint: string;
                 <Copy size={13} className="mr-1.5" /> {copied === "token" ? "Copied" : "Copy token"}
               </Button>
             </div>
-            <code className="block break-all rounded-xl bg-background p-3 text-xs text-accent">{createdToken}</code>
+            <code className="block break-all rounded-xl bg-background p-3 text-xs text-accent-text">{createdToken}</code>
           </div>
           <ol className="list-inside list-decimal space-y-1 text-xs text-text-muted">
             <li>Paste the YAML into Hermes&apos; config and restart Hermes.</li>
@@ -293,7 +293,7 @@ Complete this setup on the trusted hub:
             {remoteEnabled && nativeStatus?.listening ? (
               <>
                 <span className="font-medium text-success">Remote access enabled</span> — the phone listens on{" "}
-                <span className="font-mono text-accent">port 8787</span> over Tailscale. Token:{" "}
+                <span className="font-mono text-accent-text">port 8787</span> over Tailscale. Token:{" "}
                 <span className="break-all font-mono text-text">copy the token from the Direct remote access card (shown once at enable)</span>
               </>
             ) : remoteEnabled ? (
@@ -412,7 +412,7 @@ function RemoteAccessCard() {
           {starting ? "Working…" : enabled ? "Disable remote access" : "Enable remote access"}
         </Button>
         {enabled && listening && (
-          <span className="rounded-full bg-accent/10 px-3 py-1 text-xs font-medium text-accent">● Listening on 8787</span>
+          <span className="rounded-full bg-accent/10 px-3 py-1 text-xs font-medium text-accent-text">● Listening on 8787</span>
         )}
         {enabled && !listening && nativeReady === false && (
           <span className="rounded-full bg-danger/10 px-3 py-1 text-xs font-medium text-danger">● Not listening — rebuild APK</span>
@@ -428,7 +428,7 @@ function RemoteAccessCard() {
           <p className="mt-1 break-all font-mono text-text">{token}</p>
           <p className="mt-2 text-warning">Copy this now — it is shown only once and will not appear again.</p>
           <p className="mt-2">
-            Your agent reaches this phone at <span className="font-mono text-accent">http://&lt;phone-tailscale-address&gt;:8787</span>.
+            Your agent reaches this phone at <span className="font-mono text-accent-text">http://&lt;phone-tailscale-address&gt;:8787</span>.
             Find the phone in your Tailscale device list — the phone can&apos;t see its own address from here.
           </p>
         </div>
@@ -599,7 +599,7 @@ export default function AgentsPage() {
       <div className="mx-auto max-w-2xl space-y-6">
         <div>
           <h1 className="flex items-center gap-2.5 text-2xl font-semibold text-text">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent" aria-hidden>
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent-text" aria-hidden>
               <Bot size={20} />
             </span>
             Connect your AI agent
@@ -630,7 +630,7 @@ export default function AgentsPage() {
                 listener on port 8787 and shows the bearer token.
               </li>
               <li>
-                Point your agent at <span className="font-mono text-accent">http://&lt;phone-tailscale-address&gt;:8787</span>{" "}
+                Point your agent at <span className="font-mono text-accent-text">http://&lt;phone-tailscale-address&gt;:8787</span>{" "}
                 with the bearer token. Tailscale provides the private encrypted route; it does not replace the token.
               </li>
             </ol>
@@ -643,7 +643,7 @@ export default function AgentsPage() {
             {/* Step 1 — pick your agent */}
             <Card>
               <CardTitle>
-                <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent">1</span>
+                <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent-text">1</span>
                 Pick your agent
               </CardTitle>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -659,7 +659,7 @@ export default function AgentsPage() {
             {/* Step 2 — create a token */}
             <Card>
               <CardTitle>
-                <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent">2</span>
+                <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent-text">2</span>
                 Create a token
               </CardTitle>
               <p className="mt-1 text-sm text-text-muted">Tokens are the keys your agent presents to the app. Start read-only.</p>
@@ -779,14 +779,14 @@ export default function AgentsPage() {
             {/* Step 3 — wire it up */}
             <Card>
               <CardTitle>
-                <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent">3</span>
+                <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent-text">3</span>
                 Point your agent at the endpoint
               </CardTitle>
               <div className="mt-3 space-y-3 text-sm">
                 <div>
                   <p className="mb-1 text-xs text-text-muted">MCP endpoint (Streamable HTTP)</p>
                   <div className="flex items-center gap-2">
-                    <code className="block flex-1 rounded-lg bg-surface-muted px-3 py-2 text-sm text-accent">{mcpEndpoint}</code>
+                    <code className="block flex-1 rounded-lg bg-surface-muted px-3 py-2 text-sm text-accent-text">{mcpEndpoint}</code>
                     <Button
                       size="sm"
                       variant="secondary"

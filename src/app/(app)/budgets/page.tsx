@@ -258,7 +258,7 @@ export default function BudgetsPage() {
               onClick={() => setFrame(frame === "custom" ? "month" : "custom")}
               className={`h-9 rounded-xl border px-3.5 text-sm transition-colors ${
                 frame === "custom"
-                  ? "border-accent bg-accent/10 font-medium text-accent"
+                  ? "border-accent bg-accent/10 font-medium text-accent-text"
                   : "border-border text-text-muted hover:text-text"
               }`}
             >
@@ -520,7 +520,7 @@ export default function BudgetsPage() {
                         type="button"
                         onClick={() => toggleCategory(c.id)}
                         className={`rounded-full px-3 py-1 text-sm transition-colors ${
-                          active ? "bg-[var(--accent)] text-white" : "bg-surface-muted text-text-muted hover:text-text"
+                          active ? "bg-[var(--accent)] text-[var(--accent-foreground)]" : "bg-surface-muted text-text-muted hover:text-text"
                         }`}
                       >
                         {c.name}

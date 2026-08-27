@@ -190,7 +190,7 @@ export default function LoginPage() {
         </form>
         <p className="mt-4 text-center text-sm text-text-muted">
           {solo ? "New phone? " : "New here? "}
-          <Link href="/register" className="font-medium text-accent">
+          <Link href="/register" className="font-medium text-accent-text">
             {solo ? "Set up this device" : "Create an account"}
           </Link>
         </p>

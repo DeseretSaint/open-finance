@@ -74,7 +74,7 @@ export default function RegisterPage() {
           <div className="space-y-4 rounded-2xl border border-border bg-surface p-6 shadow-[var(--shadow-card)]">
             <div>
               <p className="text-sm font-medium text-text">Recovery code (save this!)</p>
-              <p className="mt-1 rounded-lg bg-background p-3 font-mono text-sm tracking-widest text-accent">
+              <p className="mt-1 rounded-lg bg-background p-3 font-mono text-sm tracking-widest text-accent-text">
                 {recoveryCode}
               </p>
               <p className="mt-2 text-xs text-text-muted">
@@ -176,7 +176,7 @@ export default function RegisterPage() {
         </form>
         <p className="mt-4 text-center text-sm text-text-muted">
           {solo ? "Already set up? " : "Already have an account? "}
-          <Link href="/login" className="font-medium text-accent">
+          <Link href="/login" className="font-medium text-accent-text">
             Sign in
           </Link>
         </p>

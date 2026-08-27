@@ -74,7 +74,7 @@ export function MotifHero({ compact = false }: { compact?: boolean }) {
       {/* The crossfading motif */}
       <div
         key={index}
-        className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-accent"
+        className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-accent-text"
         style={
           reduced
             ? undefined

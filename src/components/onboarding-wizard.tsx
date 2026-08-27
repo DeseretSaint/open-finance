@@ -298,7 +298,7 @@ export function OnboardingWizard() {
                       type="button"
                       onClick={() => setPayMode(mode)}
                       className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                        payMode === mode ? "border-accent bg-accent/10 text-accent" : "border-border text-text-muted hover:text-text"
+                        payMode === mode ? "border-accent bg-accent/10 text-accent-text" : "border-border text-text-muted hover:text-text"
                       }`}
                     >
                       {label}
@@ -313,7 +313,7 @@ export function OnboardingWizard() {
                         type="button"
                         onClick={() => setPayInterval(iv)}
                         className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                          payInterval === iv ? "border-accent bg-accent/10 font-medium text-accent" : "border-border text-text-muted hover:text-text"
+                          payInterval === iv ? "border-accent bg-accent/10 font-medium text-accent-text" : "border-border text-text-muted hover:text-text"
                         }`}
                       >
                         {iv === "biweekly" ? "Every 2 weeks" : iv === "weekly" ? "Every week" : "Every month"}
@@ -332,7 +332,7 @@ export function OnboardingWizard() {
                             setPayDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort((a, b) => a - b)))
                           }
                           className={`h-9 w-9 rounded-full border text-xs transition-colors ${
-                            payDays.includes(d) ? "border-accent bg-accent/10 font-medium text-accent" : "border-border text-text-muted hover:text-text"
+                            payDays.includes(d) ? "border-accent bg-accent/10 font-medium text-accent-text" : "border-border text-text-muted hover:text-text"
                           }`}
                         >
                           {d}
@@ -450,14 +450,14 @@ export function OnboardingWizard() {
               <ol className="mt-4 space-y-2 text-sm text-text">
                 <li>
                   1. Open{" "}
-                  <a href={PLAID_SIGNUP_URL} target="_blank" rel="noreferrer" className="font-medium text-accent">
+                  <a href={PLAID_SIGNUP_URL} target="_blank" rel="noreferrer" className="font-medium text-accent-text">
                     dashboard.plaid.com
                   </a>{" "}
                   and create a free account (or sign in).
                 </li>
                 <li>
                   2. Get your production keys from{" "}
-                  <a href={PLAID_TRIAL_URL} target="_blank" rel="noreferrer" className="font-medium text-accent">
+                  <a href={PLAID_TRIAL_URL} target="_blank" rel="noreferrer" className="font-medium text-accent-text">
                     Dashboard → Trial plan
                   </a>{" "}
                   (production keys live there — use these, since real banks need the production environment).
@@ -466,7 +466,7 @@ export function OnboardingWizard() {
               </ol>
               <p className="mt-2 text-xs text-text-muted">
                 Only using test data? Sandbox keys are at{" "}
-                <a href={PLAID_KEYS_URL} target="_blank" rel="noreferrer" className="font-medium text-accent">
+                <a href={PLAID_KEYS_URL} target="_blank" rel="noreferrer" className="font-medium text-accent-text">
                   Dashboard → Developers → Keys
                 </a>{" "}
                 — pick &ldquo;Sandbox&rdquo; below for those.
@@ -566,7 +566,7 @@ export function OnboardingWizard() {
                       onClick={() => setAgentProvider(p)}
                       className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
                         agentProvider === p
-                          ? "border-accent bg-accent/5 font-medium text-accent"
+                          ? "border-accent bg-accent/5 font-medium text-accent-text"
                           : "border-border text-text-muted hover:bg-surface-muted"
                       }`}
                     >
@@ -617,7 +617,7 @@ export function OnboardingWizard() {
                   </div>
                   <p className="text-xs text-text-muted">
                     Endpoint:{" "}
-                    <code className="rounded bg-surface-muted px-1.5 py-0.5 font-mono text-accent">
+                    <code className="rounded bg-surface-muted px-1.5 py-0.5 font-mono text-accent-text">
                       {typeof window !== "undefined" ? window.location.origin : ""}/api/mcp
                     </code>
                   </p>
@@ -631,7 +631,7 @@ export function OnboardingWizard() {
                   </code>
                   <p className="mt-2 text-xs text-text-muted">
                     Point your agent at{" "}
-                    <code className="rounded bg-surface-muted px-1 py-0.5 font-mono text-accent">
+                    <code className="rounded bg-surface-muted px-1 py-0.5 font-mono text-accent-text">
                       {typeof window !== "undefined" ? window.location.origin : ""}/api/mcp
                     </code>{" "}
                     with this token. You can fine-tune permissions anytime in Settings → AI agent connection.
@@ -688,7 +688,7 @@ export function OnboardingWizard() {
                             }
                             className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
                               readOn
-                                ? "border-accent bg-accent/10 font-medium text-accent"
+                                ? "border-accent bg-accent/10 font-medium text-accent-text"
                                 : "border-border text-text-muted hover:text-text"
                             } ${agentGlobal ? "opacity-60" : ""}`}
                           >

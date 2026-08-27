@@ -79,7 +79,7 @@ export function Disclosure({
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex items-center gap-1.5 text-xs font-medium text-accent transition-colors hover:underline"
+        className="flex items-center gap-1.5 text-xs font-medium text-accent-text transition-colors hover:underline"
       >
         <ChevronDown size={13} className={cn("transition-transform", open ? "rotate-180" : "")} />
         {open ? `Hide ${label}` : label}

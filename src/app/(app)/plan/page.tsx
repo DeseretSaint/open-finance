@@ -407,7 +407,7 @@ export default function PlanPage() {
                 onClick={() => setHorizon(h.id)}
                 className={`h-8 rounded-full border px-3 text-xs font-medium transition-colors ${
                   horizon === h.id
-                    ? "border-accent bg-accent/10 text-accent"
+                    ? "border-accent bg-accent/10 text-accent-text"
                     : "border-border text-text-muted hover:text-text"
                 }`}
               >
@@ -419,7 +419,7 @@ export default function PlanPage() {
               onClick={() => setShowPaydays((s) => !s)}
               className={`h-8 rounded-full border px-3 text-xs font-medium transition-colors ${
                 showPaydays || (paydays.data?.paydays.mode ?? "auto") !== "auto"
-                  ? "border-accent bg-accent/10 text-accent"
+                  ? "border-accent bg-accent/10 text-accent-text"
                   : "border-border text-text-muted hover:text-text"
               }`}
               title="Set your payday schedule for accurate projections"
@@ -432,7 +432,7 @@ export default function PlanPage() {
           <div className="mt-3 space-y-3 border-t border-border pt-3">
             <p className="text-xs text-text-muted">
               Tell the app when you get paid so the &ldquo;Next paycheck&rdquo; horizon and projections are accurate.{" "}
-              {manualPayday && <span className="text-accent">Next payday: {manualPayday}.</span>}
+              {manualPayday && <span className="text-accent-text">Next payday: {manualPayday}.</span>}
             </p>
             <div className="flex flex-wrap gap-1.5">
               {(
@@ -459,7 +459,7 @@ export default function PlanPage() {
                   }}
                   className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
                     effectivePaydays.mode === mode
-                      ? "border-accent bg-accent/10 text-accent"
+                      ? "border-accent bg-accent/10 text-accent-text"
                       : "border-border text-text-muted hover:text-text"
                   }`}
                 >
@@ -479,7 +479,7 @@ export default function PlanPage() {
                     }}
                     className={`rounded-full border px-3 py-1 text-xs transition-colors ${
                       effectivePaydays.interval === iv
-                        ? "border-accent bg-accent/10 font-medium text-accent"
+                        ? "border-accent bg-accent/10 font-medium text-accent-text"
                         : "border-border text-text-muted hover:text-text"
                     }`}
                   >
@@ -503,7 +503,7 @@ export default function PlanPage() {
                       }}
                       className={`h-8 w-8 rounded-full border text-xs transition-colors ${
                         effectivePaydays.days.includes(d)
-                          ? "border-accent bg-accent/10 font-medium text-accent"
+                          ? "border-accent bg-accent/10 font-medium text-accent-text"
                           : "border-border text-text-muted hover:text-text"
                       }`}
                     >
@@ -522,7 +522,7 @@ export default function PlanPage() {
             <button
               type="button"
               onClick={() => setShowPaydays(false)}
-              className="text-xs font-medium text-accent transition-colors hover:underline"
+              className="text-xs font-medium text-accent-text transition-colors hover:underline"
             >
               Done
             </button>
@@ -1069,7 +1069,7 @@ export default function PlanPage() {
                              type="button"
                              onClick={() => setExpMode(mode)}
                              className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                               expMode === mode ? "border-accent bg-accent/10 text-accent" : "border-border text-text-muted hover:text-text"
+                               expMode === mode ? "border-accent bg-accent/10 text-accent-text" : "border-border text-text-muted hover:text-text"
                              }`}
                            >
                              {label}
@@ -1085,7 +1085,7 @@ export default function PlanPage() {
                              type="button"
                              onClick={() => setExpInterval(iv)}
                              className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                               expInterval === iv ? "border-accent bg-accent/10 font-medium text-accent" : "border-border text-text-muted hover:text-text"
+                               expInterval === iv ? "border-accent bg-accent/10 font-medium text-accent-text" : "border-border text-text-muted hover:text-text"
                              }`}
                            >
                              {iv === "biweekly" ? "Every 2 weeks" : iv === "weekly" ? "Every week" : "Every month"}
@@ -1102,7 +1102,7 @@ export default function PlanPage() {
                                type="button"
                                onClick={() => toggleExpDay(d)}
                                className={`h-8 w-8 rounded-full border text-xs transition-colors ${
-                                 expDays.includes(d) ? "border-accent bg-accent/10 font-medium text-accent" : "border-border text-text-muted hover:text-text"
+                                 expDays.includes(d) ? "border-accent bg-accent/10 font-medium text-accent-text" : "border-border text-text-muted hover:text-text"
                                }`}
                              >
                                {d}

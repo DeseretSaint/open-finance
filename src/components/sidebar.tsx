@@ -104,7 +104,7 @@ export function Sidebar() {
                 aria-current={active ? "page" : undefined}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
                   active
-                    ? "bg-accent/10 font-medium text-accent"
+                    ? "bg-accent/10 font-medium text-accent-text"
                     : "text-text-muted hover:bg-surface-muted hover:text-text"
                 }`}
               >
@@ -147,7 +147,7 @@ export function Sidebar() {
               href={href}
               aria-current={active ? "page" : undefined}
               className={`flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[10px] font-medium transition-colors ${
-                active ? "text-accent" : "text-text-muted hover:text-text"
+                active ? "text-accent-text" : "text-text-muted hover:text-text"
               }`}
             >
               <Icon size={20} strokeWidth={active ? 2.2 : 1.8} aria-hidden />
@@ -160,7 +160,7 @@ export function Sidebar() {
           aria-current={moreActive ? "page" : undefined}
           aria-expanded={moreOpen}
           className={`flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[10px] font-medium transition-colors ${
-            moreActive ? "text-accent" : "text-text-muted hover:text-text"
+            moreActive ? "text-accent-text" : "text-text-muted hover:text-text"
           }`}
         >
           <MoreHorizontal size={20} strokeWidth={moreActive ? 2.2 : 1.8} aria-hidden />
@@ -202,8 +202,8 @@ export function Sidebar() {
                       active ? "border-accent bg-accent/5" : "border-border bg-surface hover:bg-surface-muted"
                     }`}
                   >
-                    <Icon size={22} strokeWidth={1.8} className={active ? "text-accent" : "text-text-muted"} aria-hidden />
-                    <span className={`text-sm font-medium ${active ? "text-accent" : "text-text"}`}>{label}</span>
+                    <Icon size={22} strokeWidth={1.8} className={active ? "text-accent-text" : "text-text-muted"} aria-hidden />
+                    <span className={`text-sm font-medium ${active ? "text-accent-text" : "text-text"}`}>{label}</span>
                     <span className="text-xs text-text-muted">{blurb}</span>
                   </Link>
                 );
