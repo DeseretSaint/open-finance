@@ -31,6 +31,37 @@ import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 
 type Step = "welcome" | "paydays" | "security" | "plaid" | "bank" | "agent" | "done";
 
+/** Numbered setup steps between welcome and done — drives the progress dots. */
+const WIZARD_STEPS: Step[] = ["paydays", "security", "plaid", "bank", "agent"];
+
+/** Calm progress dots for the numbered steps; hidden on welcome/done. */
+function StepProgress({ step }: { step: Step }) {
+  const idx = WIZARD_STEPS.indexOf(step);
+  if (idx === -1) return null;
+  return (
+    <div
+      role="status"
+      aria-label={`Step ${idx + 1} of ${WIZARD_STEPS.length}`}
+      className="mb-4 flex items-center justify-center gap-2"
+    >
+      <div className="flex items-center gap-1.5">
+        {WIZARD_STEPS.map((s, i) => (
+          <span
+            key={s}
+            aria-current={i === idx ? "step" : undefined}
+            className={`h-1.5 rounded-full transition-all ${
+              i === idx ? "w-5 bg-accent" : i < idx ? "w-1.5 bg-accent/50" : "w-1.5 bg-border"
+            }`}
+          />
+        ))}
+      </div>
+      <span className="text-[11px] font-medium text-text-muted">
+        Step {idx + 1} of {WIZARD_STEPS.length}
+      </span>
+    </div>
+  );
+}
+
 const PLAID_SIGNUP_URL = "https://dashboard.plaid.com/signup";
 const PLAID_KEYS_URL = "https://dashboard.plaid.com/developers/keys";
 const PLAID_TRIAL_URL = "https://dashboard.plaid.com/trial-plan";
@@ -266,6 +297,7 @@ export function OnboardingWizard() {
     >
       <div className="w-full max-w-md">
         <div className="mb-4 text-center text-xs font-medium text-text">Set up Open Finance</div>
+        <StepProgress step={step} />
 
         <div className="rounded-2xl border border-border bg-surface p-6 shadow-[var(--shadow-card)]">
           {step === "welcome" && (
