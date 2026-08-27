@@ -89,9 +89,10 @@ export async function requireAgentScope(req: NextRequest, requiredScopes: string
 /**
  * Token scopes intersected with the user's access caps. Reads the user's
  * agent prefs each request so a Settings toggle applies immediately — no
- * token regeneration needed.
+ * token regeneration needed. Exported for the MCP transport (authFromToken)
+ * so MCP calls enforce the exact same intersection as REST routes.
  */
-async function effectiveScopes(token: { user_id: string; scopes: string; follow_settings?: number }): Promise<string[]> {
+export async function effectiveScopes(token: { user_id: string; scopes: string; follow_settings?: number }): Promise<string[]> {
   const prefs = await createAgentPrefsService(getDb()).get(token.user_id);
   const caps = capScopes(prefs);
   // A dedicated Hermes token follows the user's current Settings boundary in

@@ -7,6 +7,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { createAgentTokenService, type AgentTokenRow } from "@/server/authz/tokens";
+import { effectiveScopes } from "@/server/authz/agent-auth";
 import { MCP_TOOLS } from "@/server/authz/route-registry";
 import { createPermissionService } from "@/server/authz/permission-requests";
 import { createSummaryService } from "@/server/domain/summary";
@@ -720,7 +721,10 @@ export async function authFromToken(raw: string): Promise<McpAuth> {
   if (!token) throw new Error("invalid token");
   return {
     token,
-    scopes: JSON.parse(token.scopes ?? "[]") as string[],
+    // Same intersection as REST routes (agent-auth.effectiveScopes): token
+    // scopes ∩ the user's current Settings caps. Without this, MCP calls
+    // would bypass a Settings access reduction until the token was revoked.
+    scopes: await effectiveScopes(token),
     userId: token.user_id,
     accountIds: token.account_ids ? (JSON.parse(token.account_ids) as string[]) : null,
   };
