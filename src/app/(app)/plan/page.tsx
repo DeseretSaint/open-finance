@@ -659,7 +659,9 @@ export default function PlanPage() {
                 </div>
               </div>
             ))}
-            {(bills.data?.bills ?? []).length === 0 && <p className="text-sm text-text-muted">No bills yet.</p>}
+            {(bills.data?.bills ?? []).length === 0 && (
+              <p className="text-sm text-text-muted">No bills yet — add one with the + button (recurring bill).</p>
+            )}
           </div>
         </Card>
 
@@ -688,7 +690,9 @@ export default function PlanPage() {
                 </p>
               </div>
             ))}
-            {(debts.data?.debts ?? []).length === 0 && <p className="text-sm text-text-muted">No debts yet.</p>}
+            {(debts.data?.debts ?? []).length === 0 && (
+              <p className="text-sm text-text-muted">No debts yet — add one with the + button.</p>
+            )}
           </div>
         </Card>
       </div>
@@ -782,7 +786,9 @@ export default function PlanPage() {
               </p>
             </div>
           ))}
-          {(goals.data?.goals ?? []).filter((g) => g.type !== "expense").length === 0 && <p className="text-sm text-text-muted">No goals yet.</p>}
+          {(goals.data?.goals ?? []).filter((g) => g.type !== "expense").length === 0 && (
+            <p className="text-sm text-text-muted">No goals yet — add one with the + button (savings goal).</p>
+          )}
         </div>
       </Card>
 

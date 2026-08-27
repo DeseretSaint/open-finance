@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search, X, Trash2, ChevronDown, RefreshCw, Upload } from "lucide-react";
 import { api } from "@/lib/api-client";
@@ -657,20 +658,51 @@ export default function TransactionsPage() {
           <RowSkeleton />
         ) : data.rows.length === 0 ? (
           <div className="px-6 py-12 text-center">
-            <p className="text-sm text-text-muted">
-              {q || accountId || pendingOnly ? "No transactions match your filters." : "No transactions yet."}
-            </p>
-            {(q || accountId || pendingOnly) && (
-              <button
-                className="mt-1 text-sm font-medium text-accent hover:underline"
-                onClick={() => {
-                  setQ("");
-                  setAccountId("");
-                  setPendingOnly(false);
-                }}
-              >
-                Clear filters
-              </button>
+            {q || accountId || pendingOnly ? (
+              <>
+                <p className="text-sm text-text-muted">No transactions match your filters.</p>
+                <button
+                  className="mt-1 text-sm font-medium text-accent hover:underline"
+                  onClick={() => {
+                    setQ("");
+                    setAccountId("");
+                    setPendingOnly(false);
+                  }}
+                >
+                  Clear filters
+                </button>
+              </>
+            ) : (accounts.data?.accounts ?? []).length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border px-4 py-8">
+                <p className="text-sm text-text-muted">No transactions yet.</p>
+                <p className="mt-1 text-sm">
+                  <Link href="/settings" className="font-medium text-accent hover:underline">
+                    Connect a bank
+                  </Link>
+                  <span className="text-text-muted">
+                    {" "}or add an account first — then add transactions with the + button or import a CSV.
+                  </span>
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-border px-4 py-8">
+                <p className="text-sm text-text-muted">No transactions yet.</p>
+                <p className="mt-1 text-sm text-text-muted">
+                  Add one with the + button, or{" "}
+                  <button
+                    type="button"
+                    className="font-medium text-accent hover:underline"
+                    onClick={() => {
+                      setError(null);
+                      setImportMsg(null);
+                      setShowImport(true);
+                    }}
+                  >
+                    import your bank&apos;s CSV
+                  </button>
+                  .
+                </p>
+              </div>
             )}
           </div>
         ) : (
