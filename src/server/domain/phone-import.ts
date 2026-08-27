@@ -18,6 +18,9 @@ function decode(value: string): Buffer {
 function decryptDump(contents: string, pin: string): Dump {
   let envelope: { magic?: string; version?: number; kdf?: { salt?: string; iterations?: number }; tables?: string };
   try {
+    // SAFETY: I/O parse boundary — every field of the parsed envelope is
+    // re-validated immediately below (magic/version/kdf.salt/tables checks)
+    // before any of it is used.
     envelope = JSON.parse(contents) as typeof envelope;
   } catch {
     throw apiErrors.badRequest("That file is not a valid Open Finance phone backup.");
@@ -35,6 +38,9 @@ function decryptDump(contents: string, pin: string): Dump {
     const decipher = createDecipheriv("aes-256-gcm", key, iv);
     decipher.setAAD(Buffer.from(AAD, "utf8"));
     decipher.setAuthTag(tag);
+    // SAFETY: authenticated-decrypt boundary — the payload is treated as
+    // untrusted input: every table is Array.isArray-checked and every field
+    // is re-validated via text()/integer() before use.
     return JSON.parse(Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8")) as Dump;
   } catch {
     throw apiErrors.forbidden("That device PIN could not decrypt this phone backup.");
@@ -68,6 +74,10 @@ export function createPhoneImportService(db: Db) {
     // Recreate the phone's Plaid credentials/items on the hub. The phone
     // backup is already PIN-encrypted; credentials are re-encrypted with the
     // hub's key immediately and never returned to the client.
+    // SAFETY: decrypted-dump boundary — __phonePlaid is an optional extension
+    // field written by the phone exporter; every field below is re-validated
+    // (typeof string checks, environment whitelist, text()/integer() helpers)
+    // before use.
     const plaid = (dump as unknown as { __phonePlaid?: { creds: Record<string, unknown> | null; items: Array<Record<string, unknown>> } }).__phonePlaid;
     if (plaid?.creds && typeof plaid.creds.clientId === "string" && typeof plaid.creds.secret === "string") {
       const environment = plaid.creds.environment === "production" ? "production" : "sandbox";
@@ -182,6 +192,3 @@ export function createPhoneImportService(db: Db) {
 export type PhoneImportService = ReturnType<typeof createPhoneImportService>;
 
 export { TABLES };
-
-type _Db = Db;
-void (null as unknown as _Db);
