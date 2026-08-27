@@ -259,7 +259,7 @@ export function OnboardingWizard() {
                 next couple of minutes you&apos;ll set up:
               </p>
               <ul className="mt-4 space-y-2 text-sm text-text">
-                <li>Your own bank connection (Plaid — free, optional)</li>
+                <li>Connect a bank — free and optional</li>
                 <li>Link your bank accounts (optional)</li>
                 <li>Connect your AI assistant (optional — do it later if you want)</li>
               </ul>
@@ -443,7 +443,7 @@ export function OnboardingWizard() {
             <>
               <h1 className="text-2xl font-bold text-text">Connect your bank (optional)</h1>
               <p className="mt-2 text-sm text-text-muted">
-                Open Finance uses Plaid to talk to your bank safely. It&apos;s free for personal use, and{" "}
+                Open Finance uses a secure service called Plaid to connect to your bank. It&apos;s free for personal use, and{" "}
                 <strong className="text-text">your connection keys stay on this {solo ? "phone" : "machine"}</strong> — we
                 never see them.
               </p>
@@ -456,13 +456,13 @@ export function OnboardingWizard() {
                   and create a free account (or sign in).
                 </li>
                 <li>
-                  2. Get your production keys from{" "}
+                  2. In Plaid, open{" "}
                   <a href={PLAID_TRIAL_URL} target="_blank" rel="noreferrer" className="font-medium text-accent-text">
                     Dashboard → Trial plan
                   </a>{" "}
-                  (production keys live there — use these, since real banks need the production environment).
+                  and copy your production keys (these connect to your real bank accounts).
                 </li>
-                <li>3. Copy your Client ID and Secret (your connection keys), then paste them below.</li>
+                <li>3. Paste your Client ID and Secret (your connection keys) below.</li>
               </ol>
               <p className="mt-2 text-xs text-text-muted">
                 Only using test data? Sandbox keys are at{" "}
