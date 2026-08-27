@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useEffect } from "react";
+import { usePageTitle } from "@/lib/use-page-title";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -83,6 +84,7 @@ interface Projection {
 }
 
 export default function ReportsPage() {
+  usePageTitle("Reports");
   const router = useRouter();
   // Selected month: 0 = current (month-to-date), negative = past, positive = future
   const [monthOffset, setMonthOffset] = useState(0);

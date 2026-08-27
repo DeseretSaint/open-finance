@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePageTitle } from "@/lib/use-page-title";
 import { useEscapeToClose } from "@/lib/use-escape-to-close";
 import { useDialogA11y } from "@/lib/use-dialog-a11y";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -74,6 +75,7 @@ function AccountsSkeleton() {
 }
 
 export default function AccountsPage() {
+  usePageTitle("Accounts");
   const kbdHeight = useKeyboardHeight();
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({

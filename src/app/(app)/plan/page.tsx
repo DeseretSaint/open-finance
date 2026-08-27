@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { usePageTitle } from "@/lib/use-page-title";
 import { useEscapeToClose } from "@/lib/use-escape-to-close";
 import { useDialogA11y } from "@/lib/use-dialog-a11y";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -111,6 +112,7 @@ function addDays(d: Date, n: number): Date {
 }
 
 export default function PlanPage() {
+  usePageTitle("Plan");
   const qc = useQueryClient();
   const kbdHeight = useKeyboardHeight();
   const [includePending] = useIncludePending();

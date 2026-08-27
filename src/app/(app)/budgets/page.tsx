@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePageTitle } from "@/lib/use-page-title";
 import { useEscapeToClose } from "@/lib/use-escape-to-close";
 import { useDialogA11y } from "@/lib/use-dialog-a11y";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -139,6 +140,7 @@ function BudgetTxnList({
 }
 
 export default function BudgetsPage() {
+  usePageTitle("Budgets");
   const kbdHeight = useKeyboardHeight();
   const qc = useQueryClient();
   const [frame, setFrame] = useState<FrameKind>("period");

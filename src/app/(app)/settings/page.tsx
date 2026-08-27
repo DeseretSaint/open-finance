@@ -8,6 +8,7 @@ import jsQR from "jsqr";
 import { Moon, Sun, ExternalLink, QrCode, X } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { hasWindow } from "@/lib/browser-env";
+import { usePageTitle } from "@/lib/use-page-title";
 import { Card, CardTitle } from "@/components/ui/card";
 import { SettingsGroup } from "@/components/ui/settings-group";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +29,7 @@ interface Me {
 }
 
 export default function SettingsPage() {
+  usePageTitle("Settings");
   const qc = useQueryClient();
   const { accent, setAccent, accents, dark, setDark, density, setDensity, densities } = useTheme();
   const [solo, setSolo] = useState(false);

@@ -10,6 +10,7 @@ import { Progress } from "@/components/ui/badge";
 import { Money } from "@/components/money";
 import { AgentWidgets } from "@/components/agent-widgets";
 import { ReviewWidget } from "@/components/review-widget";
+import { usePageTitle } from "@/lib/use-page-title";
 import { useIncludePending } from "@/lib/pending-pref";
 import { useDashboardLayout, type DashboardWidgetId } from "@/lib/dashboard-pref";
 
@@ -256,6 +257,7 @@ function LayoutControls({
 }
 
 export default function DashboardPage() {
+  usePageTitle("Dashboard");
   const [includePending] = useIncludePending();
   const { layout, move, toggleHidden, reset } = useDashboardLayout();
   const [customizing, setCustomizing] = useState(false);

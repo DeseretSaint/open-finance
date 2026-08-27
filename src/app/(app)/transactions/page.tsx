@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { usePageTitle } from "@/lib/use-page-title";
 import { useEscapeToClose } from "@/lib/use-escape-to-close";
 import { useDialogA11y } from "@/lib/use-dialog-a11y";
 import Link from "next/link";
@@ -56,6 +57,7 @@ function RowSkeleton() {
 }
 
 export default function TransactionsPage() {
+  usePageTitle("Transactions");
   const kbdHeight = useKeyboardHeight();
   const qc = useQueryClient();
   const [q, setQ] = useState("");

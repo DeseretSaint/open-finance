@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePageTitle } from "@/lib/use-page-title";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot, Copy, KeyRound, PlugZap, ShieldCheck, Trash2 } from "lucide-react";
 import { api } from "@/lib/api-client";
@@ -463,6 +464,7 @@ function RemoteAccessCard() {
 /* ── page ──────────────────────────────────────────────────────────────── */
 
 export default function AgentsPage() {
+  usePageTitle("Agents");
   const qc = useQueryClient();
   const [solo, setSolo] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
