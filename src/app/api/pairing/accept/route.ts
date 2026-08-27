@@ -36,8 +36,17 @@ export async function POST(req: NextRequest) {
       await db.run("DELETE FROM pairing_codes WHERE code_hash = ?", codeHash);
       throw apiErrors.badRequest("This pairing code has expired.");
     }
-
-    await db.run("UPDATE pairing_codes SET used = 1 WHERE code_hash = ?", codeHash);
+    // Atomic single-use claim: the conditional UPDATE succeeds for exactly one
+    // caller. The SELECT above is only for error-message fidelity — without
+    // this guard, two concurrent requests with the same code could both pass
+    // the used=0 check (there are awaits between SELECT and UPDATE) and each
+    // mint a session, breaking the single-use guarantee.
+    const claim = await db.run(
+      "UPDATE pairing_codes SET used = 1 WHERE code_hash = ? AND used = 0 AND expires_at > ?",
+      codeHash,
+      new Date().toISOString()
+    );
+    if (claim.changes !== 1) throw apiErrors.badRequest("This pairing code has already been used.");
     const session = await createSession(row.user_id, "30d", body.deviceLabel ?? "Paired phone", db);
     return ok({ userId: row.user_id, token: session.token, expiresAt: session.expiresAt });
   })(req, { params: Promise.resolve({}) });
