@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { TrendingDown, TrendingUp, Wallet, Scale, Settings2, ChevronUp, ChevronDown, EyeOff, Eye, RotateCcw } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardLabel, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/badge";
 import { Money } from "@/components/money";
 import { AgentWidgets } from "@/components/agent-widgets";
@@ -261,12 +262,24 @@ export default function DashboardPage() {
   const [includePending] = useIncludePending();
   const { layout, move, toggleHidden, reset } = useDashboardLayout();
   const [customizing, setCustomizing] = useState(false);
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ["summary", includePending],
     queryFn: () =>
       api.get<{ summary: Summary }>(`/api/summary${includePending ? "" : "?includePending=0"}`),
   });
 
+  if (error && !data) {
+    return (
+      <Card className="mx-auto max-w-md p-6 text-center">
+        <p role="alert" className="text-sm text-danger">
+          Couldn&apos;t load your dashboard{error instanceof Error && error.message ? ` — ${error.message}` : ""}.
+        </p>
+        <Button variant="secondary" size="sm" className="mt-3" onClick={() => refetch()} disabled={isFetching}>
+          {isFetching ? "Retrying…" : "Try again"}
+        </Button>
+      </Card>
+    );
+  }
   if (isLoading || !data) return <DashboardSkeleton />;
   const s = data.summary;
 
