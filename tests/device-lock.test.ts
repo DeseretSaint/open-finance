@@ -62,6 +62,29 @@ describe("device lock (P8a)", () => {
     expect((await svc.state(user.id)).biometricEnabled).toBe(false);
   });
 
+  it("setPin while locked does NOT clear the lockout (bypass guard)", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const svc = createDeviceLockService(db);
+    await svc.setPin(user.id, "9876");
+    // Drive 5 wrong attempts → device locks (423).
+    for (let i = 0; i < 4; i++) {
+      await expect(svc.unlock(user.id, "0000")).rejects.toMatchObject({ status: 401 });
+    }
+    await expect(svc.unlock(user.id, "0000")).rejects.toMatchObject({ status: 423 });
+    const before = await svc.state(user.id);
+    expect(before.locked).toBe(true);
+    // A locked device must NOT be silently unlocked by changing the PIN —
+    // that path is device-lock exempt at the API layer, so setPin must not
+    // clear locked_until / failed_attempts.
+    await svc.setPin(user.id, "1111");
+    const after = await svc.state(user.id);
+    expect(after.locked).toBe(true);
+    expect(after.retryAfterMs).toBeGreaterThan(0);
+    // The lockout still blocks the (old) PIN.
+    await expect(svc.unlock(user.id, "9876")).rejects.toMatchObject({ status: 423 });
+  });
+
   it("derivePinHash is deterministic and differs across salts", async () => {
     const a = await derivePinHash("1234", "salt1");
     const b = await derivePinHash("1234", "salt1");

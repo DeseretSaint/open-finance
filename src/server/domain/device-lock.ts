@@ -51,8 +51,16 @@ export function createDeviceLockService(db: Db = getDb()) {
       const hash = await derivePinHash(pin, salt);
       const existing = await this.get(userId);
       if (existing) {
+        // NOTE: setPin deliberately does NOT touch failed_attempts/locked_until.
+        // A locked device's lockout must survive a PIN change — only unlock(),
+        // unlockWithBiometric(), and recovery (resetPin) are allowed to clear it.
+        // Otherwise a locked phone could be silently unlocked by POSTing a new PIN
+        // to /api/device-lock/pin (that path is inside the device-lock exemption
+        // prefix, so the API-layer lock gate does not block it). A legit PIN change
+        // happens while already unlocked, at which point unlock() has already reset
+        // the counters, so leaving them untouched is a no-op for the normal flow.
         await db.run(
-          `UPDATE device_lock SET pin_hash = ?, pin_salt = ?, failed_attempts = 0, locked_until = NULL, updated_at = ?
+          `UPDATE device_lock SET pin_hash = ?, pin_salt = ?, updated_at = ?
            WHERE user_id = ?`,
           hash,
           salt,
