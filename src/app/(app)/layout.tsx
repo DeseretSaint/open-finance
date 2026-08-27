@@ -3,13 +3,34 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import dynamic from "next/dynamic";
 import { Building2 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Sidebar } from "@/components/sidebar";
 import { OfflineToast } from "@/components/offline-toast";
 import { DeviceLockGate } from "@/components/device-lock-gate";
 import { UpdateBanner } from "@/components/update-banner";
-import { OnboardingWizard } from "@/components/onboarding-wizard";
+
+// First-run only: lazy-loaded so its (demo/sample-data) strings stay out of the
+// shared app-shell chunk and don't load on every other route.
+const OnboardingWizard = dynamic(
+  () => import("@/components/onboarding-wizard").then((m) => m.OnboardingWizard),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-background text-text-muted">
+        <span
+          aria-hidden
+          className="flex h-12 w-12 items-center justify-center rounded-xl"
+          style={{ background: "var(--accent)", color: "var(--accent-foreground)" }}
+        >
+          <Building2 size={24} />
+        </span>
+        <p className="text-sm">Loading your finances…</p>
+      </div>
+    ),
+  }
+);
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
