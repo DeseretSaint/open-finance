@@ -19,6 +19,7 @@ const securityHeaders = [
       "frame-src https://cdn.plaid.com",
       "object-src 'none'",
       "base-uri 'self'",
+      "frame-ancestors 'none'",
     ].join("; "),
   },
 ];
