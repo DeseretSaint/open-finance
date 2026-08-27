@@ -23,7 +23,7 @@
     "og:image": "node scripts/og-crop.js"
   },
   "dependencies": {
-    "@aparajita/capacitor-biometric-auth": "9.1.2",
+    "@aparajita/capacitor-biometric-auth": "10.0.0",
     "@capacitor-community/sqlite": "^8.1.0",
     "@capacitor/app": "7.1.2",
     "@capacitor/core": "7.6.8",
