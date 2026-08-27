@@ -793,7 +793,7 @@ export default function PlanPage() {
                 </button>
               </div>
               <div className="mt-3">
-                <Progress value={g.pct} />
+                <Progress value={g.pct} label={`${g.name} goal progress`} />
               </div>
               <p className="mt-2 text-xs text-text-muted">
                 {g.requiredMonthlyCents !== null && (

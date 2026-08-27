@@ -72,7 +72,7 @@ function ProgressWidget({ w }: { w: WidgetDef }) {
           <Money cents={w.spentCents ?? 0} /> / <Money cents={w.limitCents ?? 0} />
         </span>
       </div>
-      <Progress value={pct} />
+      <Progress value={pct} label={`${w.title} usage`} />
     </>
   );
 }

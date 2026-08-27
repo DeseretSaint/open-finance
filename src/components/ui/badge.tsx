@@ -13,12 +13,28 @@ export function Badge({ className, ...props }: HTMLAttributes<HTMLSpanElement>) 
   );
 }
 
-export function Progress({ value, className }: { value: number; className?: string }) {
+export function Progress({
+  value,
+  className,
+  label
+}: {
+  value: number;
+  className?: string;
+  label?: string;
+}) {
   const pct = Math.max(0, Math.min(1, value)) * 100;
   const over = value > 1;
   return (
-    <div className={cn("h-2 w-full overflow-hidden rounded-full bg-surface-muted", className)}>
+    <div
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(value * 100)}
+      aria-label={label ?? "Progress"}
+      className={cn("h-2 w-full overflow-hidden rounded-full bg-surface-muted", className)}
+    >
       <div
+        aria-hidden="true"
         className={cn("h-full rounded-full transition-all", over ? "bg-danger" : "bg-accent")}
         style={{ width: `${pct}%` }}
       />

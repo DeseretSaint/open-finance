@@ -149,7 +149,7 @@ function BudgetsCard({ s }: { s: Summary }) {
                 <Money cents={b.spentCents} /> / <Money cents={b.amountCents} />
               </span>
             </div>
-            <Progress value={b.pct} />
+            <Progress value={b.pct} label={`${b.name} budget usage`} />
           </div>
         ))}
       </div>
