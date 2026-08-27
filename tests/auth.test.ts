@@ -179,6 +179,10 @@ describe("auth service", () => {
     // agent_manual (run-19 table) is user-scoped by PRIMARY KEY and also leaked.
     await db.run("INSERT INTO agent_manual (user_id, categorization, budgeting, general, updated_at) VALUES (?,?,?,?,?)",
       user.id, "x", "y", "z", "2026-01-01T00:00:00Z");
+    // pairing_codes carries a user_id column and leaked too (unused/expired codes
+    // are only cleaned lazily on accept, so a deleted user's rows would persist).
+    await db.run("INSERT INTO pairing_codes (code_hash, user_id, expires_at, used) VALUES (?,?,?,0)",
+      "pairhash1", user.id, "2099-01-01T00:00:00Z");
     await auth().deleteUser(user.id);
     const u = await db.get("SELECT id FROM users WHERE id = ?", user.id);
     expect(u).toBeUndefined();
@@ -190,6 +194,8 @@ describe("auth service", () => {
     expect(learn).toBeUndefined();
     const manual = await db.get("SELECT user_id FROM agent_manual WHERE user_id = ?", user.id);
     expect(manual).toBeUndefined();
+    const pairing = await db.get("SELECT code_hash FROM pairing_codes WHERE user_id = ?", user.id);
+    expect(pairing).toBeUndefined();
   });
 
   it("login is timing-safe: nonexistent user costs the same as a wrong password", async () => {
