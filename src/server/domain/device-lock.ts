@@ -147,8 +147,26 @@ export function createDeviceLockService(db: Db = getDb()) {
       return { ok: true, locked: false };
     },
 
-    /** Enable/disable biometric unlock (system prompt handles the actual scan). */
+    /**
+     * Enable/disable biometric unlock (system prompt handles the actual scan).
+     * Rejected with 423 while the device is locked out: the biometric
+     * enable/disable routes sit inside the device-lock exemption prefix (the
+     * lock screen's own surface), and unlockWithBiometric() requires only
+     * biometric_enabled === 1 to clear the lockout — so without this check an
+     * attacker with in-app access could enable biometrics mid-lockout and then
+     * call the (legitimately exempt) biometric-unlock endpoint to bypass the
+     * PIN and the lockout entirely. No force param: recovery resets the PIN
+     * only, never biometrics.
+     */
     async setBiometric(userId: string, enabled: boolean): Promise<void> {
+      const existing = await this.get(userId);
+      if (existing) {
+        const now = Date.now();
+        const lockedUntil = existing.locked_until ? new Date(existing.locked_until).getTime() : null;
+        if (lockedUntil !== null && now < lockedUntil) {
+          throw apiErrors.locked("Device is locked. Unlock it (or use your recovery code) before changing biometric unlock.");
+        }
+      }
       await db.run(
         `INSERT INTO device_lock (user_id, pin_hash, pin_salt, biometric_enabled, failed_attempts, locked_until, updated_at)
          VALUES (?, NULL, NULL, ?, 0, NULL, ?)

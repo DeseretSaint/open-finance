@@ -104,6 +104,34 @@ describe("device lock (P8a)", () => {
     await svc.unlock(user.id, "5555");
   });
 
+  it("setBiometric while locked is REJECTED (biometric-unlock bypass guard)", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db);
+    const svc = createDeviceLockService(db);
+    await svc.setPin(user.id, "9876");
+    // Drive 5 wrong attempts → device locks (423).
+    for (let i = 0; i < 4; i++) {
+      await expect(svc.unlock(user.id, "0000")).rejects.toMatchObject({ status: 401 });
+    }
+    await expect(svc.unlock(user.id, "0000")).rejects.toMatchObject({ status: 423 });
+    expect((await svc.state(user.id)).locked).toBe(true);
+    // The biometric enable/disable routes are device-lock exempt at the API
+    // layer, so the service itself must refuse to ENABLE biometrics
+    // mid-lockout — otherwise an attacker enables biometrics and calls the
+    // exempt biometric-unlock endpoint to clear the lockout instantly.
+    await expect(svc.setBiometric(user.id, true)).rejects.toMatchObject({ status: 423 });
+    const after = await svc.state(user.id);
+    expect(after.locked).toBe(true);
+    expect(after.biometricEnabled).toBe(false);
+    // And the unlock endpoint still refuses (biometrics never got enabled).
+    await expect(svc.unlockWithBiometric(user.id)).rejects.toMatchObject({ status: 400 });
+    // After the lockout clears, toggling works again.
+    await db.run("UPDATE device_lock SET locked_until = NULL, failed_attempts = 0 WHERE user_id = ?", user.id);
+    await svc.unlock(user.id, "9876");
+    await svc.setBiometric(user.id, true);
+    expect((await svc.state(user.id)).biometricEnabled).toBe(true);
+  });
+
   it("derivePinHash is deterministic and differs across salts", async () => {
     const a = await derivePinHash("1234", "salt1");
     const b = await derivePinHash("1234", "salt1");
