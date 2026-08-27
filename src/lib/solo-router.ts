@@ -56,9 +56,17 @@ const LOCK_EXEMPT_PATHS = [
   "/api/auth/me",
   "/api/auth/register",
   "/api/onboarding",
-  "/api/agent/remote",
   "/api/health",
 ];
+/**
+ * Exact-match-only exemptions. GET /api/agent/remote (status {enabled, port})
+ * is polled by the lock screen's remote-access card, but its PREFIX must NOT
+ * be exempt: /api/agent/remote/enable mints and returns the RAW bearer token
+ * (full remote access to the device's data) and /disable deletes it — both
+ * must stay behind the lock gate. Same prefix-bypass class as the
+ * device-lock/pin fixes.
+ */
+const LOCK_EXEMPT_EXACT = ["/api/agent/remote"];
 
 let _db: CapSqliteDb | null = null;
 
@@ -211,7 +219,11 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
     // requests are authorized by the token alone — the agent must be able to
     // operate while the phone is locked (that is the FGS's whole purpose).
     // Routes the lock screen itself needs are exempt.
-    if (!isRemote && !LOCK_EXEMPT_PATHS.some((p) => path === p || path.startsWith(p))) {
+    if (
+      !isRemote &&
+      !LOCK_EXEMPT_PATHS.some((p) => path === p || path.startsWith(p)) &&
+      !LOCK_EXEMPT_EXACT.includes(path)
+    ) {
       const bootstrapped = await h.solo.isBootstrapped();
       if (bootstrapped) {
         const userId = await h.deviceUserId();

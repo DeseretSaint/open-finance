@@ -135,6 +135,31 @@ describe("solo remote access", () => {
     expect(data.port).toBe(8787);
   });
 
+  it("lock gate blocks in-app remote enable/disable while locked (prefix-bypass fix)", async () => {
+    const userId = await seedUser(db);
+    const lock = await import("@/server/domain/device-lock");
+    await lock.createDeviceLockService(db).setPin(userId, "1234");
+    await db.run("UPDATE device_lock SET locked_until = ? WHERE user_id = ?", "2999-01-01T00:00:00.000Z", userId);
+
+    // enable while locked: must NOT mint/return the raw bearer token.
+    const enable = await soloDispatch({ method: "POST", path: "/api/agent/remote/enable", query: new URLSearchParams(), body: {} });
+    expect(enable.status).toBe(423);
+    const minted = await db.get<{ value: string }>("SELECT value FROM app_state WHERE key = 'remote.agent.token'");
+    expect(minted).toBeUndefined(); // nothing created
+
+    // disable while locked: must NOT delete an existing token.
+    await enableRemote(db, "t_" + "xyz789".repeat(8));
+    const disable = await soloDispatch({ method: "POST", path: "/api/agent/remote/disable", query: new URLSearchParams(), body: {} });
+    expect(disable.status).toBe(423);
+    const still = await db.get<{ value: string }>("SELECT value FROM app_state WHERE key = 'remote.agent.token'");
+    expect(still).toBeDefined(); // token survives
+
+    // GET status stays available while locked (exact-match exempt; no secrets).
+    const status = await soloDispatch({ method: "GET", path: "/api/agent/remote", query: new URLSearchParams(), body: undefined });
+    expect(status.status).toBe(200);
+    expect((status.data as { token?: string }).token).toBeUndefined();
+  });
+
   it("disables remote access by deleting the token", async () => {
     await seedUser(db);
     await db.run("INSERT INTO app_state (key, value, updated_at) VALUES ('remote.agent.token', ?, ?)", hashSecret("tok"), new Date().toISOString());
