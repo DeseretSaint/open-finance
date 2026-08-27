@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { ok, route } from "@/lib/api";
+import { ok, route, assertJsonBodySize } from "@/lib/api";
 import { requireSession } from "@/server/auth/service";
 import { createOnboardingService } from "@/server/domain/onboarding";
 import { getDb } from "@/server/db/adapter";
@@ -18,7 +18,18 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   return route(async (req) => {
     const session = await requireSession(req);
-    const body = (await req.json().catch(() => ({}))) as { action?: string };
+    // Reject oversized bodies BEFORE buffering them into RAM (parity with the
+    // parseBody chokepoint cap; this route reads only {action}).
+    assertJsonBodySize(req.headers.get("content-length"), null);
+    const text = await req.text().catch(() => "");
+    assertJsonBodySize(null, text.length);
+    let raw: unknown = {};
+    try {
+      raw = text === "" ? {} : JSON.parse(text);
+    } catch {
+      raw = {};
+    }
+    const body = raw as { action?: string };
     const svc = createOnboardingService(getDb());
     if (body.action === "reset") {
       return ok(await svc.reset(session.userId));

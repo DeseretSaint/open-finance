@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { createOpenFinanceMcpServer, authFromToken, McpUnauthorizedError, type McpAuth } from "@/server/mcp/server";
 import { bearerToken } from "@/server/authz/agent-auth";
+import { assertJsonBodySize, ApiError } from "@/lib/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -86,6 +87,14 @@ export function mcpErrorResponse(e: unknown, sid: string): NextResponse {
       { status: 403, headers: { "mcp-session-id": sid } }
     );
   }
+  // Expected ApiErrors (e.g. the 413 body-size cap) keep their own status +
+  // message — both are app-authored constants, not leak surfaces.
+  if (e instanceof ApiError) {
+    return NextResponse.json(
+      { jsonrpc: "2.0", error: { code: -32000, message: e.message } },
+      { status: e.status, headers: { "mcp-session-id": sid } }
+    );
+  }
   const msg = e instanceof Error ? e.message : "";
   if (msg === "missing bearer token") {
     return NextResponse.json(
@@ -117,11 +126,23 @@ async function handle(req: NextRequest): Promise<NextResponse> {
   };
 
   try {
+    // Reject oversized bodies BEFORE buffering them into RAM (parity with the
+    // parseBody chokepoint cap that covers every other JSON route): declared
+    // Content-Length first, then the buffered length (chunked/lying headers).
+    assertJsonBodySize(req.headers.get("content-length"), null);
+    const text = await req.text().catch(() => undefined);
+    if (text !== undefined) assertJsonBodySize(null, text.length);
+    let parsedBody: unknown;
+    try {
+      parsedBody = text === undefined ? undefined : JSON.parse(text);
+    } catch {
+      parsedBody = undefined;
+    }
     const transport = getTransport(sid, getAuth);
     // Build a fresh Web Request carrying the parsed body through (the
-    // transport reads req.json() itself; we pass the original request).
+    // transport uses parsedBody; the raw stream is already consumed).
     const response: Response = await transport.handleRequest(req as unknown as Request, {
-      parsedBody: await req.json().catch(() => undefined),
+      parsedBody,
     });
     // Wrap the Web Response in a NextResponse, preserving status + headers.
     const res = new NextResponse(response.body, {
