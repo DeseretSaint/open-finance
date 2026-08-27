@@ -653,9 +653,10 @@ export default function PlanPage() {
                   )}
                   <button
                     onClick={() => setConfirmDelete({ kind: "bill", id: b.id, name: b.name })}
-                    className="text-xs text-text-muted hover:text-danger"
+                    className="text-text-muted hover:text-danger"
+                    aria-label={`Delete bill ${b.name}`}
                   >
-                    ✕
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
                 </div>
               </div>
@@ -678,9 +679,10 @@ export default function PlanPage() {
                     <Money cents={d.principal_cents} />
                     <button
                       onClick={() => setConfirmDelete({ kind: "debt", id: d.id, name: d.name })}
-                      className="text-xs text-text-muted hover:text-danger"
+                      className="text-text-muted hover:text-danger"
+                      aria-label={`Delete debt ${d.name}`}
                     >
-                      ✕
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
                   </div>
                 </div>
@@ -715,10 +717,10 @@ export default function PlanPage() {
                 </div>
                 <button
                   onClick={() => setConfirmDelete({ kind: "goal", id: g.id, name: g.name })}
-                  className="text-xs text-text-muted hover:text-danger"
+                  className="text-text-muted hover:text-danger"
                   aria-label={`Delete expense ${g.name}`}
                 >
-                  ✕
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
               </div>
               <p className="mt-1.5 text-xs text-text-muted">
@@ -762,9 +764,10 @@ export default function PlanPage() {
                 </div>
                 <button
                   onClick={() => setConfirmDelete({ kind: "goal", id: g.id, name: g.name })}
-                  className="text-xs text-text-muted hover:text-danger"
+                  className="text-text-muted hover:text-danger"
+                  aria-label={`Delete goal ${g.name}`}
                 >
-                  ✕
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
               </div>
               <div className="mt-3">
