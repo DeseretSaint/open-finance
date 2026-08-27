@@ -148,6 +148,23 @@ describe("auth service", () => {
     expect(login.user.username).toBe("hank");
   });
 
+  it("rejects a password equal to the username on change and recovery reset", async () => {
+    const { user } = await auth().register({ username: "ivy", display_name: "Ivy", password: "ivy-has-a-strong-pass" });
+    // changePassword must enforce the username check, not just register.
+    await expect(auth().changePassword(user.id, "ivy-has-a-strong-pass", "ivy")).rejects.toMatchObject({
+      code: "bad_request",
+    });
+    // Old password still valid after the rejected change.
+    const still = await auth().login({ username: "ivy", password: "ivy-has-a-strong-pass", duration: "30d", device_label: "t" });
+    expect(still.user.username).toBe("ivy");
+    // Recovery reset must enforce it too.
+    const code = await auth().createRecoveryCode(user.id);
+    await expect(auth().resetPasswordWithRecovery("ivy", code, "IVY")).rejects.toMatchObject({ code: "bad_request" });
+    await auth().resetPasswordWithRecovery("ivy", code, "ivy-reset-strong-pass");
+    const after = await auth().login({ username: "ivy", password: "ivy-reset-strong-pass", duration: "30d", device_label: "t" });
+    expect(after.user.username).toBe("ivy");
+  });
+
   it("deletes a user and their related rows", async () => {
     const { user } = await auth().register({ username: "grace", display_name: "Grace", password: "grace-has-a-strong-pass" });
     await createSession(user.id, "30d", "dev", db);

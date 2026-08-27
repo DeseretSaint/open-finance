@@ -142,11 +142,14 @@ export function createAuthService(db: Db = getDb()) {
     },
 
     async changePassword(userId: string, current: string, next: string) {
-      const row = await db.get<{ password_hash: string | null }>("SELECT password_hash FROM users WHERE id = ?", userId);
+      const row = await db.get<{ password_hash: string | null; username: string }>(
+        "SELECT password_hash, username FROM users WHERE id = ?",
+        userId
+      );
       if (!row?.password_hash || !(await verifyPassword(current, row.password_hash))) {
         throw apiErrors.badRequest("Current password is incorrect.");
       }
-      const policy = validatePasswordPolicy(next);
+      const policy = validatePasswordPolicy(next, row.username);
       if (policy) throw apiErrors.badRequest(policy);
       await db.run("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?", await hashPassword(next), now(), userId);
       // Revoke all sessions except the current one (handled by the route).
@@ -186,7 +189,7 @@ export function createAuthService(db: Db = getDb()) {
     },
 
     async resetPasswordWithRecovery(username: string, recoveryCode: string, newPassword: string) {
-      const policy = validatePasswordPolicy(newPassword);
+      const policy = validatePasswordPolicy(newPassword, username);
       if (policy) throw apiErrors.badRequest(policy);
       const row = await db.get<{ id: string; recovery_code_hash: string | null }>(
         "SELECT id, recovery_code_hash FROM users WHERE lower(username) = lower(?)",
