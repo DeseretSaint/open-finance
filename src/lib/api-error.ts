@@ -26,6 +26,8 @@ export const apiErrors = {
   forbidden: (msg = "You do not have permission to do that.") => new ApiError(403, "forbidden", msg),
   notFound: (what = "Resource") => new ApiError(404, "not_found", `${what} not found.`),
   badRequest: (msg = "Invalid request.") => new ApiError(400, "bad_request", msg),
+  payloadTooLarge: (msg = "Request payload is too large.") =>
+    new ApiError(413, "payload_too_large", msg),
   conflict: (msg = "Conflict.") => new ApiError(409, "conflict", msg),
   rateLimited: (retryAfterMs: number) =>
     new ApiError(

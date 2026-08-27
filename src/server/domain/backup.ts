@@ -23,6 +23,30 @@ const IV_LEN = 12;
 const TAG_LEN = 16;
 const AAD = "open-finance:backup:v1";
 
+/**
+ * Hard cap on an uploaded .ofbak envelope (512 MB). A personal-finance SQLite
+ * DB is at most tens of MB; the cap exists so a hostile or misconfigured
+ * upload cannot exhaust server memory — restore buffers the whole file into
+ * RAM (arrayBuffer → Buffer) before decrypting.
+ */
+export const MAX_BACKUP_BYTES = 512 * 1024 * 1024;
+
+/**
+ * Reject oversized backup uploads BEFORE buffering/decrypting. Pass the
+ * declared Content-Length header (may be null/absent) and/or the parsed file
+ * size; either exceeding MAX_BACKUP_BYTES throws 413. A non-numeric
+ * Content-Length is ignored here (the size check after parsing still applies).
+ */
+export function assertBackupSize(declaredContentLength: string | null, fileSize: number | null): void {
+  const declared = declaredContentLength === null ? NaN : Number(declaredContentLength);
+  if (
+    (Number.isFinite(declared) && declared > MAX_BACKUP_BYTES) ||
+    (fileSize !== null && fileSize > MAX_BACKUP_BYTES)
+  ) {
+    throw apiErrors.payloadTooLarge("Backup file is too large (limit 512 MB).");
+  }
+}
+
 function key(): Buffer {
   return createHash("sha256").update(env.ENCRYPTION_KEY).digest();
 }
