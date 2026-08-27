@@ -1,45 +1,60 @@
-import { describe, expect, it } from "vitest";
-import { allowlistAllows, withAllowlist } from "@/server/db/allowlist";
+import { describe, it, expect } from "vitest";
+import { withAllowlist, allowlistAllows } from "@/server/db/allowlist";
 
 describe("withAllowlist", () => {
-  it("returns no clause when allowlist is null (unrestricted)", () => {
-    const { clause, params } = withAllowlist({ accountIds: null });
-    expect(clause).toBe("");
-    expect(params).toHaveLength(0);
+  it("returns no clause when ctx is null (unrestricted)", () => {
+    const r = withAllowlist(null, "id");
+    expect(r.clause).toBe("");
+    expect(r.params).toEqual([]);
   });
 
-  it("returns no clause when ctx is missing", () => {
-    expect(withAllowlist(undefined).clause).toBe("");
-    expect(withAllowlist(null).clause).toBe("");
+  it("returns no clause when accountIds is null (unrestricted)", () => {
+    const r = withAllowlist({ accountIds: null }, "a.id");
+    expect(r.clause).toBe("");
+    expect(r.params).toEqual([]);
   });
 
-  it("builds an IN clause for a non-empty allowlist", () => {
-    const { clause, params } = withAllowlist({ accountIds: ["a", "b"] });
-    expect(clause).toBe(" AND account_id IN (?, ?)");
-    expect(params).toEqual(["a", "b"]);
+  it("returns a blocking clause for an empty allowlist", () => {
+    const r = withAllowlist({ accountIds: [] }, "id");
+    expect(r.clause).toContain("0 = 1");
+    expect(r.params).toEqual([]);
   });
 
-  it("uses a custom column", () => {
-    const { clause } = withAllowlist({ accountIds: ["a"] }, "user_id");
-    expect(clause).toContain("user_id IN");
+  it("builds a bound IN clause for valid accounts", () => {
+    const r = withAllowlist({ accountIds: ["a1", "a2"] }, "a.id");
+    expect(r.clause).toBe(" AND a.id IN (?, ?)");
+    expect(r.params).toEqual(["a1", "a2"]);
   });
 
-  it("denies everything for an empty allowlist (no parameterization abuse)", () => {
-    const { clause, params } = withAllowlist({ accountIds: [] });
-    expect(clause).toContain("0 = 1");
-    expect(params).toHaveLength(0);
+  it("accepts a bare identifier column (id)", () => {
+    const r = withAllowlist({ accountIds: ["x"] }, "id");
+    expect(r.clause).toBe(" AND id IN (?)");
+  });
+
+  it("rejects an injection-bearing column identifier", () => {
+    expect(() => withAllowlist({ accountIds: ["x"] }, "id); DROP TABLE accounts; --")).toThrow(
+      /invalid column identifier/,
+    );
+  });
+
+  it("rejects a column starting with a digit", () => {
+    expect(() => withAllowlist({ accountIds: ["x"] }, "1id")).toThrow(/invalid column identifier/);
+  });
+
+  it("rejects an empty column", () => {
+    expect(() => withAllowlist({ accountIds: ["x"] }, "")).toThrow(/invalid column identifier/);
   });
 });
 
 describe("allowlistAllows", () => {
-  it("allows when unrestricted", () => {
-    expect(allowlistAllows({ accountIds: null }, "anything")).toBe(true);
-    expect(allowlistAllows(undefined, "anything")).toBe(true);
+  it("allows everything when unrestricted", () => {
+    expect(allowlistAllows(null, "any")).toBe(true);
+    expect(allowlistAllows({ accountIds: null }, "any")).toBe(true);
   });
 
-  it("allows only listed ids", () => {
-    const ctx = { accountIds: ["a", "b"] };
-    expect(allowlistAllows(ctx, "a")).toBe(true);
-    expect(allowlistAllows(ctx, "c")).toBe(false);
+  it("allows only listed accounts", () => {
+    const ctx = { accountIds: ["a1"] };
+    expect(allowlistAllows(ctx, "a1")).toBe(true);
+    expect(allowlistAllows(ctx, "a2")).toBe(false);
   });
 });

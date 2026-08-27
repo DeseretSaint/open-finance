@@ -11,10 +11,21 @@ export interface AllowlistCtx {
   accountIds: string[] | null;
 }
 
+// Identifier allowlist for the `column` argument. Callers pass hardcoded
+// literals ("id", "a.id"), but the value is interpolated directly into SQL as
+// an identifier (not a bound param), so we reject anything that isn't a valid
+// column/qualified name. This is defense-in-depth against future regressions
+// at the data-scoping choke point (OSS-publication hardening; cf. solo-backup
+// column guard fb911f1).
+const COLUMN_IDENT_RE = /^[_A-Za-z][_A-Za-z0-9]*(\.[_A-Za-z][_A-Za-z0-9]*)?$/;
+
 export function withAllowlist(
   ctx: AllowlistCtx | null | undefined,
   column: string = "account_id",
 ): { clause: string; params: unknown[] } {
+  if (!COLUMN_IDENT_RE.test(column)) {
+    throw new Error(`withAllowlist: invalid column identifier ${JSON.stringify(column)}`);
+  }
   if (!ctx || ctx.accountIds === null) {
     return { clause: "", params: [] };
   }
