@@ -38,3 +38,7 @@ android/capacitor-cordova-android-plugins/build/
 android/.cxx/
 *.apk
 android/app/src/main/assets/
+
+# generated service worker (serwist build output)
+public/sw.js
+public/sw.js.map

@@ -6,7 +6,10 @@ import { isSoloCandidate } from "@/lib/mobile-mode";
 /**
  * Offline honesty (P8a §6.6): connected mode is read-only offline. When the
  * hub is unreachable we show "Connect to hub to edit" so writes never fail
- * silently. The app's TanStack persistence serves last-known data for reads.
+ * silently. The service worker serves previously-loaded pages and cached
+ * GET /api/* responses (incl. /api/auth/me, so a valid session survives an
+ * offline reload); queries never loaded online show skeletons until the
+ * connection returns.
  */
 export function useOnline(): boolean {
   const [online, setOnline] = useState(
