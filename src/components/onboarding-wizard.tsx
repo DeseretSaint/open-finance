@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
 import { PairingSection } from "@/components/pairing-section";
 import { isSoloCandidate } from "@/lib/mobile-mode";
+import { hasWindow } from "@/lib/browser-env";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CustomSelect } from "@/components/ui/custom-select";
@@ -112,7 +113,7 @@ export function OnboardingWizard() {
   }
 
   useEffect(() => {
-    if (typeof window !== "undefined") setSolo(isSoloCandidate(window.location.origin));
+    if (hasWindow()) setSolo(isSoloCandidate(window.location.origin));
   }, []);
 
   async function savePinStep() {
@@ -212,7 +213,7 @@ export function OnboardingWizard() {
       // Warm the solo DB (open + migrate) WHILE the transition happens so the
       // dashboard's first queries hit a ready database instead of paying the
       // cold-open cost (first entry after the wizard was slow).
-      if (typeof window !== "undefined") {
+      if (hasWindow()) {
         void import("@/lib/solo-router")
           .then((m) => m.getSoloDb())
           .catch(() => {});
@@ -647,7 +648,7 @@ export function OnboardingWizard() {
                   <p className="text-xs text-text-muted">
                     Endpoint:{" "}
                     <code className="rounded bg-surface-muted px-1.5 py-0.5 font-mono text-accent-text">
-                      {typeof window !== "undefined" ? window.location.origin : ""}/api/mcp
+                      {hasWindow() ? window.location.origin : ""}/api/mcp
                     </code>
                   </p>
                 </div>
@@ -661,7 +662,7 @@ export function OnboardingWizard() {
                   <p className="mt-2 text-xs text-text-muted">
                     Point your agent at{" "}
                     <code className="rounded bg-surface-muted px-1 py-0.5 font-mono text-accent-text">
-                      {typeof window !== "undefined" ? window.location.origin : ""}/api/mcp
+                      {hasWindow() ? window.location.origin : ""}/api/mcp
                     </code>{" "}
                     with this token. You can fine-tune permissions anytime in Settings → AI agent connection.
                   </p>
@@ -886,7 +887,7 @@ function NativeOrWebLink({
   // solo-iOS uses the web Plaid Link flow inside the WKWebView.
   const [useWebLink, setUseWebLink] = useState(false);
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (!hasWindow()) return;
     // SAFETY: window.Capacitor is absent on web; optional chaining guards the read.
     const cap = (window as unknown as { Capacitor?: { getPlatform?: () => string } }).Capacitor;
     if (cap?.getPlatform?.() === "ios") setUseWebLink(true);

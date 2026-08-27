@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
+import { hasWindow } from "@/lib/browser-env";
 import { Button } from "@/components/ui/button";
 
 interface UpdateStatus {
@@ -21,7 +22,7 @@ interface UpdateStatus {
 
 function isNativeApp(): boolean {
   // SAFETY: window hosts the Capacitor bridge on native; read isNativePlatform off it.
-  return typeof window !== "undefined" && !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.();
+  return hasWindow() && !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.();
 }
 
 function updaterPlugin() {

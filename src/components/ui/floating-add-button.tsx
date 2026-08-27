@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Plus } from "lucide-react";
+import { hasWindow } from "@/lib/browser-env";
 
 /**
  * The app-wide create-action convention (P15/P17): a floating `+` button,
@@ -62,7 +63,7 @@ export function FloatingAddButton({
   // The guard here: only lift while a text field is actually focused AND the
   // viewport is visibly shrunken; blur always resets to 0, so it cannot stick.
   useEffect(() => {
-    if (typeof window === "undefined" || !window.visualViewport) return;
+    if (!hasWindow() || !window.visualViewport) return;
     function isTextField(el: Element | null): boolean {
       if (!el) return false;
       const tag = el.tagName;

@@ -6,6 +6,8 @@
  * answered in-process by the solo router instead of HTTP — the same envelope,
  * same shapes, zero changes at call sites.
  */
+import { hasWindow, isNativeString } from "@/lib/browser-env";
+
 export class ApiClientError extends Error {
   constructor(
     public status: number,
@@ -26,7 +28,7 @@ async function soloFetch(path: string, init: RequestInit): Promise<Response> {
     query: url.searchParams,
     // SAFETY: body was JSON.stringify'd before dispatch; parse back to unknown for the solo router.
     body:
-      init.body && typeof init.body === "string"
+      init.body && isNativeString(init.body)
         ? (JSON.parse(init.body) as unknown)
         : undefined,
   });
@@ -47,18 +49,18 @@ export async function apiFetch<T = unknown>(
   const headers: Record<string, string> = {
     ...(init.headers as Record<string, string> | undefined),
   };
-  if (init.body !== undefined && typeof init.body !== "string") {
+  if (init.body !== undefined && !isNativeString(init.body)) {
     headers["Content-Type"] = "application/json";
   }
   if (init.method && init.method !== "GET") {
     headers["x-of-request"] = "1";
   }
   const body: BodyInit | undefined =
-    init.body === undefined || typeof init.body === "string" ? init.body : JSON.stringify(init.body);
+    init.body === undefined || isNativeString(init.body) ? init.body : JSON.stringify(init.body);
 
   const { isSoloCandidate } = await import("@/lib/mobile-mode");
   const useSolo =
-    typeof window !== "undefined" && isSoloCandidate(window.location.origin) && path.startsWith("/api/");
+    hasWindow() && isSoloCandidate(window.location.origin) && path.startsWith("/api/");
 
   // SAFETY: body is BodyInit|undefined; narrow to string|undefined for the solo bridge.
   const bodyStr = body as string | undefined;
@@ -73,7 +75,7 @@ export async function apiFetch<T = unknown>(
       });
 
   if (res.status === 401) {
-    if (typeof window !== "undefined" && !path.startsWith("/api/auth/")) {
+    if (hasWindow() && !path.startsWith("/api/auth/")) {
       window.location.href = "/login";
     }
     throw new ApiClientError(401, "unauthorized", "You must be signed in.");

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { isSoloCandidate } from "@/lib/mobile-mode";
+import { hasWindow } from "@/lib/browser-env";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CustomSelect } from "@/components/ui/custom-select";
@@ -34,7 +35,7 @@ export default function LoginPage() {
   const [bioBusy, setBioBusy] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (hasWindow()) {
       setSolo(isSoloCandidate(window.location.origin));
     }
   }, []);

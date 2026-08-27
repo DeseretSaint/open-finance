@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot, Copy, KeyRound, PlugZap, ShieldCheck, Trash2 } from "lucide-react";
 import { api } from "@/lib/api-client";
+import { hasWindow } from "@/lib/browser-env";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Disclosure } from "@/components/ui/settings-group";
 import { Badge } from "@/components/ui/badge";
@@ -473,7 +474,7 @@ export default function AgentsPage() {
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (hasWindow()) {
       setSolo(isSoloCandidate(window.location.origin));
       setEndpoint(window.location.origin);
     }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
 import { isSoloCandidate } from "@/lib/mobile-mode";
+import { hasWindow } from "@/lib/browser-env";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MotifHero } from "@/components/motif-hero";
@@ -22,7 +23,7 @@ export default function RegisterPage() {
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (hasWindow()) {
       setSolo(isSoloCandidate(window.location.origin));
     }
   }, []);

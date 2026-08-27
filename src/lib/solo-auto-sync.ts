@@ -1,11 +1,13 @@
 "use client";
 
+import { hasWindow } from "@/lib/browser-env";
+
 /** Foreground/active-session transaction refresh for standalone mode. */
 let timer: number | null = null;
 let running = false;
 
 export async function syncSoloNow(): Promise<{ ok: boolean; error?: string } | null> {
-  if (running || typeof window === "undefined") return null;
+  if (running || !hasWindow()) return null;
   running = true;
   try {
     const { isSoloCandidate } = await import("@/lib/mobile-mode");
@@ -31,7 +33,7 @@ export async function syncSoloNow(): Promise<{ ok: boolean; error?: string } | n
 }
 
 export function startSoloAutoSync(): () => void {
-  if (typeof window === "undefined") return () => {};
+  if (!hasWindow()) return () => {};
   void syncSoloNow();
   const onVisibility = () => {
     if (document.visibilityState === "visible") void syncSoloNow();

@@ -8,6 +8,7 @@ import { Building2 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Sidebar } from "@/components/sidebar";
 import { OfflineToast } from "@/components/offline-toast";
+import { hasWindow } from "@/lib/browser-env";
 import { DeviceLockGate } from "@/components/device-lock-gate";
 import { UpdateBanner } from "@/components/update-banner";
 
@@ -50,7 +51,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   // Standalone mode: sync immediately on app entry/resume and poll while active.
   useEffect(() => {
-    if (!data || onboarding.data?.completed === false || typeof window === "undefined") return;
+    if (!data || onboarding.data?.completed === false || !hasWindow()) return;
     let stop: (() => void) | undefined;
     import("@/lib/solo-auto-sync").then(({ startSoloAutoSync }) => {
       stop = startSoloAutoSync();
@@ -63,7 +64,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // needing a manual page refresh (was: DB updated, UI stayed stale).
   const qc = useQueryClient();
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (!hasWindow()) return;
     const onSynced = () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["accounts"] });
@@ -80,7 +81,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // the native HTTP server on port 8787 is actually listening — it must
   // survive app restarts, not just the toggle moment. No-op on plain web.
   useEffect(() => {
-    if (!data || onboarding.data?.completed === false || typeof window === "undefined") return;
+    if (!data || onboarding.data?.completed === false || !hasWindow()) return;
     // SAFETY: window.Capacitor is undefined on web; optional chaining guards the read.
     const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
     if (!cap?.isNativePlatform?.()) return;
@@ -111,7 +112,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // (native only — the plugin is a no-op elsewhere).
   useEffect(() => {
     if (!data || onboarding.data?.completed === false) return;
-    if (typeof window === "undefined") return;
+    if (!hasWindow()) return;
     // SAFETY: window.Capacitor is undefined on web; optional chaining guards the read.
     const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
     if (!cap?.isNativePlatform?.()) return;

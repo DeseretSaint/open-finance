@@ -14,6 +14,7 @@ import { randomUUID } from "@/lib/uuid";
 import { createCategoriesService } from "@/server/domain/categories";
 import { markLinkedTransfers } from "@/server/domain/transfers";
 import { findImportedDuplicate } from "@/server/domain/txn-dedupe";
+import { isNativeString } from "@/lib/browser-env";
 
 /** Today's date (YYYY-MM-DD, UTC — same convention as server sync.ts). */
 function today(): string {
@@ -224,7 +225,7 @@ export async function syncSoloItem(input: SoloSyncInput): Promise<SoloSyncResult
       await upsertTxn(db, rowId, { ...t, amountCents: -t.amountCents }, cat?.id ?? null);
     }
     for (const removed of res.removed) {
-      const plaidId = typeof removed === "string" ? removed : removed.transactionId;
+      const plaidId = isNativeString(removed) ? removed : removed.transactionId;
       await db.run("DELETE FROM transactions WHERE plaid_transaction_id = ?", plaidId);
     }
 

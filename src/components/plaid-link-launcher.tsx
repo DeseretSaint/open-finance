@@ -13,6 +13,7 @@
 import { useEffect, useState } from "react";
 import { usePlaidLink } from "react-plaid-link";
 import { isSoloCandidate } from "@/lib/mobile-mode";
+import { hasWindow } from "@/lib/browser-env";
 
 interface Props {
   token: string;
@@ -21,12 +22,12 @@ interface Props {
 }
 
 export function PlaidLinkLauncher({ token, onSuccess, onExit }: Props) {
-  const [solo] = useState(() => typeof window !== "undefined" && isSoloCandidate(window.location.origin));
+  const [solo] = useState(() => hasWindow() && isSoloCandidate(window.location.origin));
   // iOS has no native PlaidProxy plugin (Android-only Kotlin), so solo-iOS uses
   // the web flow inside the WKWebView.
   const [useWebLink, setUseWebLink] = useState(false);
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (!hasWindow()) return;
     // SAFETY: window.Capacitor is absent on web/non-native; optional chaining guards the read.
     const cap = (window as unknown as { Capacitor?: { getPlatform?: () => string } }).Capacitor;
     if (cap?.getPlatform?.() === "ios") setUseWebLink(true);

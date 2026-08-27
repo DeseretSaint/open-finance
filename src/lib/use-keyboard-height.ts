@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { hasWindow } from "@/lib/browser-env";
 
 /**
  * Shared keyboard-height effect (D1 — replaces the five inline copies in
@@ -15,7 +16,7 @@ export function useKeyboardHeight(): number {
   const [kbdHeight, setKbdHeight] = useState(0);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !window.visualViewport) return;
+    if (!hasWindow() || !window.visualViewport) return;
 
     const isTextEntry = () => {
       const el = document.activeElement;

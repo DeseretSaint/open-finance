@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { isSoloCandidate } from "@/lib/mobile-mode";
+import { hasNavigator, hasWindow } from "@/lib/browser-env";
 
 /**
  * Offline honesty (P8a §6.6): connected mode is read-only offline. When the
@@ -13,7 +14,7 @@ import { isSoloCandidate } from "@/lib/mobile-mode";
  */
 export function useOnline(): boolean {
   const [online, setOnline] = useState(
-    typeof navigator !== "undefined" ? navigator.onLine : true
+    hasNavigator() ? navigator.onLine : true
   );
   useEffect(() => {
     const up = () => setOnline(true);
@@ -34,7 +35,7 @@ export function OfflineToast() {
   // connect to, and navigator.onLine reflects the WebView's network — which
   // can be false (e.g. Tailscale-only, airplane-mode WiFi toggles) while the
   // app is fully writable. Only connected mode is read-only offline.
-  if (typeof window !== "undefined" && isSoloCandidate(window.location.origin)) return null;
+  if (hasWindow() && isSoloCandidate(window.location.origin)) return null;
   if (online) return null;
   return (
     <div className="fixed inset-x-0 bottom-4 z-50 flex justify-center">

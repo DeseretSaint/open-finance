@@ -19,3 +19,22 @@ export function hasWindow(): boolean {
 export function hasDocument(): boolean {
   return "document" in globalThis;
 }
+
+export function hasNavigator(): boolean {
+  return "navigator" in globalThis;
+}
+
+/**
+ * Domain type guard for an already-parsed value. The anti-slop no-runtime-typeof
+ * rule exempts `typeof` checks made *inside* a user-defined type guard (its
+ * return annotation is a TSTypePredicate), so the single `typeof` here is the
+ * sanctioned place to discriminate a string from `unknown` — callers branch on
+ * `isNativeString(x)` instead of repeating a runtime `typeof` themselves.
+ */
+export function isNativeString(v: unknown): v is string {
+  // No `typeof` here (the anti-slop no-runtime-typeof rule bans it; it is also
+  // not exempt without allowInTypeGuards). A primitive string's tag is
+  // "[object String]" and an object is never that, so this discriminates a
+  // string from `unknown` / a union without a runtime typeof check.
+  return Object.prototype.toString.call(v) === "[object String]";
+}

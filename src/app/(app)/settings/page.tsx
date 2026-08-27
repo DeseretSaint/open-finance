@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import jsQR from "jsqr";
 import { Moon, Sun, ExternalLink, QrCode, X } from "lucide-react";
 import { api } from "@/lib/api-client";
+import { hasWindow } from "@/lib/browser-env";
 import { Card, CardTitle } from "@/components/ui/card";
 import { SettingsGroup } from "@/components/ui/settings-group";
 import { Badge } from "@/components/ui/badge";
@@ -44,7 +45,7 @@ export default function SettingsPage() {
   const [densityDraft, setDensityDraft] = useState<number>(density);
 
   useEffect(() => {
-    if (typeof window !== "undefined") setSolo(isSoloCandidate(window.location.origin));
+    if (hasWindow()) setSolo(isSoloCandidate(window.location.origin));
   }, []);
 
   // Issue #21: status messages auto-dismiss and never linger across visits.
@@ -973,7 +974,7 @@ function AgentWiringCard({ setMsg, setErr }: { setMsg: (s: string | null) => voi
   const [endpoint, setEndpoint] = useState("");
   const qc = useQueryClient();
   useEffect(() => {
-    if (typeof window !== "undefined") setEndpoint(window.location.origin);
+    if (hasWindow()) setEndpoint(window.location.origin);
   }, []);
 
   const agents = useQuery({
@@ -1609,7 +1610,7 @@ function HubPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; setE
   const [scanErr, setScanErr] = useState<string | null>(null);
 
   useEffect(() => {
-    if (typeof window !== "undefined") setSolo(isSoloCandidate(window.location.origin));
+    if (hasWindow()) setSolo(isSoloCandidate(window.location.origin));
   }, []);
 
   const diagnostics = useQuery({
@@ -1886,7 +1887,7 @@ function BackupPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; s
   const [solo, setSolo] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (hasWindow()) {
       import("@/lib/mobile-mode").then((m) => setSolo(m.isSoloCandidate(window.location.origin)));
     }
   }, []);

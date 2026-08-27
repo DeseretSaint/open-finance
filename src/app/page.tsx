@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
 import { isSoloCandidate } from "@/lib/mobile-mode";
+import { hasWindow } from "@/lib/browser-env";
 import { LogoMark } from "@/components/sidebar";
 import { MotifHero } from "@/components/motif-hero";
 
@@ -26,7 +27,7 @@ export default function Home() {
   const [pairErr, setPairErr] = useState<string | null>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (!hasWindow()) return;
     if (isSoloCandidate(window.location.origin)) {
       // Solo: an account exists when the device has been bootstrapped.
       api
