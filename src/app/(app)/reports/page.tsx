@@ -206,6 +206,16 @@ export default function ReportsPage() {
   }));
   const hasTrend = trendData.length > 0;
 
+  // Surface fetch failures instead of silently rendering "no data yet" empty
+  // states. Gated on !data so a background refetch error never blanks charts
+  // that already rendered.
+  const failedQueries = [byCategory, monthSummary, cashflow, netWorth, netWorthTrend, projection].filter(
+    (q) => q.isError && !q.data
+  );
+  const firstFailedError = failedQueries[0]?.error ?? null;
+  const retryFailed = () => failedQueries.forEach((q) => q.refetch());
+  const retrying = failedQueries.some((q) => q.isFetching);
+
   const s = monthSummary.data?.summary;
   const isCurrentMonth = monthOffset === 0;
   const isPast = monthOffset < 0;
@@ -214,6 +224,20 @@ export default function ReportsPage() {
     <div className="space-y-6">
       {/* Widgets your AI added (dev:ui) */}
       <AgentWidgets tab="reports" />
+
+      {failedQueries.length > 0 && (
+        <Card className="p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p role="alert" className="text-sm text-danger">
+              Couldn&apos;t load {failedQueries.length === 1 ? "one report" : `${failedQueries.length} reports`}
+              {firstFailedError instanceof Error && firstFailedError.message ? ` — ${firstFailedError.message}` : ""}.
+            </p>
+            <Button variant="secondary" size="sm" onClick={retryFailed} disabled={retrying}>
+              {retrying ? "Retrying…" : "Try again"}
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {/* Month navigator */}
       <Card>
