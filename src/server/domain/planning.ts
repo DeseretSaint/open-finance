@@ -100,6 +100,8 @@ export type ContributionMode = (typeof CONTRIBUTION_MODES)[number];
 function validateContributionMode(mode: string | undefined): ContributionMode {
   // Legacy savings goals don't send a mode → "none" (no plan). Expense goals
   // always send an explicit mode from the UI.
+  // SAFETY: cast only widens string for the includes() gate on the next line;
+  // any value outside CONTRIBUTION_MODES throws badRequest below.
   const m = (mode ?? "none") as ContributionMode;
   if (!CONTRIBUTION_MODES.includes(m)) throw apiErrors.badRequest("Contribution mode must be none, interval, days_of_month or agent.");
   return m;
@@ -622,6 +624,8 @@ export function createPlanningService(db: Db = getDb()) {
       // schedule — regular intervals, specific days of the month, or agent-managed.
       const contributionMode = validateContributionMode(input.contributionMode);
       const contributionInterval = input.contributionInterval ?? null;
+      // SAFETY: the cast narrows only to satisfy includes()'s parameter type;
+      // values outside PAYDAY_INTERVALS fail the check and throw below.
       if (contributionMode === "interval" && (!contributionInterval || !PAYDAY_INTERVALS.includes(contributionInterval as PaydayInterval))) {
         throw apiErrors.badRequest("Regular-interval contributions need an interval: weekly, biweekly or monthly.");
       }
@@ -687,6 +691,8 @@ export function createPlanningService(db: Db = getDb()) {
       }
       const contributionMode = input.contributionMode !== undefined ? validateContributionMode(input.contributionMode) : row.contribution_mode;
       const contributionInterval = input.contributionInterval !== undefined ? input.contributionInterval : row.contribution_interval;
+      // SAFETY: the cast narrows only to satisfy includes()'s parameter type;
+      // values outside PAYDAY_INTERVALS fail the check and throw below.
       if (contributionMode === "interval" && (!contributionInterval || !PAYDAY_INTERVALS.includes(contributionInterval as PaydayInterval))) {
         throw apiErrors.badRequest("Regular-interval contributions need an interval: weekly, biweekly or monthly.");
       }
@@ -728,7 +734,12 @@ export function createPlanningService(db: Db = getDb()) {
         userId
       );
       if (!row) return { mode: "auto", interval: null, days: [] };
+      // SAFETY: `as string[]` widens the readonly tuple so includes() accepts
+      // the raw DB string; `as PaydayMode` applies only when that check
+      // passed — anything else falls back to "auto".
       const mode = (PAYDAY_MODES as string[]).includes(row.payday_mode) ? (row.payday_mode as PaydayMode) : "auto";
+      // SAFETY: same read-side validation — the cast applies only when the
+      // includes() gate passes, otherwise interval is null.
       const interval = row.payday_interval && (PAYDAY_INTERVALS as string[]).includes(row.payday_interval)
         ? (row.payday_interval as PaydayInterval)
         : null;
@@ -737,11 +748,18 @@ export function createPlanningService(db: Db = getDb()) {
 
     async setPaydays(userId: string, input: { mode?: string; interval?: string | null; days?: number[] }): Promise<PaydaySettings> {
       const current = await this.getPaydays(userId);
+      // SAFETY: cast only widens string for the includes() gate on the next
+      // line; any value outside PAYDAY_MODES throws badRequest.
       const mode = input.mode !== undefined ? input.mode as PaydayMode : current.mode;
       if (!PAYDAY_MODES.includes(mode)) throw apiErrors.badRequest("Payday mode must be auto, interval or days_of_month.");
+      // SAFETY: the cast narrows only to satisfy includes()'s parameter type;
+      // values outside PAYDAY_INTERVALS fail the check and throw below.
       if (mode === "interval" && (!input.interval || !PAYDAY_INTERVALS.includes(input.interval as PaydayInterval))) {
         throw apiErrors.badRequest("Payday intervals need an interval: weekly, biweekly or monthly.");
       }
+      // SAFETY: when mode === "interval" the gate above already validated this
+      // value against PAYDAY_INTERVALS; for other modes the stored value is
+      // inert and getPaydays() re-validates on read (unknown → null).
       const interval = input.interval !== undefined ? (input.interval as PaydayInterval | null) : current.interval;
       if (mode === "days_of_month" && (!input.days || input.days.length === 0)) {
         throw apiErrors.badRequest("Pick at least one payday day of the month.");
