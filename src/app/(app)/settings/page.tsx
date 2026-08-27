@@ -190,7 +190,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-8">
-      <p className="text-xs text-text-muted">Build 0.3.7</p>
+      <p className="text-xs text-text-muted">Build {process.env.NEXT_PUBLIC_APP_VERSION ?? "0.0.0"}</p>
 
       <SettingsGroup title="Account" description="Your identity and active sessions.">
         <Card>
