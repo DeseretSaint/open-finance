@@ -78,14 +78,21 @@ export default function AccountsPage() {
   usePageTitle("Accounts");
   const kbdHeight = useKeyboardHeight();
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery({
+  const accountsQuery = useQuery({
     queryKey: ["accounts"],
     queryFn: () => api.get<{ accounts: Account[] }>("/api/accounts"),
   });
+  const { data, isLoading } = accountsQuery;
   const deleted = useQuery({
     queryKey: ["accounts", "deleted"],
     queryFn: () => api.get<{ accounts: Account[] }>("/api/accounts?deleted=1"),
   });
+  // Page-level failure sweep (mirrors dashboard/reports/budgets/transactions):
+  // gated on no-data so a background refetch error never blanks rendered accounts.
+  const failedQueries = [accountsQuery, deleted].filter((q) => q.isError && !q.data);
+  const hasFailed = failedQueries.length > 0;
+  const isRetrying = failedQueries.some((q) => q.isFetching);
+  const retry = () => failedQueries.forEach((q) => q.refetch());
 
   const [name, setName] = useState("");
   const [type, setType] = useState("depository");
@@ -203,6 +210,21 @@ export default function AccountsPage() {
         <p role="alert" className="rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-sm text-danger">
           {actionError}
         </p>
+      )}
+
+      {hasFailed && (
+        <Card className="border-danger/30 bg-[var(--danger-soft)]">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p role="alert" className="text-sm text-danger">
+              Couldn&apos;t load your accounts —{" "}
+              {failedQueries.flatMap((q) => (q.error instanceof Error ? [q.error.message] : [])).join("; ") ||
+                "Request failed"}
+            </p>
+            <Button variant="outline" disabled={isRetrying} onClick={retry}>
+              {isRetrying ? "Retrying…" : "Try again"}
+            </Button>
+          </div>
+        </Card>
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
