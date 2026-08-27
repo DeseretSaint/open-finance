@@ -53,12 +53,12 @@ function formatShortDate(iso: string) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-const WIDGET_LABELS: Record<DashboardWidgetId, string> = {
+const WIDGET_LABELS = {
   balance: "Total balance",
   stats: "Monthly stats",
   budgets: "Budgets",
   recent: "Recent transactions",
-};
+} satisfies Record<DashboardWidgetId, string>;
 
 function BalanceCard({ s }: { s: Summary }) {
   const netPositive = s.monthNetCents >= 0;
@@ -268,12 +268,12 @@ export default function DashboardPage() {
   if (isLoading || !data) return <DashboardSkeleton />;
   const s = data.summary;
 
-  const widgets: Record<DashboardWidgetId, ReactNode> = {
+  const widgets = {
     balance: <BalanceCard s={s} />,
     stats: <StatsRow s={s} />,
     budgets: <BudgetsCard s={s} />,
     recent: <RecentCard s={s} />,
-  };
+  } satisfies Record<DashboardWidgetId, ReactNode>;
 
   const visible = layout.order.filter((id) => !layout.hidden.includes(id));
   // Budgets + recent render side-by-side (as before) when adjacent in the

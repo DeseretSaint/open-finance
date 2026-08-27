@@ -58,7 +58,7 @@ export function mix(a: string, b: string, t: number): string {
 
 // ── Verified preset pairs (tests assert every one) ──────────────────────
 // Foreground text on SOLID accent backgrounds (primary buttons, ::selection).
-const PRESET_FOREGROUNDS: Record<Accent, string> = {
+const PRESET_FOREGROUNDS = {
   "#10B981": "#0c0a09",
   "#4F46E5": "#ffffff",
   "#F59E0B": "#0c0a09",
@@ -67,9 +67,9 @@ const PRESET_FOREGROUNDS: Record<Accent, string> = {
   "#06B6D4": "#0c0a09",
   "#EC4899": "#0c0a09",
   "#0EA5E9": "#0c0a09",
-};
+} satisfies Record<Accent, string>;
 // Accent used AS TEXT on light surfaces (links, active nav labels).
-const PRESET_TEXT_LIGHT: Record<Accent, string> = {
+const PRESET_TEXT_LIGHT = {
   "#10B981": "#047857",
   "#4F46E5": "#4F46E5",
   "#F59E0B": "#b45309",
@@ -78,9 +78,9 @@ const PRESET_TEXT_LIGHT: Record<Accent, string> = {
   "#06B6D4": "#0e7490",
   "#EC4899": "#be185d",
   "#0EA5E9": "#0369a1",
-};
+} satisfies Record<Accent, string>;
 // Accent used AS TEXT on dark surfaces.
-const PRESET_TEXT_DARK: Record<Accent, string> = {
+const PRESET_TEXT_DARK = {
   "#10B981": "#34d399",
   "#4F46E5": "#818cf8",
   "#F59E0B": "#fbbf24",
@@ -89,7 +89,7 @@ const PRESET_TEXT_DARK: Record<Accent, string> = {
   "#06B6D4": "#22d3ee",
   "#EC4899": "#f472b6",
   "#0EA5E9": "#38bdf8",
-};
+} satisfies Record<Accent, string>;
 
 // ── Runtime resolvers (presets use the table; custom colors compute) ────
 /** Foreground for text on a solid accent background. Always ≥ AA: the

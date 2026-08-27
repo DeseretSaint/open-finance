@@ -49,7 +49,7 @@ interface Category {
 
 type FrameKind = "period" | "week" | "month" | "quarter" | "year" | "30d" | "custom";
 
-const FRAME_LABELS: Record<FrameKind, string> = {
+const FRAME_LABELS = {
   period: "Per-budget period",
   week: "This week",
   month: "This month",
@@ -57,7 +57,7 @@ const FRAME_LABELS: Record<FrameKind, string> = {
   year: "This year",
   "30d": "Past 30 days",
   custom: "Custom range",
-};
+} satisfies Record<FrameKind, string>;
 
 /** Short labels for the segmented control (custom stays out of the pills). */
 const FRAME_PILLS: Array<{ kind: FrameKind; label: string }> = [
