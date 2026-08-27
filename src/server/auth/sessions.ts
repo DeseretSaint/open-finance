@@ -60,7 +60,19 @@ function parseCookies(header: string): Record<string, string> {
   const out: Record<string, string> = {};
   for (const part of header.split(";")) {
     const idx = part.indexOf("=");
-    if (idx > -1) out[part.slice(0, idx).trim()] = decodeURIComponent(part.slice(idx + 1).trim());
+    if (idx > -1) {
+      const raw = part.slice(idx + 1).trim();
+      // decodeURIComponent throws URIError on malformed percent-encoding
+      // (e.g. `of_session=%`), which would 500 every authed route pre-auth;
+      // fall back to the raw value so a garbage cookie just fails lookup (401).
+      let value = raw;
+      try {
+        value = decodeURIComponent(raw);
+      } catch {
+        // keep raw
+      }
+      out[part.slice(0, idx).trim()] = value;
+    }
   }
   return out;
 }

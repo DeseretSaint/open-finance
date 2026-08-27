@@ -227,3 +227,30 @@ describe("rate limiter", () => {
     expect(limiter.check("k").ok).toBe(true);
   });
 });
+
+describe("cookie parsing", () => {
+  it("malformed percent-encoded cookie does not throw (no pre-auth 500)", async () => {
+    const { getSessionFromRequest } = await import("@/server/auth/sessions");
+    // decodeURIComponent("%") throws URIError — before the fix this crashed
+    // every authed route with a 500 before auth could return 401.
+    const req = new Request("http://localhost/api/accounts", {
+      headers: { cookie: "of_session=%; other=abc%zz" },
+    });
+    await expect(getSessionFromRequest(req, db)).resolves.toBeNull();
+  });
+
+  it("valid session cookie still resolves after the safe-decode change", async () => {
+    const { getSessionFromRequest } = await import("@/server/auth/sessions");
+    const { user } = await auth().register({
+      username: "cookieuser",
+      display_name: "Cookie",
+      password: "correct-horse-battery-staple",
+    });
+    const { token } = await createSession(user.id, "1d", "test", db);
+    const req = new Request("http://localhost/api/accounts", {
+      headers: { cookie: `of_session=${encodeURIComponent(token)}` },
+    });
+    const session = await getSessionFromRequest(req, db);
+    expect(session?.userId).toBe(user.id);
+  });
+});
