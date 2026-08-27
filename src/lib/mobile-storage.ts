@@ -22,6 +22,8 @@ function plugin(): KeystorePlugin | null {
   // Native bridge globals are declared in src/lib/native-globals.d.ts.
   const cap = window.Capacitor;
   if (!cap?.isNativePlatform?.()) return null;
+  // SAFETY: window.Keystore is the native bridge injected only on the Capacitor
+  // Android runtime; its shape is exactly KeystorePlugin (declared in native-globals.d.ts).
   const p = window.Keystore as KeystorePlugin | undefined;
   return p ?? null;
 }
