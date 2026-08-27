@@ -72,7 +72,7 @@ export default function TransactionsPage() {
   const [showAdd, setShowAdd] = useState(false);
   useEscapeToClose(() => { if (!add.isPending) setShowAdd(false); }, showAdd);
   const addDialogA11yRef = useDialogA11y(showAdd);
-  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string; error?: string } | null>(null);
   const [limit, setLimit] = useState(200);
 
   // Manual-transaction edit modal (name/amount/date). Bank-imported rows are
@@ -143,7 +143,12 @@ export default function TransactionsPage() {
 
   const remove = useMutation({
     mutationFn: (id: string) => api.del(`/api/transactions/${id}`),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      setConfirmDelete(null);
+      invalidate();
+    },
+    onError: (e) =>
+      setConfirmDelete((c) => (c ? { ...c, error: e instanceof Error ? e.message : "Failed to delete transaction." } : c)),
   });
 
   // Manual-row edit (name/amount/date) — PATCH /api/transactions/:id already
@@ -847,13 +852,12 @@ export default function TransactionsPage() {
       <ConfirmDialog
         open={confirmDelete !== null}
         title="Delete transaction?"
-        message={confirmDelete ? `"${confirmDelete.name}" will be permanently removed. This cannot be undone.` : undefined}
+        message={confirmDelete ? `"${confirmDelete.name}" will be permanently removed. This cannot be undone.${confirmDelete.error ? ` ${confirmDelete.error}` : ""}` : undefined}
         confirmLabel="Delete"
         busy={remove.isPending}
         onCancel={() => setConfirmDelete(null)}
         onConfirm={() => {
           if (confirmDelete) remove.mutate(confirmDelete.id);
-          setConfirmDelete(null);
         }}
       />
 

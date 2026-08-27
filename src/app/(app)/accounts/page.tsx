@@ -97,7 +97,7 @@ export default function AccountsPage() {
   const [showAdd, setShowAdd] = useState(false);
   useEscapeToClose(() => { if (!create.isPending) setShowAdd(false); }, showAdd);
   const dialogA11yRef = useDialogA11y(showAdd);
-  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string; error?: string } | null>(null);
   const [editingDesc, setEditingDesc] = useState<string | null>(null);
   const [descDraft, setDescDraft] = useState("");
   const [editingName, setEditingName] = useState<string | null>(null);
@@ -130,10 +130,13 @@ export default function AccountsPage() {
   const remove = useMutation({
     mutationFn: (id: string) => api.del(`/api/accounts/${id}`),
     onSuccess: async () => {
+      setConfirmDelete(null);
       await qc.refetchQueries({ queryKey: ["accounts"] });
       await qc.refetchQueries({ queryKey: ["accounts", "deleted"] });
       qc.invalidateQueries({ queryKey: ["summary"] });
     },
+    onError: (e) =>
+      setConfirmDelete((c) => (c ? { ...c, error: e instanceof Error ? e.message : "Failed to remove account." } : c)),
   });
 
   const restore = useMutation({
@@ -508,13 +511,12 @@ export default function AccountsPage() {
       <ConfirmDialog
         open={confirmDelete !== null}
         title="Remove account?"
-        message={confirmDelete ? `"${confirmDelete.name}" will be hidden. You can restore it later from “Recently removed”.` : undefined}
+        message={confirmDelete ? `"${confirmDelete.name}" will be hidden. You can restore it later from “Recently removed”.${confirmDelete.error ? ` ${confirmDelete.error}` : ""}` : undefined}
         confirmLabel="Remove"
         busy={remove.isPending}
         onCancel={() => setConfirmDelete(null)}
         onConfirm={() => {
           if (confirmDelete) remove.mutate(confirmDelete.id);
-          setConfirmDelete(null);
         }}
       />
     </div>

@@ -279,7 +279,7 @@ export default function PlanPage() {
     mutationFn: (id: string) => api.post(`/api/planning/bills/${id}/pay`),
     onSuccess: invalidate,
   });
-  const removeBill = useMutation({ mutationFn: (id: string) => api.del(`/api/planning/bills/${id}`), onSuccess: invalidate });
+  const removeBill = useMutation({ mutationFn: (id: string) => api.del(`/api/planning/bills/${id}`), onSuccess: () => { setConfirmDelete(null); invalidate(); }, onError: (e) => setConfirmDelete((c) => (c ? { ...c, error: e instanceof Error ? e.message : "Failed to delete bill." } : c)) });
 
   // ── Debt form ──
   const [debtName, setDebtName] = useState("");
@@ -308,7 +308,7 @@ export default function PlanPage() {
     },
     onError: (e) => setDebtError(e instanceof Error ? e.message : "Failed to create debt."),
   });
-  const removeDebt = useMutation({ mutationFn: (id: string) => api.del(`/api/planning/debts/${id}`), onSuccess: invalidate });
+  const removeDebt = useMutation({ mutationFn: (id: string) => api.del(`/api/planning/debts/${id}`), onSuccess: () => { setConfirmDelete(null); invalidate(); }, onError: (e) => setConfirmDelete((c) => (c ? { ...c, error: e instanceof Error ? e.message : "Failed to delete debt." } : c)) });
 
   // ── Goal form (savings) ──
   const [goalName, setGoalName] = useState("");
@@ -388,10 +388,10 @@ export default function PlanPage() {
     },
     onError: (e) => setExpError(e instanceof Error ? e.message : "Failed to create expense."),
   });
-  const removeGoal = useMutation({ mutationFn: (id: string) => api.del(`/api/planning/goals/${id}`), onSuccess: invalidate });
+  const removeGoal = useMutation({ mutationFn: (id: string) => api.del(`/api/planning/goals/${id}`), onSuccess: () => { setConfirmDelete(null); invalidate(); }, onError: (e) => setConfirmDelete((c) => (c ? { ...c, error: e instanceof Error ? e.message : "Failed to delete goal." } : c)) });
 
   // ── Custom delete confirmations ──
-  const [confirmDelete, setConfirmDelete] = useState<{ kind: "bill" | "debt" | "goal"; id: string; name: string } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ kind: "bill" | "debt" | "goal"; id: string; name: string; error?: string } | null>(null);
 
   const chartData = (projection.data?.points ?? []).map((p) => ({ month: p.month, Balance: p.balanceCents / 100 }));
 
@@ -1230,7 +1230,7 @@ export default function PlanPage() {
       <ConfirmDialog
         open={confirmDelete !== null}
         title={confirmDelete ? `Delete ${confirmDelete.kind}?` : "Delete?"}
-        message={confirmDelete ? `"${confirmDelete.name}" will be removed from your plan.` : undefined}
+        message={confirmDelete ? `"${confirmDelete.name}" will be removed from your plan.${confirmDelete.error ? ` ${confirmDelete.error}` : ""}` : undefined}
         confirmLabel="Delete"
         busy={(confirmDelete?.kind === "bill" && removeBill.isPending) || (confirmDelete?.kind === "debt" && removeDebt.isPending) || (confirmDelete?.kind === "goal" && removeGoal.isPending)}
         onCancel={() => setConfirmDelete(null)}
@@ -1240,7 +1240,6 @@ export default function PlanPage() {
           if (kind === "bill") removeBill.mutate(id);
           if (kind === "debt") removeDebt.mutate(id);
           if (kind === "goal") removeGoal.mutate(id);
-          setConfirmDelete(null);
         }}
       />
     </div>

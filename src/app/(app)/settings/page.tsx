@@ -88,7 +88,10 @@ export default function SettingsPage() {
   });
   const logoutAll = useMutation({
     mutationFn: () => api.post("/api/auth/logout-all"),
-    onSuccess: () => (window.location.href = "/login"),
+    onSuccess: () => {
+      setConfirmLogoutAll(false);
+      window.location.href = "/login";
+    },
   });
 
   // plaid
@@ -128,9 +131,11 @@ export default function SettingsPage() {
   const removeItem = useMutation({
     mutationFn: (id: string) => api.del(`/api/plaid/items/${id}`),
     onSuccess: () => {
+      setConfirmRemoveItem(null);
       qc.invalidateQueries({ queryKey: ["plaid-items"] });
       qc.invalidateQueries({ queryKey: ["accounts"] });
     },
+    onError: (e) => setErr(e instanceof Error ? e.message : "Failed to remove connection."),
   });
 
   // Pull new/changed transactions (and fresh balances) from Plaid now.
@@ -638,7 +643,6 @@ export default function SettingsPage() {
         busy={logoutAll.isPending}
         onCancel={() => setConfirmLogoutAll(false)}
         onConfirm={() => {
-          setConfirmLogoutAll(false);
           logoutAll.mutate();
         }}
       />
@@ -651,7 +655,6 @@ export default function SettingsPage() {
         onCancel={() => setConfirmRemoveItem(null)}
         onConfirm={() => {
           if (confirmRemoveItem) removeItem.mutate(confirmRemoveItem);
-          setConfirmRemoveItem(null);
         }}
       />
     </div>
