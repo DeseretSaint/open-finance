@@ -61,6 +61,20 @@ describe("route registry completeness (J.5)", () => {
     expect(scopesWithRoutes()).toEqual([]);
   });
 
+  it("no phantom update_settings tool/route (no /api/settings agent API exists)", () => {
+    expect(MCP_TOOLS.find((t) => t.tool === "update_settings")).toBeUndefined();
+    expect(AGENT_ROUTES.find((r) => r.path === "/api/settings")).toBeUndefined();
+  });
+
+  it("read_agent_manual is advertised to agents", () => {
+    expect(MCP_TOOLS.find((t) => t.tool === "read_agent_manual")).toBeDefined();
+  });
+
+  it("settings:write is a real scope but intentionally has no agent route", () => {
+    expect(ALL_SCOPES).toContain("settings:write");
+    expect(scopesWithRoutes()).not.toContain("settings:write");
+  });
+
   it("every MCP tool maps to a scope and an endpoint", () => {
     for (const t of MCP_TOOLS) {
       expect(t.endpoint.length).toBeGreaterThan(0);
@@ -82,6 +96,16 @@ describe("route registry completeness (J.5)", () => {
     for (const scopes of Object.values(PRESETS)) {
       for (const s of scopes) expect(ALL_SCOPES).toContain(s);
     }
+  });
+});
+
+describe("agent guide is the truth (no phantom settings writes)", () => {
+  it("settings tab exposes no agent endpoint (read+write both null)", () => {
+    const settings = buildAgentGuide().appMap.find((t) => t.tab === "settings");
+    expect(settings).toBeDefined();
+    expect(settings?.readScope).toContain("none");
+    expect(settings?.writeScope).toBeNull();
+    expect(settings?.endpoints).toEqual([]);
   });
 });
 

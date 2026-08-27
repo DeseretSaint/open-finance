@@ -8,7 +8,7 @@
   "repository": "https://github.com/DeseretSaint/open-finance",
   "agent": {
     "mcp": {
-      "stdio": "node dist/mcp-cli.mjs --url <URL> --token <TOKEN>",
+      "stdio": "node scripts/mcp-cli.mjs --url <URL> --token <TOKEN>",
       "http": "/mcp",
       "auth": "Bearer <agent token>"
     },

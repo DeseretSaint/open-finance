@@ -100,10 +100,12 @@ export function buildAgentGuide(): AgentGuide {
       },
       {
         tab: "settings",
-        what: "User preferences. The agent can read a subset and update allowed fields only.",
-        endpoints: ["GET /api/settings", "PUT /api/settings"],
-        readScope: "read:summary",
-        writeScope: "settings:write",
+        what:
+          "User preferences (accent, payday cadence, AI-agent connection caps) are edited in the app's " +
+          "Settings screen. Agents have NO settings endpoint — neither read nor write. Change them in the UI.",
+        endpoints: [],
+        readScope: "(none — UI only)",
+        writeScope: null,
       },
     ],
     howTo: {

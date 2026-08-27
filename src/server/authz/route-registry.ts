@@ -50,8 +50,6 @@ export const AGENT_ROUTES: RouteEntry[] = [
   { method: "GET", path: "/api/reports/cashflow", scopes: ["read:reports"] },
   { method: "GET", path: "/api/reports/net-worth", scopes: ["read:reports"] },
   { method: "GET", path: "/api/reports/spending-trend", scopes: ["read:reports"] },
-  { method: "GET", path: "/api/settings", scopes: ["read:summary"] },
-  { method: "PUT", path: "/api/settings", scopes: ["settings:write"] },
   { method: "POST", path: "/api/transactions/sync", scopes: ["sync:run"] },
   { method: "GET", path: "/api/custom-views", scopes: ["dev:ui"] },
   { method: "POST", path: "/api/custom-views", scopes: ["dev:ui"] },
@@ -77,11 +75,19 @@ export const USER_ONLY_ROUTES: string[] = [
   "/api/transactions(POST/DELETE)",
 ];
 
-/** Every scope must have ≥1 route (registry-completeness, J.5). */
+/**
+ * Every scope must have ≥1 agent route (registry-completeness, J.5) — except
+ * cap-only scopes that the Settings UI grants but are not yet wired to an agent
+ * API. `settings:write` is exactly that: a user can grant it to a token, but
+ * there is no `/api/settings` agent route, so it intentionally routes nothing
+ * (see the Needs Keaton queue — implement a real subset API or drop the scope).
+ */
+const CAP_ONLY_SCOPES = new Set<string>(["settings:write"]);
+
 export function scopesWithRoutes(): string[] {
   const covered = new Set<string>();
   for (const r of AGENT_ROUTES) for (const s of r.scopes) covered.add(s);
-  return ALL_SCOPES.filter((s) => !covered.has(s));
+  return ALL_SCOPES.filter((s) => !covered.has(s) && !CAP_ONLY_SCOPES.has(s));
 }
 
 /** MCP tool registry (J.3): tool → scopes → backing endpoint. */
@@ -116,7 +122,6 @@ export const MCP_TOOLS: McpToolEntry[] = [
   { tool: "create_category", scopes: ["categories:write"], endpoint: "POST /api/categories", write: true },
   { tool: "update_category", scopes: ["categories:write"], endpoint: "PATCH /api/categories/:id", write: true },
   { tool: "delete_category", scopes: ["categories:write"], endpoint: "DELETE /api/categories/:id", write: true },
-  { tool: "update_settings", scopes: ["settings:write"], endpoint: "PUT /api/settings", write: true },
   { tool: "list_custom_views", scopes: ["dev:ui"], endpoint: "/api/custom-views" },
   { tool: "create_custom_view", scopes: ["dev:ui"], endpoint: "POST /api/custom-views", write: true },
   { tool: "update_custom_view", scopes: ["dev:ui"], endpoint: "PATCH /api/custom-views/:id", write: true },
