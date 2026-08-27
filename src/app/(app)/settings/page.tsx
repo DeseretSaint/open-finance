@@ -601,7 +601,7 @@ export default function SettingsPage() {
         <CategoriesCard setMsg={setMsg} setErr={setErr} />
       </SettingsGroup>
 
-      <SettingsGroup title="Data" description="Backups and app updates.">
+      <SettingsGroup title="Backup & Updates" description="Backups and app updates.">
         <BackupPanel setMsg={setMsg} setErr={setErr} />
         <UpdatesCard />
       </SettingsGroup>
