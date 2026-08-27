@@ -92,5 +92,9 @@ export const SOLO_MIGRATIONS: { version: number; sql: string }[] = [
   {
     version: 21,
     sql: "-- 021: partial index to speed the per-account pending-balance subquery.\n-- summary/reports/projection/accounts each run a correlated subquery\n--   SELECT SUM(amount_cents) FROM transactions\n--   WHERE account_id = ? AND pending = 1 AND exclude_from_budgets = 0 AND is_transfer = 0\n-- which scans every transaction of an account to isolate the (sparse) pending\n-- rows. A partial index keyed on account_id for pending = 1 rows lets the\n-- planner seek straight to the handful of pending rows instead of scanning the\n-- whole per-account set. Tiny index (only pending rows), zero behavior change.\nCREATE INDEX idx_txn_account_pending ON transactions(account_id) WHERE pending = 1;\n",
+  },
+  {
+    version: 22,
+    sql: "-- 022: per-user learned merchant → category mappings.\n-- When the user manually sets a category on a transaction, we remember the\n-- (normalized) merchant name → category so future repeat charges from the same\n-- merchant are auto-suggested. This is the highest-priority local signal\n-- (above the global NAME_KEYWORDS fallback) but still below an explicit Plaid\n-- category path, so a user's override of a mis-categorized recurring charge\n-- sticks for that merchant.\nCREATE TABLE category_learnings (\n  user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,\n  merchant_key TEXT NOT NULL,\n  category_id  TEXT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,\n  count        INTEGER NOT NULL DEFAULT 1,\n  created_at   TEXT NOT NULL,\n  updated_at   TEXT NOT NULL,\n  PRIMARY KEY (user_id, merchant_key)\n);\nCREATE INDEX idx_category_learnings_user ON category_learnings(user_id);\n",
   }
 ];

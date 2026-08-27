@@ -1,6 +1,7 @@
 import { randomUUID } from "@/lib/uuid";
 import { apiErrors } from "@/lib/api-error";
 import { getDb, type Db } from "@/server/db/registry";
+import { createCategoriesService } from "@/server/domain/categories";
 
 export interface TransactionRow {
   id: string;
@@ -174,6 +175,9 @@ export function createTransactionsService(db: Db = getDb()) {
         input.excludeFromBudgets ? 1 : 0,
         now()
       );
+      if (input.userCategoryId) {
+        await createCategoriesService(db).recordLearning(userId, name, input.userCategoryId);
+      }
       return this.get(userId, id);
     },
 
@@ -201,6 +205,7 @@ export function createTransactionsService(db: Db = getDb()) {
         if (input.userCategoryId) {
           const cat = await db.get("SELECT id FROM categories WHERE id = ? AND user_id = ?", input.userCategoryId, userId);
           if (!cat) throw apiErrors.badRequest("That category does not exist.");
+          await createCategoriesService(db).recordLearning(userId, row.name ?? row.merchant_name, input.userCategoryId);
         }
         await db.run("UPDATE transactions SET user_category_id = ? WHERE id = ?", input.userCategoryId, id);
       }

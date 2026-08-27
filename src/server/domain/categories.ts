@@ -524,6 +524,57 @@ export function createCategoriesService(db: Db = getDb()) {
       return row ?? null;
     },
 
+    /** Normalize a merchant name into a stable lookup key (trimmed, internal
+     *  whitespace collapsed, lowercased) so "Whole Foods" / "whole foods " /
+     *  "Whole   Foods" all hit the same learned row. */
+    normalizeMerchant(name: string): string {
+      return name.trim().replace(/\s+/g, " ").toLowerCase();
+    },
+
+    /** Learned per-user merchant → category override. Highest-priority local
+     *  signal: the user has manually assigned this merchant before. Returns the
+     *  best (most-taught) ENABLED category for the normalized merchant name, or
+     *  null when nothing has been learned for it. */
+    async matchLearned(userId: string, name: string | null): Promise<CategoryRow | null> {
+      if (!name) return null;
+      const key = this.normalizeMerchant(name);
+      const row = await db.get<{ category_id: string }>(
+        `SELECT cl.category_id
+           FROM category_learnings cl
+           JOIN categories c ON c.id = cl.category_id
+          WHERE cl.user_id = ? AND cl.merchant_key = ? AND c.enabled = 1 AND c.user_id = ?
+          ORDER BY cl.count DESC LIMIT 1`,
+        userId,
+        key,
+        userId
+      );
+      if (!row) return null;
+      return (await db.get<CategoryRow>("SELECT * FROM categories WHERE id = ? AND user_id = ?", row.category_id, userId)) ?? null;
+    },
+
+    /** Record (or reinforce) that the user assigned `categoryId` to a merchant.
+     *  Called whenever the user manually sets a transaction's category, so the
+     *  next identical-merchant charge is auto-suggested. Idempotent — repeat
+     *  teachings bump the count so the most-taught mapping wins ties. */
+    async recordLearning(userId: string, name: string | null, categoryId: string): Promise<void> {
+      if (!name) return;
+      const key = this.normalizeMerchant(name);
+      const nowIso = now();
+      await db.run(
+        `INSERT INTO category_learnings (user_id, merchant_key, category_id, count, created_at, updated_at)
+         VALUES (?, ?, ?, 1, ?, ?)
+         ON CONFLICT(user_id, merchant_key) DO UPDATE SET
+           category_id = excluded.category_id,
+           count = category_learnings.count + 1,
+           updated_at = excluded.updated_at`,
+        userId,
+        key,
+        categoryId,
+        nowIso,
+        nowIso
+      );
+    },
+
     /** Seed the standard system categories (idempotent). */
     async ensureSystem(userId: string): Promise<void> {
       const defaults: Array<{ name: string; paths: string }> = [

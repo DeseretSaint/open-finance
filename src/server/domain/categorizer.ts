@@ -73,6 +73,7 @@ export async function autoCategorize(
     //    data is missing or doesn't match any pattern — otherwise they'd sit
     //    forever waiting for an agent that isn't driving categorization.
     const match =
+      (await cats.matchLearned(userId, t.name ?? t.merchant_name ?? null)) ??
       (await cats.match(userId, t.category_path, t.personal_finance_category)) ??
       (await cats.matchByName(userId, t.name ?? t.merchant_name ?? null));
     if (match) {
