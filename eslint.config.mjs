@@ -22,6 +22,11 @@ const eslintConfig = [
       "docs/build-references/**",
       "android/**",
       "site/**",
+      // Generated serwist service worker (next build / serwist build) — not
+      // source, and its minified output trips no-unused-expressions etc.
+      "public/sw.js",
+      "public/sw.js.map",
+      "public/swe-worker-*.js",
     ],
   },
   {
