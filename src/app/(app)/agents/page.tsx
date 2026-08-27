@@ -471,6 +471,7 @@ export default function AgentsPage() {
   const [err, setErr] = useState<string | null>(null);
   const [endpoint, setEndpoint] = useState("");
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+  const [confirmRevoke, setConfirmRevoke] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     if (hasWindow()) {
@@ -576,6 +577,7 @@ export default function AgentsPage() {
     mutationFn: (id: string) => api.del(`/api/agent/tokens/${id}`),
     onSuccess: () => {
       setMsg("Token revoked.");
+      setConfirmRevoke(null);
       qc.invalidateQueries({ queryKey: ["agent-tokens"] });
       qc.invalidateQueries({ queryKey: ["agent-audit"] });
     },
@@ -1034,7 +1036,7 @@ export default function AgentsPage() {
                     {t.expiresAt ? `expires ${new Date(t.expiresAt).toLocaleDateString()}` : "no expiry"}
                   </p>
                 </div>
-                <Button size="sm" variant="outline" className="text-danger" onClick={() => revoke.mutate(t.id)}>
+                <Button size="sm" variant="outline" className="text-danger" onClick={() => setConfirmRevoke({ id: t.id, name: t.name })}>
                   Revoke
                 </Button>
               </div>
@@ -1174,6 +1176,19 @@ export default function AgentsPage() {
         busy={disconnectAll.isPending}
         onCancel={() => setConfirmDisconnect(false)}
         onConfirm={() => disconnectAll.mutate()}
+      />
+
+      {/* Single-token revoke confirmation */}
+      <ConfirmDialog
+        open={!!confirmRevoke}
+        title="Revoke this token?"
+        message={`${confirmRevoke?.name ?? "This token"} will lose access immediately. This cannot be undone.`}
+        confirmLabel="Revoke"
+        busy={revoke.isPending}
+        onCancel={() => setConfirmRevoke(null)}
+        onConfirm={() => {
+          if (confirmRevoke) revoke.mutate(confirmRevoke.id);
+        }}
       />
     </div>
   );
