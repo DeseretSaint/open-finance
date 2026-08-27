@@ -12,18 +12,23 @@ import { describe, expect, it } from "vitest";
 const src = readFileSync(path.resolve(__dirname, "../src/app/(app)/reports/page.tsx"), "utf8");
 
 describe("reports page net-worth trend chart", () => {
-  it("queries the trend endpoint (6 months, includeExcluded-aware)", () => {
-    expect(src).toContain("/api/reports/net-worth/trend?months=6");
-    expect(src).toContain('["reports", "net-worth-trend", includeExcluded]');
+  it("queries the trend endpoint (range-aware months, includeExcluded-aware)", () => {
+    expect(src).toContain("/api/reports/net-worth/trend?months=${trendMonths}");
+    expect(src).toContain('["reports", "net-worth-trend", trendMonths, includeExcluded]');
     expect(src).toContain('includeExcluded ? "&includeExcluded=1" : ""');
   });
 
   it("does not send includePending to the trend endpoint (points are sync-time snapshots)", () => {
-    const urlLine = src.slice(
-      src.indexOf("/api/reports/net-worth/trend?months=6"),
-      src.indexOf("/api/reports/net-worth/trend?months=6") + 90
-    );
+    const idx = src.indexOf("/api/reports/net-worth/trend?months=");
+    const urlLine = src.slice(idx, idx + 90);
     expect(urlLine).not.toContain("includePending");
+  });
+
+  it("renders a 3/6/12-month range selector with aria-pressed state", () => {
+    expect(src).toContain('aria-label="Net worth trend range"');
+    expect(src).toContain("[3, 6, 12].map((m) =>");
+    expect(src).toContain("aria-pressed={trendMonths === m}");
+    expect(src).toContain("onClick={() => setTrendMonths(m)}");
   });
 
   it("renders Net / Assets / Liabilities lines with the design tokens", () => {
@@ -44,7 +49,7 @@ describe("reports page net-worth trend chart", () => {
 
   it("places the trend card AFTER the net-worth stat cards", () => {
     const cards = src.indexOf("<CardLabel>Net worth</CardLabel>");
-    const chart = src.indexOf("Net worth trend — last 6 months");
+    const chart = src.indexOf("<CardTitle>Net worth trend</CardTitle>");
     expect(cards).toBeGreaterThan(-1);
     expect(chart).toBeGreaterThan(cards);
   });

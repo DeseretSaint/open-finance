@@ -90,6 +90,7 @@ export default function ReportsPage() {
   const [monthOffset, setMonthOffset] = useState(0);
   const [includeExcluded, setIncludeExcluded] = useState(false);
   const [includePending] = useIncludePending();
+  const [trendMonths, setTrendMonths] = useState(6);
   useEffect(() => {
     setIncludeExcluded(new URLSearchParams(window.location.search).get("includeExcluded") === "1");
   }, []);
@@ -166,11 +167,11 @@ export default function ReportsPage() {
     },
   });
   const netWorthTrend = useQuery({
-    queryKey: ["reports", "net-worth-trend", includeExcluded],
+    queryKey: ["reports", "net-worth-trend", trendMonths, includeExcluded],
     queryFn: () => {
       // Balance-history points are sync-time snapshots; no includePending param.
       return api.get<{ trend: Array<{ date: string; netCents: number; assetsCents: number; liabilitiesCents: number }> }>(
-        `/api/reports/net-worth/trend?months=6${includeExcluded ? "&includeExcluded=1" : ""}`
+        `/api/reports/net-worth/trend?months=${trendMonths}${includeExcluded ? "&includeExcluded=1" : ""}`
       );
     },
   });
@@ -431,7 +432,29 @@ export default function ReportsPage() {
 
       {/* Net worth trend — daily balance history */}
       <Card>
-        <CardTitle>Net worth trend — last 6 months</CardTitle>
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <CardTitle>Net worth trend</CardTitle>
+          <div
+            className="flex items-center gap-0.5 rounded-lg border border-border bg-surface-muted p-0.5"
+            role="group"
+            aria-label="Net worth trend range"
+          >
+            {[3, 6, 12].map((m) => (
+              <button
+                key={m}
+                type="button"
+                aria-pressed={trendMonths === m}
+                aria-label={`Last ${m} months`}
+                onClick={() => setTrendMonths(m)}
+                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                  trendMonths === m ? "bg-accent text-[var(--accent-foreground)]" : "text-text-muted hover:text-text"
+                }`}
+              >
+                {m}m
+              </button>
+            ))}
+          </div>
+        </div>
         {!hasTrend ? (
           <ChartEmpty>No balance history yet — sync a bank or add an account to start tracking.</ChartEmpty>
         ) : (
