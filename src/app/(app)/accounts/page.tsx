@@ -89,6 +89,9 @@ export default function AccountsPage() {
   const [type, setType] = useState("depository");
   const [balance, setBalance] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const balanceNum = balance.trim() === "" ? null : Number(balance);
+  const balanceError =
+    balanceNum !== null && !Number.isFinite(balanceNum) ? "Enter a valid balance." : null;
   const [showAdd, setShowAdd] = useState(false);
   useEscapeToClose(() => { if (!create.isPending) setShowAdd(false); }, showAdd);
   const dialogA11yRef = useDialogA11y(showAdd);
@@ -109,7 +112,8 @@ export default function AccountsPage() {
       api.post("/api/accounts", {
         name,
         type,
-        currentBalanceCents: balance ? Math.round(parseFloat(balance) * 100) : null,
+        currentBalanceCents:
+          balanceError || balanceNum === null ? null : Math.round(balanceNum * 100),
       }),
     onSuccess: () => {
       setName("");
@@ -474,14 +478,18 @@ export default function AccountsPage() {
                   inputMode="decimal"
                   value={balance}
                   onChange={(e) => setBalance(e.target.value)}
+                  aria-invalid={!!balanceError}
                 />
+                {balanceError && (
+                  <p role="alert" className="mt-1 text-xs text-danger">{balanceError}</p>
+                )}
               </div>
               {error && (
                 <p role="alert" className="rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-sm text-danger">
                   {error}
                 </p>
               )}
-              <Button type="submit" disabled={create.isPending || !name}>
+              <Button type="submit" disabled={create.isPending || !name || !!balanceError}>
                 {create.isPending ? "Adding…" : "Add account"}
               </Button>
             </form>
