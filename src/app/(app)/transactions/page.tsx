@@ -381,7 +381,7 @@ export default function TransactionsPage() {
             <Upload size={14} />
             Import CSV
           </button>
-          <span className="text-sm text-text-muted">{data ? `${data.total} transaction${data.total === 1 ? "" : "s"}` : "…"}</span>
+          <span role="status" aria-live="polite" className="text-sm text-text-muted">{data ? `${data.total} transaction${data.total === 1 ? "" : "s"}` : "…"}</span>
         </div>
         {(refreshMsg || error || historyMsg) && (
           <div className={`mt-2 px-1 text-xs ${error ? "text-red-500" : "text-text-muted"}`}>
