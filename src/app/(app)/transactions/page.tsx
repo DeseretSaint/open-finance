@@ -213,11 +213,24 @@ export default function TransactionsPage() {
     const [addCategory, setAddCategory] = useState("");
     const [addExclude, setAddExclude] = useState(false);
 
+  // Inline amount validation (run-59 budgets pattern): catch non-numeric /
+  // zero amounts before they round-trip to the server's generic 400. Number()
+  // — not parseFloat — so "1,000" is rejected as invalid instead of silently
+  // recording $1.00 (parseFloat stops at the comma). Server stays authoritative
+  // for the final int + non-zero checks.
+  const addAmountNum = Number(addAmount);
+  const addAmountError =
+    addAmount !== "" && (!Number.isFinite(addAmountNum) || addAmountNum === 0)
+      ? !Number.isFinite(addAmountNum)
+        ? "Enter a valid amount."
+        : "Amount cannot be zero."
+      : null;
+
   const add = useMutation({
     mutationFn: () =>
       api.post("/api/transactions", {
         accountId: addAccount,
-        amountCents: Math.round(parseFloat(addAmount) * 100),
+        amountCents: Math.round(addAmountNum * 100),
         date: addDate,
         name: addName,
         userCategoryId: addCategory || null,
@@ -432,7 +445,11 @@ export default function TransactionsPage() {
                   inputMode="decimal"
                   value={addAmount}
                   onChange={(e) => setAddAmount(e.target.value)}
+                  aria-invalid={!!addAmountError}
                 />
+                {addAmountError && (
+                  <p role="alert" className="mt-1 text-xs text-danger">{addAmountError}</p>
+                )}
               </div>
               <div>
                 <label htmlFor="add-date" className="mb-1 block text-xs font-medium text-text-muted">
@@ -491,7 +508,7 @@ export default function TransactionsPage() {
                   {error}
                 </p>
               )}
-              <Button type="submit" disabled={add.isPending || !addName || !addAmount || !addAccount}>
+              <Button type="submit" disabled={add.isPending || !addName || !addAmount || !addAccount || !!addAmountError}>
                 {add.isPending ? "Adding…" : "Add transaction"}
               </Button>
             </form>
