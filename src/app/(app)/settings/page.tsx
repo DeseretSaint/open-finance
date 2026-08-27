@@ -262,7 +262,7 @@ export default function SettingsPage() {
         <NotificationsSecurityCard setMsg={setMsg} setErr={setErr} />
       </SettingsGroup>
 
-      <SettingsGroup title="Connections" description="Banks, pay schedule, and linking this device to a hub.">
+      <SettingsGroup title="Data & sync" description="Pay schedule, device pairing, and phone-data import.">
         {/* Bank connections card continues below */}
 
       <Card className="lg:col-span-2">
@@ -466,7 +466,6 @@ export default function SettingsPage() {
       <PaydaysCard setMsg={setMsg} setErr={setErr} />
       <HubPanel setMsg={setMsg} setErr={setErr} />
       <PhoneImportPanel setMsg={setMsg} setErr={setErr} />
-      {!solo && <SetupTourCard setErr={setErr} />}
       </SettingsGroup>
 
       <SettingsGroup title="Appearance" description="Theme, accent, and interface density.">
@@ -609,8 +608,9 @@ export default function SettingsPage() {
         <CategoriesCard setMsg={setMsg} setErr={setErr} />
       </SettingsGroup>
 
-      <SettingsGroup title="Backup & Updates" description="Backups and app updates.">
+      <SettingsGroup title="Backup & updates" description="Backups, the setup tour, and app updates.">
         <BackupPanel setMsg={setMsg} setErr={setErr} />
+        {!solo && <SetupTourCard setErr={setErr} />}
         <UpdatesCard />
       </SettingsGroup>
 
