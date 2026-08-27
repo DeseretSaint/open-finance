@@ -6,7 +6,7 @@
  * answered in-process by the solo router instead of HTTP — the same envelope,
  * same shapes, zero changes at call sites.
  */
-import { hasWindow, isNativeString } from "@/lib/browser-env";
+import { hasWindow, isNativeString, withBase } from "@/lib/browser-env";
 
 export class ApiClientError extends Error {
   constructor(
@@ -76,7 +76,7 @@ export async function apiFetch<T = unknown>(
 
   if (res.status === 401) {
     if (hasWindow() && !path.startsWith("/api/auth/")) {
-      window.location.href = "/login";
+      window.location.href = withBase("/login");
     }
     throw new ApiClientError(401, "unauthorized", "You must be signed in.");
   }

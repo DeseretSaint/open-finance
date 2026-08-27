@@ -32,14 +32,19 @@ const securityHeaders = [
 /**
  * PWA is desktop-local only (service workers need a secure context, so the
  * launcher opens localhost). Hub/web/LAN/Tailscale never register the SW.
- * Disabled entirely for the mobile export (P8b solo webview).
+ * Disabled for the APK mobile export (the native webview caches on its own),
+ * but ENABLED for the GitHub Pages PWA build (PAGES=1) so the web app is
+ * installable + offline-capable like a normal PWA.
  */
+const isPages = process.env.PAGES === "1";
 const withSerwist = withSerwistInit({
   swSrc: "src/app/sw.ts",
   swDest: "public/sw.js",
-  disable: process.env.NODE_ENV !== "production" || process.env.MOBILE_EXPORT === "1",
+  disable:
+    process.env.NODE_ENV !== "production" ||
+    (process.env.MOBILE_EXPORT === "1" && !isPages),
   reloadOnOnline: true,
-  register: false, // we register manually, gated to localhost (see app/layout.tsx)
+  register: false, // we register manually, gated (see app/layout.tsx)
 });
 
 /**
@@ -49,19 +54,30 @@ const withSerwist = withSerwistInit({
  * The build script (build-mobile.mjs) hides src/app/api first, since export
  * mode refuses route handlers — the solo router answers /api/* in-process.
  * Otherwise → the server build (standalone hub) with the full API surface.
+ *
+ * PAGES=1 (with MOBILE_EXPORT=1) → GitHub Pages PWA build: same static export,
+ * plus a basePath (PAGES_BASE_PATH, e.g. "/open-finance") and a service worker.
  */
 const isMobileExport = process.env.MOBILE_EXPORT === "1";
+const pagesBasePath = process.env.PAGES_BASE_PATH || "";
 
 const nextConfig: NextConfig = {
   output: isMobileExport ? "export" : "standalone",
   ...(isMobileExport
     ? { distDir: "dist/mobile", images: { unoptimized: true } }
     : { outputFileTracingRoot: path.join(__dirname) }),
+  // GitHub Pages serves the export from a subpath (/<repo>/). basePath +
+  // assetPrefix make Next emit and reference every asset under that prefix.
+  ...(pagesBasePath ? { basePath: pagesBasePath, assetPrefix: pagesBasePath } : {}),
   serverExternalPackages: ["better-sqlite3"],
   // Inlined at build time (browser bundle has no process.env at runtime).
-  // Used by the solo updates service for the "current version" comparison.
+  // NEXT_PUBLIC_APP_VERSION: used by the solo updates service for version compare.
+  // NEXT_PUBLIC_SOLO_BUILD: "1" in static exports → plain-browser solo PWA mode.
+  // NEXT_PUBLIC_BASE_PATH: runtime basePath (locating sql-wasm.wasm, sw.js).
   env: {
     NEXT_PUBLIC_APP_VERSION: process.env.npm_package_version ?? "0.0.0",
+    NEXT_PUBLIC_SOLO_BUILD: isMobileExport ? "1" : "0",
+    NEXT_PUBLIC_BASE_PATH: pagesBasePath,
   },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

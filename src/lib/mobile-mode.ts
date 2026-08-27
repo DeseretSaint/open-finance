@@ -34,6 +34,17 @@ export function isNativePlatform(): boolean {
   return !!cap?.isNativePlatform?.();
 }
 
+/**
+ * True when this bundle is a SOLO build (static export — the APK webview or a
+ * GitHub Pages PWA), as opposed to the server/hub build. Inlined at build time
+ * from MOBILE_EXPORT (see next.config.ts). A solo build running in a PLAIN
+ * browser (no Capacitor) is a browser-solo PWA; a solo build in a native
+ * webview is device-solo. The hub build is never solo.
+ */
+export function isSoloBuild(): boolean {
+  return process.env.NEXT_PUBLIC_SOLO_BUILD === "1";
+}
+
 /** The hub URL the device has been paired to, if any (null = never paired). */
 export async function getStoredHubUrl(): Promise<string | null> {
   const rt = nativeRuntime();
@@ -64,8 +75,9 @@ export async function resolveMobileMode(
   origin: string,
   storedHubUrl: string | null
 ): Promise<MobileMode> {
-  // Plain web (no Capacitor): whatever served us is the server. Not solo.
-  if (!isNativePlatform()) return "connected";
+  // Plain web (no Capacitor): solo only when this is a solo (static export)
+  // build — the GitHub Pages PWA. The hub build stays connected to its server.
+  if (!isNativePlatform()) return isSoloBuild() ? "solo" : "connected";
 
   // Native: solo unless we're pointed at (and paired to) a hub.
   if (storedHubUrl && origin === storedHubUrl) return "connected";
@@ -74,17 +86,22 @@ export async function resolveMobileMode(
 
 /**
  * Synchronous quick check used by render paths that can't await.
- * True when: native platform AND the webview is serving the BUNDLED app
- * (origin hostname is localhost — Capacitor's default for webDir content).
- * A paired hub has a real hostname/IP → not solo.
+ * True when:
+ *  - native platform AND the webview is serving the BUNDLED app (origin
+ *    hostname is localhost — Capacitor's default for webDir content); a paired
+ *    hub has a real hostname/IP → not solo; OR
+ *  - plain browser AND this is a solo (static export) build — the browser PWA
+ *    runs the whole app locally against BrowserSqliteDb.
  */
 export function isSoloCandidate(origin: string): boolean {
-  if (!isNativePlatform()) return false;
-  try {
-    const host = new URL(origin).hostname;
-    return host === "localhost" || host === "127.0.0.1";
-  } catch {
-    // Non-URL origin (e.g. capacitor://localhost on iOS) → bundled solo load.
-    return true;
+  if (isNativePlatform()) {
+    try {
+      const host = new URL(origin).hostname;
+      return host === "localhost" || host === "127.0.0.1";
+    } catch {
+      // Non-URL origin (e.g. capacitor://localhost on iOS) → bundled solo load.
+      return true;
+    }
   }
+  return isSoloBuild();
 }

@@ -20,8 +20,10 @@ import { randomUUID } from "@/lib/uuid";
 import { sha256Hex } from "@/lib/webcrypto-shim";
 import type { Db } from "@/server/db/types";
 import { CapSqliteDb } from "@/server/db/cap-sqlite";
+import { BrowserSqliteDb } from "@/server/db/browser-sqlite";
 import { registerDbProvider } from "@/server/db/registry";
 import { SOLO_MIGRATIONS } from "@/server/db/migrations-bundle";
+import { isNativePlatform } from "@/lib/mobile-mode";
 import { createSoloBootstrapService } from "@/server/domain/solo-bootstrap";
 import { createDeviceLockService } from "@/server/domain/device-lock";
 import { createAccountsService } from "@/server/domain/accounts";
@@ -68,15 +70,25 @@ const LOCK_EXEMPT_PATHS = [
  */
 const LOCK_EXEMPT_EXACT = ["/api/agent/remote"];
 
-let _db: CapSqliteDb | null = null;
+/** Solo Db implementations share migrate() on top of the Db interface. */
+type SoloDb = (CapSqliteDb | BrowserSqliteDb) & {
+  migrate(migrations: { version: number; sql: string }[]): Promise<{ applied: number; current: number }>;
+};
 
-/** Lazily created singleton: local SQLite + full schema. */
-export async function getSoloDb(): Promise<CapSqliteDb> {
+let _db: SoloDb | null = null;
+
+/**
+ * Lazily created singleton: local SQLite + full schema.
+ * Native webview (APK) → CapSqliteDb (device SQLite). Plain browser (PWA /
+ * GitHub Pages) → BrowserSqliteDb (sql.js + IndexedDB persistence).
+ */
+export async function getSoloDb(): Promise<SoloDb> {
   if (!_db) {
-    _db = new CapSqliteDb();
+    _db = isNativePlatform() ? new CapSqliteDb() : new BrowserSqliteDb();
     await _db.migrate(SOLO_MIGRATIONS);
-    // Domain services call getDb() from the registry — point it at the device DB.
-    registerDbProvider(() => _db as unknown as Db);
+    // Domain services call getDb() from the registry — point it at the solo DB.
+    const db = _db;
+    registerDbProvider(() => db as unknown as Db);
   }
   return _db;
 }
@@ -88,7 +100,7 @@ export function resetSoloDb(): void {
 
 /** For tests: inject an in-memory test Db so soloDispatch runs against it. */
 export function setSoloDbForTest(db: Db): void {
-  _db = db as unknown as CapSqliteDb;
+  _db = db as unknown as SoloDb;
   registerDbProvider(() => db);
 }
 

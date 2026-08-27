@@ -38,3 +38,22 @@ export function isNativeString(v: unknown): v is string {
   // string from `unknown` / a union without a runtime typeof check.
   return Object.prototype.toString.call(v) === "[object String]";
 }
+
+/**
+ * Runtime basePath for the GitHub Pages PWA build (inlined at build time from
+ * NEXT_PUBLIC_BASE_PATH; empty for the hub/APK/root builds). Next's <Link> and
+ * router.push/replace apply basePath automatically, but RAW window.location
+ * assignments and asset/service-worker URLs do not — those must go through
+ * withBase() / basePath() so the app works under the /<repo>/ subpath.
+ */
+export function basePath(): string {
+  return process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+}
+
+/** Prefix an app-internal absolute path ("/login") with the runtime basePath. */
+export function withBase(path: string): string {
+  const base = basePath();
+  if (!base) return path;
+  if (path.startsWith(base)) return path; // already prefixed
+  return `${base}${path.startsWith("/") ? path : `/${path}`}`;
+}

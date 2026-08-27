@@ -58,6 +58,15 @@ try {
     stdio: "inherit",
     env: { ...process.env, MOBILE_EXPORT: "1" },
   });
+  // Copy sql.js's wasm binary into the export root — BrowserSqliteDb locates
+  // it via locateFile at `${NEXT_PUBLIC_BASE_PATH}/sql-wasm.wasm` (works under
+  // the GitHub Pages subpath AND the APK's root origin).
+  const wasmSrc = path.join(root, "node_modules", "sql.js", "dist", "sql-wasm.wasm");
+  const wasmDest = path.join(root, "dist", "mobile", "sql-wasm.wasm");
+  if (fs.existsSync(wasmSrc) && !fs.existsSync(wasmDest)) {
+    fs.copyFileSync(wasmSrc, wasmDest);
+    console.log("sql-wasm.wasm copied into dist/mobile (browser-solo SQLite)");
+  }
   const out = path.join(root, "dist", "mobile");
   if (!fs.existsSync(path.join(out, "index.html"))) {
     throw new Error(`dist/mobile/index.html missing — export failed?`);

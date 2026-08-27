@@ -1,0 +1,273 @@
+"use client";
+
+/**
+ * BrowserSqliteDb — plain-browser solo Db implementation (PWA / GitHub Pages).
+ *
+ * Implements the shared Db interface over sql.js (pure WebAssembly SQLite) so
+ * the SAME SQL from src/server/domain runs in a normal phone/desktop browser
+ * with zero query changes and NO native layer. This is what lets the solo app
+ * run as a Ghostway-style web app: open the URL, it works standalone.
+ *
+ * Why sql.js and not wa-sqlite: wa-sqlite's persistent OPFS VFS needs
+ * SharedArrayBuffer, which requires COOP/COEP headers that GitHub Pages does
+ * not send. sql.js needs no special headers and runs in every modern browser.
+ *
+ * Persistence: sql.js is in-memory. After each write we (debounced) export the
+ * whole database to a Uint8Array and store it in IndexedDB; on open we load it
+ * back. A personal-finance DB is small, so whole-file export is fine. We also
+ * flush synchronously on transaction commit and on page hide/unload.
+ *
+ * TRANSACTION MODEL: mirrors CapSqliteDb — standalone statements autocommit;
+ * db.transaction(fn) is the single explicit transaction layer (BEGIN/COMMIT).
+ */
+import type { Db } from "@/server/db/types";
+import { splitStatements } from "@/server/db/cap-sqlite";
+
+// sql.js ships a UMD build that bundlers can consume. The wasm binary is
+// served from public/sql-wasm.wasm (copied in by scripts/build-mobile.mjs) and
+// located via locateFile so it works under any basePath (GitHub Pages subpath).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SqlJsModule = any;
+
+const IDB_NAME = "open-finance-solo";
+const IDB_STORE = "db";
+const IDB_KEY = "sqlite";
+const SAVE_DEBOUNCE_MS = 400;
+
+let sqlJsPromise: Promise<SqlJsModule> | null = null;
+
+function wasmUrl(): string {
+  // basePath is inlined at build time (empty for the APK/root builds).
+  const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+  return `${base}/sql-wasm.wasm`;
+}
+
+async function loadSqlJs(): Promise<SqlJsModule> {
+  if (!sqlJsPromise) {
+    sqlJsPromise = (async () => {
+      // Dynamic import keeps sql.js out of the server bundle entirely.
+      // SAFETY: sql.js default export is the initSqlJs factory (UMD interop).
+      const mod = await import("sql.js");
+      const initSqlJs = (mod as unknown as { default?: unknown }).default ?? mod;
+      // SAFETY: initSqlJs is the factory function exported by sql.js.
+      const init = initSqlJs as (opts: { locateFile: (f: string) => string }) => Promise<SqlJsModule>;
+      return init({ locateFile: (file: string) => (file.endsWith(".wasm") ? wasmUrl() : file) });
+    })();
+  }
+  return sqlJsPromise;
+}
+
+// ---- IndexedDB persistence helpers (raw API, no dependency) ----
+
+function openIdb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(IDB_STORE)) {
+        req.result.createObjectStore(IDB_STORE);
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error ?? new Error("IndexedDB open failed"));
+  });
+}
+
+async function idbLoad(): Promise<Uint8Array | null> {
+  try {
+    const db = await openIdb();
+    return await new Promise((resolve) => {
+      const tx = db.transaction(IDB_STORE, "readonly");
+      const req = tx.objectStore(IDB_STORE).get(IDB_KEY);
+      req.onsuccess = () => {
+        const v = req.result;
+        resolve(v instanceof Uint8Array ? v : v ? new Uint8Array(v as ArrayBuffer) : null);
+      };
+      req.onerror = () => resolve(null);
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function idbSave(bytes: Uint8Array): Promise<void> {
+  try {
+    const db = await openIdb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, "readwrite");
+      tx.objectStore(IDB_STORE).put(bytes, IDB_KEY);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error ?? new Error("IndexedDB save failed"));
+    });
+  } catch {
+    // Persistence is best-effort; the in-memory DB is still authoritative for
+    // this session. A failed save just risks losing the latest writes on reload.
+  }
+}
+
+export class BrowserSqliteDb implements Db {
+  // SAFETY: sql.js Database instance; typed any because sql.js ships no TS types.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private db: any = null;
+  private SQL: SqlJsModule | null = null;
+  private saveTimer: ReturnType<typeof setTimeout> | null = null;
+  private flushListenersInstalled = false;
+
+  private async connection() {
+    if (this.db) return this.db;
+    this.SQL = await loadSqlJs();
+    const saved = await idbLoad();
+    // SAFETY: new SQL.Database(existingBytes) restores a saved database.
+    this.db = saved ? new this.SQL.Database(saved) : new this.SQL.Database();
+    this.installFlushListeners();
+    return this.db;
+  }
+
+  /** Flush pending writes to IndexedDB immediately (transaction commit, unload). */
+  async flush(): Promise<void> {
+    if (!this.db) return;
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+    try {
+      const bytes = this.db.export() as Uint8Array;
+      await idbSave(bytes);
+    } catch {
+      // best-effort
+    }
+  }
+
+  /** Schedule a debounced persistence pass after a write. */
+  private scheduleSave(): void {
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = null;
+      void this.flush();
+    }, SAVE_DEBOUNCE_MS);
+  }
+
+  private installFlushListeners(): void {
+    if (this.flushListenersInstalled) return;
+    this.flushListenersInstalled = true;
+    if (typeof window === "undefined") return;
+    // Persist when the tab is hidden or the page is going away.
+    window.addEventListener("pagehide", () => void this.flush());
+    window.addEventListener("beforeunload", () => void this.flush());
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") void this.flush();
+    });
+  }
+
+  /**
+   * Apply pending migrations — same version-tracked, self-healing logic as
+   * CapSqliteDb.migrate so a browser solo DB and a device solo DB stay
+   * schema-identical. Idempotent.
+   */
+  async migrate(migrations: { version: number; sql: string }[]): Promise<{ applied: number; current: number }> {
+    const db = await this.connection();
+    db.run("CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)");
+
+    const appliedRows = this.execRows("SELECT version FROM _migrations") as { version: number }[];
+    const applied = new Set(appliedRows.map((r) => Number(r.version)));
+
+    const sentinels: Record<number, string> = {};
+    for (const m of migrations) {
+      const create = m.sql.match(/CREATE TABLE(?: IF NOT EXISTS)?\s+([A-Za-z_]+)/i);
+      if (create) sentinels[m.version] = create[1];
+    }
+
+    let count = 0;
+    for (const m of [...migrations].sort((a, b) => a.version - b.version)) {
+      const sentinel = sentinels[m.version];
+      if (applied.has(m.version)) {
+        let reallyApplied = true;
+        if (sentinel) {
+          const check = this.execRows(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+            [sentinel]
+          );
+          reallyApplied = check.length > 0;
+        }
+        if (reallyApplied) continue;
+        db.run("DELETE FROM _migrations WHERE version = ?", [m.version]);
+      }
+
+      for (const stmt of splitStatements(m.sql)) {
+        const trimmed = stmt.trim();
+        if (!trimmed) continue;
+        try {
+          db.run(trimmed);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          if (/already exists|duplicate column/i.test(msg)) continue;
+          throw e;
+        }
+      }
+      db.run("INSERT INTO _migrations (version, applied_at) VALUES (?, ?)", [
+        m.version,
+        new Date().toISOString(),
+      ]);
+      count++;
+    }
+    await this.flush();
+    const cur = this.execRows("SELECT COALESCE(MAX(version), 0) AS v FROM _migrations") as { v: number }[];
+    const current = Number(cur[0]?.v ?? 0);
+    return { applied: count, current };
+  }
+
+  /** Run a query and return object rows (columns zipped with values). */
+  // SAFETY: sql.js prepare/step/getAsObject returns plain row objects.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private execRows(sql: string, params: unknown[] = []): any[] {
+    const db = this.db;
+    const stmt = db.prepare(sql);
+    try {
+      if (params.length) stmt.bind(params);
+      const rows: unknown[] = [];
+      while (stmt.step()) rows.push(stmt.getAsObject());
+      return rows;
+    } finally {
+      stmt.free();
+    }
+  }
+
+  async all<T = Record<string, unknown>>(sql: string, ...params: unknown[]): Promise<T[]> {
+    await this.connection();
+    const values = params.map((p) => (p === undefined ? null : p));
+    return this.execRows(sql, values) as T[];
+  }
+
+  async get<T = Record<string, unknown>>(sql: string, ...params: unknown[]): Promise<T | undefined> {
+    const rows = await this.all<T>(sql, ...params);
+    return rows[0];
+  }
+
+  async run(sql: string, ...params: unknown[]): Promise<{ changes: number; lastInsertRowid: number | bigint }> {
+    const db = await this.connection();
+    const values = params.map((p) => (p === undefined ? null : p));
+    db.run(sql, values);
+    const changes = typeof db.getRowsModified === "function" ? Number(db.getRowsModified()) : 0;
+    const lastRows = this.execRows("SELECT last_insert_rowid() AS id") as { id: number }[];
+    const lastInsertRowid = Number(lastRows[0]?.id ?? 0);
+    this.scheduleSave();
+    return { changes, lastInsertRowid };
+  }
+
+  async transaction<T>(fn: () => Promise<T>): Promise<T> {
+    const db = await this.connection();
+    db.run("BEGIN");
+    try {
+      const result = await fn();
+      db.run("COMMIT");
+      await this.flush();
+      return result;
+    } catch (e) {
+      try {
+        db.run("ROLLBACK");
+      } catch {
+        // no active transaction — nothing to roll back
+      }
+      throw e;
+    }
+  }
+}
