@@ -1,5 +1,5 @@
 import { getDb, type Db } from "@/server/db/registry";
-import { addMonthsISO, todayISO } from "@/server/domain/dates";
+import { addDaysISO, addMonthsISO, todayISO } from "@/server/domain/dates";
 import { withAllowlist, type AllowlistCtx } from "@/server/db/allowlist";
 import { markLinkedTransfers } from "@/server/domain/transfers";
 
@@ -117,6 +117,66 @@ export function createReportsService(db: Db = getDb()) {
         netCents: assets + liabilities,
         byType,
       };
+    },
+
+    /**
+     * Net-worth time series from balance_history (one point per account per day,
+     * written by Plaid sync / solo sync / manual + demo seed). Produces one row
+     * per calendar day across the last `months` months ending today; accounts
+     * missing a day carry forward their last known balance. Credit/loan points are
+     * stored negative in balance_history, so they land in liabilities automatically.
+     * Only include_in_net_worth=1 & non-hidden accounts are summed (deleted excluded
+     * unless includeExcluded). Returns [] when the user has no history yet.
+     */
+    async netWorthTrend(
+      userId: string,
+      months: number,
+      allowlist?: AllowlistCtx | null,
+      includeExcluded = false
+    ): Promise<Array<{ date: string; netCents: number; assetsCents: number; liabilitiesCents: number }>> {
+      const allow = withAllowlist(allowlist ?? null, "a.id");
+      const accountHistoryClause = includeExcluded ? "" : " AND a.deleted_at IS NULL";
+      const rows = await db.all<{ account_id: string; type: string | null; date: string; balance_cents: number }>(
+        `SELECT bh.account_id AS account_id, a.type AS type, bh.date AS date, bh.balance_cents AS balance_cents
+           FROM balance_history bh
+           JOIN accounts a ON a.id = bh.account_id
+          WHERE a.user_id = ? AND a.hidden = 0 AND a.include_in_net_worth = 1${accountHistoryClause}${allow.clause}`,
+        userId,
+        ...allow.params
+      );
+      // Group per account, sorted ascending by date.
+      const byAccount = new Map<string, Array<{ date: string; balance: number; isLiab: boolean }>>();
+      for (const r of rows) {
+        const isLiab = r.type === "credit" || r.type === "loan";
+        const arr = byAccount.get(r.account_id) ?? [];
+        arr.push({ date: r.date, balance: r.balance_cents, isLiab });
+        byAccount.set(r.account_id, arr);
+      }
+      for (const arr of byAccount.values()) arr.sort((x, y) => (x.date < y.date ? -1 : 1));
+
+      const end = todayISO();
+      const start = addMonthsISO(end.slice(0, 8) + "01", -months);
+      const out: Array<{ date: string; netCents: number; assetsCents: number; liabilitiesCents: number }> = [];
+      for (let d = start; d <= end; d = addDaysISO(d, 1)) {
+        let assets = 0;
+        let liabilities = 0;
+        let known = false;
+        for (const arr of byAccount.values()) {
+          // last point on or before d (carry-forward)
+          let bal: number | null = null;
+          for (const p of arr) {
+            if (p.date <= d) bal = p.balance;
+            else break;
+          }
+          if (bal == null) continue; // account not yet open on this day
+          known = true;
+          if (arr[0]?.isLiab) liabilities += -bal; // stored negative → positive owed
+          else assets += bal;
+        }
+        if (!known) continue; // no history yet → no point
+        out.push({ date: d, netCents: assets - liabilities, assetsCents: assets, liabilitiesCents: liabilities });
+      }
+      return out;
     },
 
     /** Monthly total expenses for the last `months` months (for spending trend chart). */

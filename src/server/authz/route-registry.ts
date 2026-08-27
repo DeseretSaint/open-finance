@@ -49,6 +49,7 @@ export const AGENT_ROUTES: RouteEntry[] = [
   { method: "GET", path: "/api/reports/spending-by-category", scopes: ["read:reports"] },
   { method: "GET", path: "/api/reports/cashflow", scopes: ["read:reports"] },
   { method: "GET", path: "/api/reports/net-worth", scopes: ["read:reports"] },
+  { method: "GET", path: "/api/reports/net-worth/trend", scopes: ["read:reports"] },
   { method: "GET", path: "/api/reports/spending-trend", scopes: ["read:reports"] },
   { method: "POST", path: "/api/transactions/sync", scopes: ["sync:run"] },
   { method: "GET", path: "/api/custom-views", scopes: ["dev:ui"] },
