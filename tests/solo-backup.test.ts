@@ -3,6 +3,14 @@ import { createTestDb, seedUser, seedManualAccount } from "./helpers";
 import { createSoloBackupService } from "@/server/domain/solo-backup";
 import { createDeviceLockService } from "@/server/domain/device-lock";
 import { randomUUID } from "node:crypto";
+import { aesGcmEncrypt, randomBytes } from "@/lib/webcrypto-shim";
+
+// Mirror of solo-backup's private deriveKey so the test can encrypt a tampered dump.
+async function deriveKey(pin: string, salt: Uint8Array, iterations: number): Promise<Uint8Array> {
+  const material = await crypto.subtle.importKey("raw", new TextEncoder().encode(pin), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: salt as BufferSource, iterations, hash: "SHA-256" }, material, 256);
+  return new Uint8Array(bits);
+}
 
 async function seedDeviceUser(db: ReturnType<typeof createTestDb>, pin = "1234") {
   const user = await seedUser(db, "device-tester");
@@ -93,6 +101,38 @@ describe("solo backup & restore (D1)", () => {
     env.tables = env.tables.slice(0, mid) + (env.tables[mid] === "A" ? "B" : "A") + env.tables.slice(mid + 1);
     await expect(svc.restoreBackup(user.id, "1234", JSON.stringify(env))).rejects.toThrow();
 
+    const accounts = await db.all<{ name: string }>("SELECT name FROM accounts WHERE user_id = ?", user.id);
+    expect(accounts.map((a) => a.name)).toContain("Keep Me");
+  });
+
+  it("rejects a backup whose rows carry a non-identifier column (SQL-injection guard)", async () => {
+    const db = createTestDb();
+    const user = await seedDeviceUser(db, "1234");
+    await seedManualAccount(db, user.id, "Keep Me");
+    const svc = createSoloBackupService(db);
+
+    // Build a structurally-valid envelope whose decrypted dump has an injected,
+    // non-identifier column name. The restore path must refuse it before any
+    // unvalidated identifier reaches the SQL interpolator.
+    const salt = randomBytes(16);
+    const key = await deriveKey("1234", salt, 150_000);
+    const dump = {
+      users: [],
+      accounts: [
+        { id: randomUUID(), user_id: user.id, name: "x", 'evil"; DELETE FROM users; --': 1 },
+      ],
+    };
+    const tables = await aesGcmEncrypt(JSON.stringify(dump), key, "open-finance:solo-backup:v1");
+    const envelope = {
+      magic: "OFBAK-SOLO1",
+      version: 1,
+      createdAt: new Date().toISOString(),
+      kdf: { salt: Buffer.from(salt).toString("base64"), iterations: 150_000 },
+      tables,
+    };
+
+    await expect(svc.restoreBackup(user.id, "1234", JSON.stringify(envelope))).rejects.toThrow(/unrecognized column/i);
+    // Existing data is untouched (the whole restore transaction rolls back).
     const accounts = await db.all<{ name: string }>("SELECT name FROM accounts WHERE user_id = ?", user.id);
     expect(accounts.map((a) => a.name)).toContain("Keep Me");
   });

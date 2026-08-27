@@ -235,6 +235,15 @@ export function createSoloBackupService(db: Db) {
           for (const row of incoming) {
             const cols = Object.keys(row);
             if (cols.length === 0) continue;
+            // Column names come from the decrypted dump (attacker-influenceable once
+            // a tampered backup is supplied). Validate them as SQL identifiers before
+            // interpolation — better-sqlite3 rejects multi-statement injection, but an
+            // unvalidated identifier is still an injection/crash surface.
+            if (!cols.every((c) => /^[_A-Za-z][_A-Za-z0-9]*$/.test(c))) {
+              throw apiErrors.badRequest(
+                "This backup contains an unrecognized column and can't be restored."
+              );
+            }
             const placeholders = cols.map(() => "?").join(", ");
             await db.run(
               `INSERT INTO ${table} (${cols.join(", ")}) VALUES (${placeholders})`,
