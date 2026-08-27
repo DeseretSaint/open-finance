@@ -176,7 +176,7 @@ export default function BudgetsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const dialogA11yRef = useDialogA11y(showAdd);
-  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string; error?: string } | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
 
@@ -206,7 +206,12 @@ export default function BudgetsPage() {
 
   const remove = useMutation({
     mutationFn: (id: string) => api.del(`/api/budgets/${id}`),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      setConfirmDelete(null);
+    },
+    onError: (e) =>
+      setConfirmDelete((c) => (c ? { ...c, error: e instanceof Error ? e.message : "Failed to delete budget." } : c)),
   });
 
   const update = useMutation({
@@ -626,13 +631,12 @@ export default function BudgetsPage() {
       <ConfirmDialog
         open={confirmDelete !== null}
         title="Delete budget?"
-        message={confirmDelete ? `Budget "${confirmDelete.name}" and its category links will be removed.` : undefined}
+        message={confirmDelete ? `Budget "${confirmDelete.name}" and its category links will be removed.${confirmDelete.error ? ` ${confirmDelete.error}` : ""}` : undefined}
         confirmLabel="Delete"
         busy={remove.isPending}
         onCancel={() => setConfirmDelete(null)}
         onConfirm={() => {
           if (confirmDelete) remove.mutate(confirmDelete.id);
-          setConfirmDelete(null);
         }}
       />
     </div>

@@ -49,4 +49,22 @@ describe("budget edit UX", () => {
     expect(src).toContain("function closeModal()");
     expect(src).toContain("setEditingId(null)");
   });
+
+  it("keeps the delete dialog open while the request is in flight", () => {
+    // The ConfirmDialog's busy prop is wired to the remove mutation so the
+    // spinner shows and the user can't dismiss mid-request.
+    expect(src).toContain("busy={remove.isPending}");
+  });
+
+  it("does not close the dialog before the delete completes", () => {
+    // Regression guard: previously the dialog closed (setConfirmDelete(null))
+    // on confirm, hiding the busy state and silently swallowing any error.
+    expect(src).not.toContain("remove.mutate(confirmDelete.id);\n          setConfirmDelete(null);");
+  });
+
+  it("surfaces delete errors to the user", () => {
+    // onError stashes the message on confirmDelete.error, appended to the
+    // dialog's message text so a failed delete is visible (not swallowed).
+    expect(src).toContain("confirmDelete.error");
+  });
 });
