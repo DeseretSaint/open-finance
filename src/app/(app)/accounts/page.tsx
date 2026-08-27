@@ -103,6 +103,7 @@ export default function AccountsPage() {
   const [editingName, setEditingName] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState("");
   const [includePending, setIncludePending] = useIncludePending();
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["accounts"] });
@@ -142,36 +143,43 @@ export default function AccountsPage() {
   const restore = useMutation({
     mutationFn: (id: string) => api.post(`/api/accounts/${id}/restore`),
     onSuccess: () => {
+      setActionError(null);
       invalidate();
       qc.invalidateQueries({ queryKey: ["accounts", "deleted"] });
     },
+    onError: (e) => setActionError(e instanceof Error ? e.message : "Failed to restore account."),
   });
 
   const toggleNetWorth = useMutation({
     mutationFn: ({ id, include }: { id: string; include: boolean }) =>
       api.patch(`/api/accounts/${id}`, { includeInNetWorth: include }),
-    onSuccess: invalidate,
+    onSuccess: () => { setActionError(null); invalidate(); },
+    onError: (e) => setActionError(e instanceof Error ? e.message : "Failed to update account."),
   });
 
   const setTypeOverride = useMutation({
     mutationFn: ({ id, type }: { id: string; type: string }) => api.patch(`/api/accounts/${id}`, { type }),
-    onSuccess: invalidate,
+    onSuccess: () => { setActionError(null); invalidate(); },
+    onError: (e) => setActionError(e instanceof Error ? e.message : "Failed to update account type."),
   });
 
   const setDescription = useMutation({
     mutationFn: ({ id, description }: { id: string; description: string | null }) =>
       api.patch(`/api/accounts/${id}`, { description }),
-    onSuccess: invalidate,
+    onSuccess: () => { setActionError(null); invalidate(); },
+    onError: (e) => setActionError(e instanceof Error ? e.message : "Failed to update description."),
   });
 
   const rename = useMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) => api.patch(`/api/accounts/${id}`, { name }),
-    onSuccess: invalidate,
+    onSuccess: () => { setActionError(null); invalidate(); },
+    onError: (e) => setActionError(e instanceof Error ? e.message : "Failed to rename account."),
   });
 
   const reorder = useMutation({
     mutationFn: (orderedIds: string[]) => api.put("/api/accounts/order", { orderedIds }),
-    onSuccess: invalidate,
+    onSuccess: () => { setActionError(null); invalidate(); },
+    onError: (e) => setActionError(e instanceof Error ? e.message : "Failed to reorder accounts."),
   });
 
   function moveAccount(index: number, dir: -1 | 1) {
@@ -191,6 +199,12 @@ export default function AccountsPage() {
 
   return (
     <div className="min-w-0 space-y-6 overflow-x-hidden">
+      {actionError && (
+        <p role="alert" className="rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-sm text-danger">
+          {actionError}
+        </p>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-text">Accounts</h1>
