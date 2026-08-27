@@ -458,6 +458,7 @@ export default function SettingsPage() {
       <PaydaysCard setMsg={setMsg} setErr={setErr} />
       <HubPanel setMsg={setMsg} setErr={setErr} />
       <PhoneImportPanel setMsg={setMsg} setErr={setErr} />
+      {!solo && <SetupTourCard setErr={setErr} />}
       </SettingsGroup>
 
       <SettingsGroup title="Appearance" description="Theme, accent, and interface density.">
@@ -1925,7 +1926,6 @@ function BackupPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; s
   if (solo) return <SoloBackupPanel setMsg={setMsg} setErr={setErr} />;
 
   return (
-    <>
     <Card className="lg:col-span-2">
       <CardTitle>Backup &amp; restore</CardTitle>
       <p className="mt-1 text-sm text-text-muted">
@@ -1960,7 +1960,13 @@ function BackupPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; s
         </Button>
       </div>
     </Card>
+  );
+}
 
+// ── Setup tour (restart the first-run walkthrough) ──────────────────────────
+
+function SetupTourCard({ setErr }: { setErr: (s: string | null) => void }) {
+  return (
     <Card>
       <CardTitle>Setup tour</CardTitle>
       <p className="mt-1 text-sm text-text-muted">
@@ -1983,7 +1989,6 @@ function BackupPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; s
         </Button>
       </div>
     </Card>
-    </>
   );
 }
 
