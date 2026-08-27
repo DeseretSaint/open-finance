@@ -3,7 +3,7 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
 import { getSqliteDb } from "@/server/db/adapter";
-import { POST, DELETE, __mcpTransportCountForTest } from "@/app/api/mcp/route";
+import { POST, DELETE, __mcpTransportCountForTest, mcpErrorResponse } from "@/app/api/mcp/route";
 
 /**
  * The /mcp route keeps one transport per MCP session in a module-level Map.
@@ -105,5 +105,26 @@ describe("MCP session transport Map is bounded", () => {
       })
     );
     expect(__mcpTransportCountForTest()).toBe(before);
+  });
+});
+
+describe("MCP error responses do not leak internals", () => {
+  it("unexpected errors return a generic message, not the raw error text", async () => {
+    const res = mcpErrorResponse(new Error("SQLITE_BUSY: database is locked at /data/of.db"), "sid-leak");
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as { error: { code: number; message: string } };
+    expect(body.error.message).toBe("Internal error.");
+    expect(body.error.message).not.toContain("SQLITE");
+    expect(body.error.code).toBe(-32603);
+  });
+
+  it("expected conditions keep their specific status + message", async () => {
+    const missing = mcpErrorResponse(new Error("missing bearer token"), "sid-1");
+    expect(missing.status).toBe(401);
+    expect(((await missing.json()) as { error: { message: string } }).error.message).toBe("missing bearer token");
+
+    const notFound = mcpErrorResponse(new Error("Session not found"), "sid-2");
+    expect(notFound.status).toBe(404);
+    expect(((await notFound.json()) as { error: { message: string } }).error.message).toBe("Session not found");
   });
 });

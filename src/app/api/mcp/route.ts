@@ -70,6 +70,42 @@ function getTransport(sid: string, getAuth: () => Promise<McpAuth>): WebStandard
   return transport;
 }
 
+/**
+ * Map an error thrown by the transport/auth layer to a JSON-RPC error
+ * response. Expected conditions get their own status (401 missing token,
+ * 404 unknown session, 403 insufficient scope); anything ELSE is an
+ * unexpected server error — the full detail is logged server-side, but the
+ * caller gets a generic message only. Raw error text (SQL fragments, file
+ * paths, driver strings) is an information-disclosure surface on an
+ * endpoint deliberately exposed to external agents.
+ */
+export function mcpErrorResponse(e: unknown, sid: string): NextResponse {
+  if (e instanceof McpUnauthorizedError) {
+    return NextResponse.json(
+      { jsonrpc: "2.0", error: { code: -32001, message: `insufficient_scope: ${e.missing.join(", ")}` } },
+      { status: 403, headers: { "mcp-session-id": sid } }
+    );
+  }
+  const msg = e instanceof Error ? e.message : "";
+  if (msg === "missing bearer token") {
+    return NextResponse.json(
+      { jsonrpc: "2.0", error: { code: -32000, message: msg } },
+      { status: 401, headers: { "mcp-session-id": sid } }
+    );
+  }
+  if (msg.includes("Session not found")) {
+    return NextResponse.json(
+      { jsonrpc: "2.0", error: { code: -32603, message: msg } },
+      { status: 404, headers: { "mcp-session-id": sid } }
+    );
+  }
+  console.error("MCP error:", e);
+  return NextResponse.json(
+    { jsonrpc: "2.0", error: { code: -32603, message: "Internal error." } },
+    { status: 500, headers: { "mcp-session-id": sid } }
+  );
+}
+
 async function handle(req: NextRequest): Promise<NextResponse> {
   const sid = req.headers.get("mcp-session-id") ?? crypto.randomUUID();
   // Capture the bearer token for the server's auth callback (the Web Request
@@ -95,19 +131,7 @@ async function handle(req: NextRequest): Promise<NextResponse> {
     if (!res.headers.has("mcp-session-id")) res.headers.set("mcp-session-id", sid);
     return res;
   } catch (e) {
-    if (e instanceof McpUnauthorizedError) {
-      return NextResponse.json(
-        { jsonrpc: "2.0", error: { code: -32001, message: `insufficient_scope: ${e.missing.join(", ")}` } },
-        { status: 403, headers: { "mcp-session-id": sid } }
-      );
-    }
-    const msg = e instanceof Error ? e.message : "internal error";
-    const status = msg === "missing bearer token" ? 401 : msg.includes("Session not found") ? 404 : 500;
-    if (status === 500) console.error("MCP error:", e);
-    return NextResponse.json(
-      { jsonrpc: "2.0", error: { code: status === 401 ? -32000 : -32603, message: msg } },
-      { status, headers: { "mcp-session-id": sid } }
-    );
+    return mcpErrorResponse(e, sid);
   }
 }
 
