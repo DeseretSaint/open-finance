@@ -34,6 +34,11 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [bioBusy, setBioBusy] = useState(false);
+  const [showRecovery, setShowRecovery] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const [recoveryMsg, setRecoveryMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (hasWindow()) {
@@ -63,6 +68,24 @@ export default function LoginPage() {
       setError(err instanceof Error ? err.message : "Biometric unlock failed.");
     } finally {
       setBioBusy(false);
+    }
+  }
+
+  async function submitRecovery() {
+    setRecoveryBusy(true);
+    setError(null);
+    setRecoveryMsg(null);
+    try {
+      await api.post("/api/auth/recovery", { recovery_code: recoveryCode.trim(), new_pin: newPin });
+      setRecoveryMsg("PIN reset — sign in with your new PIN.");
+      setPin(newPin);
+      setNewPin("");
+      setRecoveryCode("");
+      setShowRecovery(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not reset PIN — check your recovery code.");
+    } finally {
+      setRecoveryBusy(false);
     }
   }
 
@@ -146,6 +169,68 @@ export default function LoginPage() {
               <Button type="submit" disabled={busy || !pin} className="w-full" size="lg">
                 {busy ? "Unlocking…" : "Unlock"}
               </Button>
+              {recoveryMsg && (
+                <p role="status" className="rounded-lg bg-[var(--success-soft)] px-3 py-2 text-sm text-success">
+                  {recoveryMsg}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRecovery((v) => !v);
+                  setError(null);
+                  setRecoveryMsg(null);
+                }}
+                className="w-full text-center text-xs font-medium text-accent-text"
+              >
+                {showRecovery ? "Back to PIN" : "Forgot your PIN?"}
+              </button>
+              {showRecovery && (
+                <div className="space-y-3 rounded-xl border border-border bg-surface-muted p-4">
+                  <p className="text-xs text-text-muted">
+                    Enter the <strong className="text-text">recovery code</strong> you saved during setup, plus a new
+                    PIN. This is the only way to reset it without wiping the app.
+                  </p>
+                  <div>
+                    <label htmlFor="recovery-code" className="mb-1 block text-xs font-medium text-text-muted">
+                      Recovery code
+                    </label>
+                    <Input
+                      id="recovery-code"
+                      placeholder="Recovery code"
+                      value={recoveryCode}
+                      onChange={(e) => setRecoveryCode(e.target.value)}
+                      className="font-mono"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="recovery-new-pin" className="mb-1 block text-xs font-medium text-text-muted">
+                      New PIN
+                    </label>
+                    <Input
+                      id="recovery-new-pin"
+                      type="password"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={12}
+                      placeholder="New PIN (4–12 digits)"
+                      value={newPin}
+                      onChange={(e) => setNewPin(e.target.value.replace(/[^0-9]/g, "").slice(0, 12))}
+                      autoComplete="off"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={submitRecovery}
+                    disabled={recoveryBusy || recoveryCode.trim().length < 8 || newPin.length < 4}
+                    className="w-full"
+                  >
+                    {recoveryBusy ? "Resetting…" : "Reset PIN"}
+                  </Button>
+                </div>
+              )}
             </>
           ) : (
             <>
