@@ -90,6 +90,38 @@ function readStored(): ThemeState {
   return { accent: normalizeAccent(storage.getItem("of-accent")), dark, density };
 }
 
+// Cross-tab sync: when ANOTHER tab changes one of the theme keys, adopt its
+// value so open tabs never diverge until reload. Installed once; the equality
+// guard in syncFromStorage makes echo writes no-ops (setItem with an
+// unchanged value doesn't re-dispatch, and the guard stops any loop anyway).
+const SYNCED_KEYS = ["of-accent", "of-dark", "of-density"];
+let storageSyncInstalled = false;
+
+function syncFromStorage(): void {
+  if (!hasWindow()) return;
+  const next = readStored();
+  if (
+    next.accent === state.accent &&
+    next.dark === state.dark &&
+    next.density === state.density
+  ) {
+    return;
+  }
+  state = next;
+  applyTheme();
+  for (const l of listeners) l();
+}
+
+function ensureStorageSync(): void {
+  if (storageSyncInstalled || !hasWindow()) return;
+  if (typeof window.addEventListener !== "function") return;
+  storageSyncInstalled = true;
+  window.addEventListener("storage", (e: StorageEvent) => {
+    // key === null means storage.clear() in another tab → re-read everything.
+    if (e.key === null || SYNCED_KEYS.includes(e.key)) syncFromStorage();
+  });
+}
+
 // Load stored prefs into the store exactly once. Pure with respect to the DOM
 // (reads/writes localStorage only) so it is safe to call during render.
 function ensureLoaded(): ThemeState {
@@ -98,6 +130,7 @@ function ensureLoaded(): ThemeState {
     if (hasWindow()) {
       ensureNativePlugins();
       state = readStored();
+      ensureStorageSync();
     }
   }
   return state;
@@ -201,5 +234,6 @@ export function useTheme() {
 export function __resetThemeForTest(): void {
   state = DEFAULT_THEME;
   initialized = false;
+  storageSyncInstalled = false;
   listeners.clear();
 }

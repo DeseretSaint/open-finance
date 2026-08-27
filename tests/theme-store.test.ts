@@ -30,6 +30,7 @@ function makeStorage() {
 function installDom(storage: ReturnType<typeof makeStorage>) {
   const style = new Map<string, string>();
   const classes = new Set<string>();
+  const storageListeners: Array<(e: { key: string | null }) => void> = [];
   const documentElement = {
     style: {
       setProperty: (k: string, v: string) => {
@@ -43,9 +44,14 @@ function installDom(storage: ReturnType<typeof makeStorage>) {
       },
     },
   };
-  (globalThis as Record<string, unknown>).window = { localStorage: storage };
+  (globalThis as Record<string, unknown>).window = {
+    localStorage: storage,
+    addEventListener: (type: string, fn: (e: { key: string | null }) => void) => {
+      if (type === "storage") storageListeners.push(fn);
+    },
+  };
   (globalThis as Record<string, unknown>).document = { documentElement };
-  return { style, classes };
+  return { style, classes, storageListeners };
 }
 
 beforeEach(() => {
@@ -180,5 +186,51 @@ describe("pre-hydration replay blob (Gap B FOUC fix)", () => {
     // Validation: only the three known densities may replay.
     expect(src).toContain("0.92");
     expect(src).toContain("0.84");
+  });
+});
+
+describe("cross-tab storage sync (Minor F)", () => {
+  it("adopts another tab's accent/dark/density change via the storage event", () => {
+    const storage = makeStorage();
+    const { style, classes, storageListeners } = installDom(storage);
+    setAccent("#4F46E5"); // first touch installs the storage listener
+    expect(storageListeners.length).toBe(1);
+    // Another tab switches to pink + light + compact…
+    storage.setItem("of-accent", "#EC4899");
+    storage.setItem("of-dark", "0");
+    storage.setItem("of-density", "0.92");
+    // …and the browser fires the storage event in THIS tab.
+    storageListeners[0]({ key: "of-accent" });
+    expect(style.get("--accent")).toBe("#EC4899");
+    expect(classes.has("dark")).toBe(false);
+    expect(style.get("zoom")).toBe("0.92");
+  });
+
+  it("ignores unrelated keys but re-reads everything on storage.clear()", () => {
+    const storage = makeStorage();
+    const { style, storageListeners } = installDom(storage);
+    setAccent("#4F46E5");
+    // Unrelated key → no-op.
+    storage.setItem("of-something-else", "x");
+    storageListeners[0]({ key: "of-something-else" });
+    expect(style.get("--accent")).toBe("#4F46E5");
+    // storage.clear() in another tab → key === null → full re-read to defaults.
+    storage._map.clear();
+    storageListeners[0]({ key: null });
+    expect(style.get("--accent")).toBe(DEFAULT_THEME.accent);
+  });
+
+  it("echo writes don't loop: an event carrying the current state is a no-op", () => {
+    const storage = makeStorage();
+    const { style, storageListeners } = installDom(storage);
+    setAccent("#F59E0B");
+    const before = style.get("--accent");
+    // Same-tab echo: values already match → equality guard short-circuits.
+    storageListeners[0]({ key: "of-accent" });
+    expect(style.get("--accent")).toBe(before);
+    // Listener installed exactly once despite multiple touches.
+    setDark(true);
+    setDensity(0.84);
+    expect(storageListeners.length).toBe(1);
   });
 });
