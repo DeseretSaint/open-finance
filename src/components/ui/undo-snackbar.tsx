@@ -49,7 +49,10 @@ export function UndoSnackbar({
     if (!open) setPaused(false);
   }, [open]);
 
-  if (!open) return null;
+  // The aria-live region must be present in the DOM BEFORE its content changes,
+  // otherwise most screen readers never announce the insertion (the classic
+  // "live region added with content" failure). So the region stays mounted and
+  // only the bar inside it is conditional.
   return (
     <div
       role="status"
@@ -60,6 +63,7 @@ export function UndoSnackbar({
       onBlur={() => setPaused(false)}
       className="of-snackbar pointer-events-none fixed inset-x-0 z-[70] flex justify-center p-4"
     >
+      {!open ? null : (
       <div
         className="pointer-events-auto flex w-full max-w-sm items-center gap-4 rounded-xl bg-zinc-900 px-4 py-3 text-sm text-white shadow-2xl"
         style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
@@ -76,6 +80,7 @@ export function UndoSnackbar({
           {undoLabel}
         </button>
       </div>
+      )}
     </div>
   );
 }
