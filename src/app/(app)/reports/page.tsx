@@ -301,7 +301,11 @@ export default function ReportsPage() {
           {pieData.length === 0 ? (
             <ChartEmpty>{isCurrentMonth ? "No spending this month yet." : "No spending in this month."}</ChartEmpty>
           ) : (
-            <div className="mt-4 h-56 sm:h-64">
+            <div
+              className="mt-4 h-56 sm:h-64"
+              role="img"
+              aria-label={`Spending by category bar chart for ${monthLabel}, ${pieData.length} categories`}
+            >
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   layout="vertical"
@@ -354,7 +358,11 @@ export default function ReportsPage() {
           {!hasCashflow ? (
             <ChartEmpty>No cash flow data yet — add transactions to see trends.</ChartEmpty>
           ) : (
-            <div className="mt-4 h-56 sm:h-64">
+            <div
+              className="mt-4 h-56 sm:h-64"
+              role="img"
+              aria-label="Cash flow bar chart — income, expenses, and net for the last 6 months"
+            >
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={barData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -409,7 +417,11 @@ export default function ReportsPage() {
                 </span>
               </span>
             </div>
-            <div className="mt-4 h-56 sm:h-64">
+            <div
+              className="mt-4 h-56 sm:h-64"
+              role="img"
+              aria-label="Projected balance line chart for the next 12 months"
+            >
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={projData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -488,7 +500,11 @@ export default function ReportsPage() {
         {!hasTrend ? (
           <ChartEmpty>No balance history yet — sync a bank or add an account to start tracking.</ChartEmpty>
         ) : (
-          <div className="mt-4 h-56 sm:h-64">
+          <div
+            className="mt-4 h-56 sm:h-64"
+            role="img"
+            aria-label={`Net worth trend line chart — last ${trendMonths} months`}
+          >
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={trendData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
