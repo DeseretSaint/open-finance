@@ -3,6 +3,7 @@ import { createTransactionsService } from "@/server/domain/transactions";
 import { createAccountsService } from "@/server/domain/accounts";
 import { createBudgetsService } from "@/server/domain/budgets";
 import { createPlanningService } from "@/server/domain/planning";
+import { createCsvImportService } from "@/server/domain/csv-import";
 import { MAX_AMOUNT_CENTS } from "@/server/domain/money";
 import { createTestDb, seedUser, seedManualAccount } from "./helpers";
 
@@ -147,5 +148,25 @@ describe("money magnitude bounds", () => {
     ).rejects.toThrow();
     const row = await db.get("SELECT target_cents FROM goals WHERE id = ?", g.id);
     expect(row?.target_cents).toBe(2000000);
+  });
+
+  it("csv import skips a row whose amount exceeds MAX_AMOUNT_CENTS (no corrupt rows written)", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db, "heidi");
+    const acct = await seedManualAccount(db, user.id);
+    const svc = createCsvImportService(db);
+    const csv =
+      "Date,Description,Amount\n" +
+      "2026-01-01,Coffee,4.50\n" +
+      // Magnitude above the ±$1T cap — must be dropped, not stored.
+      `2026-01-02,Bogus,${MAX_AMOUNT_CENTS + 100}\n`;
+    const res = await svc.importCsv(user.id, acct, csv);
+    expect(res.imported).toBe(1);
+    const rows = await db.all(
+      "SELECT * FROM transactions WHERE account_id = ?",
+      acct
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].name).toBe("Coffee");
   });
 });

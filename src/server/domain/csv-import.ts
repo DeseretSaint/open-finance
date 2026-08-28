@@ -3,6 +3,7 @@ import { apiErrors } from "@/lib/api-error";
 import type { Db } from "@/server/db/types";
 import { createCategoriesService } from "@/server/domain/categories";
 import { dedupeName } from "@/server/domain/txn-dedupe";
+import { MAX_AMOUNT_CENTS } from "@/server/domain/money";
 
 /**
  * Hard cap on an uploaded CSV body (25 MB). A bank statement export is at most
@@ -93,7 +94,11 @@ function parseAmount(raw: string): number | null {
   if (!s) return null;
   const n = Number(s);
   if (!Number.isFinite(n)) return null;
-  return Math.round(n * 100);
+  const cents = Math.round(n * 100);
+  // Skip impossible magnitudes (same ±$1T cap as manual-entry paths) — a
+  // malformed/extreme CSV value must never corrupt aggregates downstream.
+  if (Math.abs(cents) > MAX_AMOUNT_CENTS) return null;
+  return cents;
 }
 
 function normHeader(h: string): string {
