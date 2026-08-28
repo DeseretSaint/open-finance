@@ -486,15 +486,22 @@ export default function BudgetsPage() {
             return (
               <Card key={b.id}>
                 <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedId(expanded ? null : b.id)}
+                    aria-expanded={expanded}
+                    aria-label={expanded ? `Collapse ${b.name}` : `Expand ${b.name}`}
+                    className="min-w-0 rounded-md text-left transition-opacity hover:opacity-80"
+                  >
                     <CardTitle className="truncate">{b.name}</CardTitle>
                     <p className="mt-0.5 truncate text-xs text-text-muted">
                       {b.categoryNames.length > 0 ? b.categoryNames.join(", ") : "Uncategorized"}
                     </p>
-                  </div>
+                  </button>
                   <div className="flex shrink-0 items-center gap-1">
                     <button
                       aria-label={expanded ? `Collapse ${b.name} transactions` : `Expand ${b.name} transactions`}
+                      aria-expanded={expanded}
                       title={expanded ? "Collapse" : "See transactions"}
                       onClick={() => setExpandedId(expanded ? null : b.id)}
                       className={`flex h-9 w-9 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-muted hover:text-text ${
