@@ -1652,7 +1652,7 @@ function HubPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; setE
   const [hubUrl, setHubUrl] = useState("");
   // Phone → computer hub pairing (issue #16): camera QR scan.
   const [scanning, setScanning] = useState(false);
-  const scannerA11yRef = useDialogA11y(scanning);
+  const scannerA11yRef = useDialogA11y(scanning, () => setScanning(false));
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [scanErr, setScanErr] = useState<string | null>(null);

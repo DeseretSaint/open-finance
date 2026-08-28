@@ -183,7 +183,7 @@ export default function BudgetsPage() {
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const dialogA11yRef = useDialogA11y(showAdd);
+  const dialogA11yRef = useDialogA11y(showAdd, closeModal);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string; error?: string } | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 

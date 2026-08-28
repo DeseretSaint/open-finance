@@ -103,7 +103,9 @@ export default function AccountsPage() {
     balanceNum !== null && !Number.isFinite(balanceNum) ? "Enter a valid balance." : null;
   const [showAdd, setShowAdd] = useState(false);
   useEscapeToClose(() => { if (!create.isPending) setShowAdd(false); }, showAdd);
-  const dialogA11yRef = useDialogA11y(showAdd);
+  const dialogA11yRef = useDialogA11y(showAdd, () => {
+    if (!create.isPending) setShowAdd(false);
+  });
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string; error?: string } | null>(null);
   const [editingDesc, setEditingDesc] = useState<string | null>(null);
   const [descDraft, setDescDraft] = useState("");

@@ -71,7 +71,9 @@ export default function TransactionsPage() {
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   useEscapeToClose(() => { if (!add.isPending) setShowAdd(false); }, showAdd);
-  const addDialogA11yRef = useDialogA11y(showAdd);
+  const addDialogA11yRef = useDialogA11y(showAdd, () => {
+    if (!add.isPending) setShowAdd(false);
+  });
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string; error?: string } | null>(null);
   const [limit, setLimit] = useState(200);
 
@@ -90,7 +92,9 @@ export default function TransactionsPage() {
         : "Amount cannot be zero."
       : null;
   useEscapeToClose(() => { if (!edit.isPending) setEditId(null); }, editId !== null);
-  const editDialogA11yRef = useDialogA11y(editId !== null);
+  const editDialogA11yRef = useDialogA11y(editId !== null, () => {
+    if (!edit.isPending) setEditId(null);
+  });
 
   // Debounce the search term so we don't fire a /api/transactions query on every
   // keystroke — the input stays responsive (driven by `q`) but the query only
@@ -226,7 +230,7 @@ export default function TransactionsPage() {
     // older history from bank-downloaded CSV files instead.
     const [showCsvSuggestion, setShowCsvSuggestion] = useState(false);
     useEscapeToClose(() => setShowCsvSuggestion(false), showCsvSuggestion);
-    const csvSuggestionA11yRef = useDialogA11y(showCsvSuggestion);
+    const csvSuggestionA11yRef = useDialogA11y(showCsvSuggestion, () => setShowCsvSuggestion(false));
     const pullHistory = useMutation({
       mutationFn: async () => {
         setHistoryMsg(null);
@@ -325,7 +329,9 @@ export default function TransactionsPage() {
   // Plaid (institution ~90-day caps).
   const [showImport, setShowImport] = useState(false);
   useEscapeToClose(() => { if (!importCsv.isPending) setShowImport(false); }, showImport);
-  const importDialogA11yRef = useDialogA11y(showImport);
+  const importDialogA11yRef = useDialogA11y(showImport, () => {
+    if (!importCsv.isPending) setShowImport(false);
+  });
   const [importAccount, setImportAccount] = useState("");
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const importCsv = useMutation({

@@ -30,7 +30,9 @@ export function ConfirmDialog({
   onCancel: () => void;
 }) {
   useEscapeToClose(() => { if (!busy) onCancel(); }, open);
-  const ref = useDialogA11y(open);
+  const ref = useDialogA11y(open, () => {
+    if (!busy) onCancel();
+  });
 
   if (!open) return null;
   return (

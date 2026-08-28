@@ -248,7 +248,7 @@ export default function PlanPage() {
   // ── Add sheet (FAB) ──
   const [showAdd, setShowAdd] = useState(false);
   useEscapeToClose(() => setShowAdd(false), showAdd);
-  const addDialogA11yRef = useDialogA11y(showAdd);
+  const addDialogA11yRef = useDialogA11y(showAdd, () => setShowAdd(false));
   const [addKind, setAddKind] = useState<"bill" | "debt" | "goal" | "expense" | null>(null);
   const [err, setErr] = useState<string | null>(null);
 

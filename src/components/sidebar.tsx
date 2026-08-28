@@ -75,7 +75,7 @@ export function Sidebar() {
   const router = useRouter();
   const { dark, setDark } = useTheme();
   const [moreOpen, setMoreOpen] = useState(false);
-  const moreDialogA11yRef = useDialogA11y(moreOpen);
+  const moreDialogA11yRef = useDialogA11y(moreOpen, () => setMoreOpen(false));
   useEscapeToClose(() => setMoreOpen(false), moreOpen);
 
   // Close the sheet on navigation.
