@@ -11,11 +11,10 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   Legend,
   Line,
   LineChart,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -304,44 +303,50 @@ export default function ReportsPage() {
           ) : (
             <div className="mt-4 h-56 sm:h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={50}
-                    outerRadius={90}
-                    paddingAngle={2}
-                    stroke="var(--surface)"
-                    strokeWidth={2}
-                    activeShape={false}
-                  >
-                    {pieData.map((_, i) => (
-                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                    ))}
-                  </Pie>
+                <BarChart
+                  layout="vertical"
+                  data={pieData}
+                  margin={{ top: 4, right: 60, bottom: 4, left: 8 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} vertical={false} />
+                  <XAxis
+                    type="number"
+                    domain={[0, "auto"]}
+                    tickFormatter={(v) => `$${v}`}
+                    tick={{ fill: "var(--text-muted)", fontSize: 12 }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={110}
+                    tick={{ fill: "var(--text-muted)", fontSize: 12 }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
                   <Tooltip
                     formatter={(value) => `$${(Number(value) / 100).toFixed(2)}`}
                     contentStyle={TOOLTIP_STYLE}
                     wrapperStyle={{ pointerEvents: "none" }}
+                    cursor={false}
                   />
-                </PieChart>
+                  <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                    {pieData.map((_, i) => (
+                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                    ))}
+                    <LabelList
+                      dataKey="value"
+                      position="right"
+                      formatter={(v) => `$${(Number(v) / 100).toFixed(2)}`}
+                      fill="var(--text-muted)"
+                      fontSize={12}
+                    />
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
             </div>
           )}
-          <div className="mt-2 space-y-1">
-            {pieData.map((r, i) => (
-              <div key={r.name} className="flex items-center justify-between gap-2 text-sm">
-                <span className="flex min-w-0 items-center gap-2 text-text-muted">
-                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} aria-hidden />
-                  <span className="truncate">{r.name}</span>
-                </span>
-                <span className="money shrink-0 text-text">
-                  <Money cents={r.value} />
-                </span>
-              </div>
-            ))}
-          </div>
         </Card>
 
         <Card>
