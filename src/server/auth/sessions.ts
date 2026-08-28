@@ -166,7 +166,11 @@ export async function getSessionFromRequest(req: Request, db: Db = getDb()): Pro
   const token = getSessionToken(req);
   if (!token) return null;
   const session = await getSessionFromToken(token, db);
-  if (session) await touchSession(session.id, db);
+  if (session) {
+    await touchSession(session.id, db);
+    // Housekeeping: reap expired/idle-timed-out rows (throttled, never throws).
+    void maybePurgeExpiredSessions(db);
+  }
   return session;
 }
 
@@ -177,6 +181,41 @@ export async function touchSession(sessionId: string, db: Db = getDb()): Promise
   if ((touched.get(sessionId) ?? 0) + 300_000 > nowMs) return;
   touched.set(sessionId, nowMs);
   await db.run("UPDATE sessions SET last_seen_at = ? WHERE id = ?", now(), sessionId);
+}
+
+const PURGE_INTERVAL_MS = 3600_000; // at most one sweep per hour per process
+let lastPurgeMs = 0;
+
+/** SQL predicate matching getSessionFromToken's validity rules (expired OR idle-timed-out). */
+const DEAD_SESSION_WHERE = `(expires_at IS NOT NULL AND expires_at <= ?)
+     OR (idle_timeout_h IS NOT NULL AND datetime(last_seen_at, '+' || idle_timeout_h || ' hours') <= datetime(?))`;
+
+/**
+ * Delete sessions that are expired or idle-timed-out. Rows are otherwise
+ * only removed by explicit revoke / user deletion, so without this sweep the
+ * table (and the Settings device list) accumulates dead rows forever.
+ * Returns the number of rows deleted.
+ */
+export async function purgeExpiredSessions(db: Db = getDb(), nowMs: number = Date.now()): Promise<number> {
+  const nowIso = new Date(nowMs).toISOString();
+  const res = await db.run(`DELETE FROM sessions WHERE ${DEAD_SESSION_WHERE}`, nowIso, nowIso);
+  return res.changes;
+}
+
+/** Throttled purge hook — call on session-authenticated requests; never throws. */
+export async function maybePurgeExpiredSessions(db: Db = getDb(), nowMs: number = Date.now()): Promise<void> {
+  if (nowMs - lastPurgeMs < PURGE_INTERVAL_MS) return;
+  lastPurgeMs = nowMs;
+  try {
+    await purgeExpiredSessions(db, nowMs);
+  } catch {
+    // Purge is housekeeping only — never let it break authentication.
+  }
+}
+
+/** Test-only: reset the purge throttle. */
+export function _resetPurgeThrottleForTest(): void {
+  lastPurgeMs = 0;
 }
 
 export function sessionCookieMaxAge(duration: Duration): number {
