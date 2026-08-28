@@ -576,7 +576,7 @@ export default function BudgetsPage() {
           {data.budgets.length === 0 && (
             <Card className="sm:col-span-2 lg:col-span-3">
               <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
-                <p className="text-sm text-text-muted">No budgets yet — create your first one below.</p>
+                <p className="text-sm text-text-muted">No budgets yet — set a limit to track spending and catch overages before month-end. Create your first one below.</p>
               </div>
             </Card>
           )}

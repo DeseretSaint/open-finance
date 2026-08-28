@@ -406,7 +406,7 @@ export default function AccountsPage() {
           {data.accounts.length === 0 && (
             <Card className="sm:col-span-2 lg:col-span-3">
               <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
-                <p className="text-sm text-text-muted">No accounts yet.</p>
+                <p className="text-sm text-text-muted">No accounts yet — accounts hold your balances and transactions so the rest of the app can track them.</p>
                 <p className="mt-1 text-sm">
                   <Link href="/settings" className="font-medium text-accent-text hover:underline">
                     Connect a bank
