@@ -175,12 +175,46 @@ export async function getSessionFromRequest(req: Request, db: Db = getDb()): Pro
 }
 
 /** Throttled last_seen update (max once per 5 min per session). */
+const TOUCH_THROTTLE_MS = 300_000;
+/** Hard cap on tracked session ids. An entry is otherwise only reclaimed when
+ *  the SAME session re-authenticates, so a long-running server with session
+ *  churn (create / revoke / purge) would accumulate stale ids forever — the
+ *  same unbounded-memory class as the rate limiter. Entries older than the
+ *  throttle window are inert (a missing entry and an expired one behave
+ *  identically), so pruning them is always safe. */
+const MAX_TOUCHED = 1000;
 const touched = new Map<string, number>();
+
+function pruneTouched(nowMs: number): void {
+  for (const [k, ts] of touched) if (ts + TOUCH_THROTTLE_MS <= nowMs) touched.delete(k);
+  // If a flood of distinct still-live sessions still exceeds the cap, evict the
+  // oldest-inserted ids (LRU) to keep the footprint hard-capped.
+  if (touched.size > MAX_TOUCHED) {
+    let overflow = touched.size - MAX_TOUCHED;
+    for (const k of touched.keys()) {
+      if (overflow <= 0) break;
+      touched.delete(k);
+      overflow--;
+    }
+  }
+}
+
 export async function touchSession(sessionId: string, db: Db = getDb()): Promise<void> {
   const nowMs = Date.now();
-  if ((touched.get(sessionId) ?? 0) + 300_000 > nowMs) return;
+  if ((touched.get(sessionId) ?? 0) + TOUCH_THROTTLE_MS > nowMs) return;
+  if (touched.size >= MAX_TOUCHED) pruneTouched(nowMs);
   touched.set(sessionId, nowMs);
   await db.run("UPDATE sessions SET last_seen_at = ? WHERE id = ?", now(), sessionId);
+}
+
+/** Test-only: current tracked-session count. */
+export function __touchedCountForTest(): number {
+  return touched.size;
+}
+
+/** Test-only: clear the touch throttle. */
+export function _resetTouchedForTest(): void {
+  touched.clear();
 }
 
 const PURGE_INTERVAL_MS = 3600_000; // at most one sweep per hour per process
