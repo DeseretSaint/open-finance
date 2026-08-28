@@ -119,6 +119,14 @@ body {
   animation: skeleton-pulse 1.2s ease-in-out infinite;
 }
 
+/* ── Motion tokens (M3: feedback 100–200ms / enter-exit 200–300ms) ────────── */
+:root {
+  --of-motion-fast: 150ms;
+  --of-motion-med: 200ms;
+  --of-motion-slow: 250ms;
+  --of-motion-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -55,7 +55,7 @@ function StepProgress({ step }: { step: Step }) {
           <span
             key={s}
             aria-current={i === idx ? "step" : undefined}
-            className={`h-1.5 rounded-full transition-all ${
+            className={`h-1.5 rounded-full transition-[width] ${
               i === idx ? "w-5 bg-accent" : i < idx ? "w-1.5 bg-accent/50" : "w-1.5 bg-border"
             }`}
           />

@@ -450,7 +450,7 @@ export default function BudgetsPage() {
               aria-label="Percentage of this period's income spent"
             >
               <div
-                className="h-full rounded-full transition-all"
+                className="h-full rounded-full transition-[width,background-color]"
                 style={{
                   width: `${Math.min(100, (summary.data.summary.monthExpenseCents / Math.max(1, summary.data.summary.monthIncomeCents)) * 100)}%`,
                   background:

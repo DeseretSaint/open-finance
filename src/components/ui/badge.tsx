@@ -35,7 +35,7 @@ export function Progress({
     >
       <div
         aria-hidden="true"
-        className={cn("h-full rounded-full transition-all", over ? "bg-danger" : "bg-accent")}
+        className={cn("h-full rounded-full transition-colors", over ? "bg-danger" : "bg-accent")}
         style={{ width: `${pct}%` }}
       />
     </div>

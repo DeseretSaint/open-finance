@@ -1042,8 +1042,8 @@ export default function TransactionsPage() {
                           }`}
                         >
                           <span
-                            className={`absolute top-[2px] h-3.5 w-3.5 rounded-full bg-white transition-all ${
-                              t.exclude_from_budgets === 1 ? "left-4" : "left-0.5"
+                            className={`absolute top-[2px] left-0.5 h-3.5 w-3.5 rounded-full bg-white transition-transform ${
+                              t.exclude_from_budgets === 1 ? "translate-x-[14px]" : "translate-x-0"
                             }`}
                           />
                         </span>

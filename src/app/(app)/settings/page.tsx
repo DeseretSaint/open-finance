@@ -1312,7 +1312,7 @@ function AgentWiringCard({ setMsg, setErr }: { setMsg: (s: string | null) => voi
                       aria-label={`${catProgress.done} of ${catProgress.total} transactions in range categorized`}
                     >
                       <div
-                        className="h-full rounded-full bg-[var(--accent)] transition-all"
+                        className="h-full rounded-full bg-[var(--accent)] transition-[width]"
                         style={{ width: `${Math.round((catProgress.done / catProgress.total) * 100)}%` }}
                       />
                     </div>
@@ -1335,8 +1335,8 @@ function AgentWiringCard({ setMsg, setErr }: { setMsg: (s: string | null) => voi
             }`}
           >
             <span
-              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
-                p?.autoCategorize ? "left-[22px]" : "left-0.5"
+              className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                p?.autoCategorize ? "translate-x-[20px]" : "translate-x-0"
               }`}
             />
           </button>
@@ -1361,8 +1361,8 @@ function AgentWiringCard({ setMsg, setErr }: { setMsg: (s: string | null) => voi
               }`}
             >
               <span
-                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
-                  p?.global ? "left-[22px]" : "left-0.5"
+                className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                  p?.global ? "translate-x-[20px]" : "translate-x-0"
                 }`}
               />
             </button>
@@ -1398,8 +1398,8 @@ function AgentWiringCard({ setMsg, setErr }: { setMsg: (s: string | null) => voi
                 }`}
               >
                 <span
-                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
-                    p?.autoApproveReads ? "left-[22px]" : "left-0.5"
+                  className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                    p?.autoApproveReads ? "translate-x-[20px]" : "translate-x-0"
                   }`}
                 />
               </button>
@@ -1427,8 +1427,8 @@ function AgentWiringCard({ setMsg, setErr }: { setMsg: (s: string | null) => voi
                 }`}
               >
                 <span
-                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
-                    p?.requireWriteConfirm ?? true ? "left-[22px]" : "left-0.5"
+                  className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                    p?.requireWriteConfirm ?? true ? "translate-x-[20px]" : "translate-x-0"
                   }`}
                 />
               </button>
@@ -1456,8 +1456,8 @@ function AgentWiringCard({ setMsg, setErr }: { setMsg: (s: string | null) => voi
                 }`}
               >
                 <span
-                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
-                    p?.auditEnabled ?? true ? "left-[22px]" : "left-0.5"
+                  className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                    p?.auditEnabled ?? true ? "translate-x-[20px]" : "translate-x-0"
                   }`}
                 />
               </button>
