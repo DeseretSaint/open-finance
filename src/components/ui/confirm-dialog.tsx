@@ -2,6 +2,7 @@
 
 import { useEscapeToClose } from "@/lib/use-escape-to-close";
 import { useDialogA11y } from "@/lib/use-dialog-a11y";
+import { useId } from "react";
 
 /**
  * Custom confirmation dialog — replaces window.confirm() (which pops the
@@ -33,6 +34,13 @@ export function ConfirmDialog({
   const ref = useDialogA11y(open, () => {
     if (!busy) onCancel();
   });
+  // Per-instance ids: a page can mount more than one ConfirmDialog, and
+  // duplicate DOM ids make aria-labelledby/describedby resolve to the wrong
+  // (first-in-document) node — screen readers would announce another
+  // dialog's title/message.
+  const baseId = useId();
+  const titleId = `${baseId}-confirm-title`;
+  const descId = `${baseId}-confirm-desc`;
 
   if (!open) return null;
   return (
@@ -42,8 +50,8 @@ export function ConfirmDialog({
       onClick={() => !busy && onCancel()}
       role="alertdialog"
       aria-modal="true"
-      aria-labelledby="confirm-dialog-title"
-      aria-describedby={message ? "confirm-dialog-desc" : undefined}
+      aria-labelledby={titleId}
+      aria-describedby={message ? descId : undefined}
     >
       <div
         className="mx-auto w-full max-w-[640px] overflow-hidden rounded-t-[28px] border border-border bg-surface p-5 shadow-2xl md:max-w-sm md:rounded-3xl"
@@ -51,8 +59,8 @@ export function ConfirmDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border md:hidden" />
-        <h3 id="confirm-dialog-title" className="text-base font-semibold text-text">{title}</h3>
-        {message && <p id="confirm-dialog-desc" className="mt-1.5 text-sm text-text-muted">{message}</p>}
+        <h3 id={titleId} className="text-base font-semibold text-text">{title}</h3>
+        {message && <p id={descId} className="mt-1.5 text-sm text-text-muted">{message}</p>}
         <div className="mt-5 flex gap-3">
           <button
             type="button"
