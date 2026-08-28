@@ -197,6 +197,7 @@ export default function BudgetsPage() {
 
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
+  const [amountTouched, setAmountTouched] = useState(false);
   const [period, setPeriod] = useState<"weekly" | "monthly" | "yearly">("monthly");
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -264,6 +265,7 @@ export default function BudgetsPage() {
   function openEdit(b: Budget) {
     setName(b.name);
     setAmount((b.amount_cents / 100).toFixed(2));
+    setAmountTouched(false);
     // SAFETY: Budget.period is only "weekly"|"monthly"|"yearly" per the schema; the else branch routes to "monthly".
     setPeriod((b.period === "weekly" || b.period === "yearly" ? b.period : "monthly") as "weekly" | "monthly" | "yearly");
     setCategoryIds(b.categoryIds);
@@ -278,6 +280,7 @@ export default function BudgetsPage() {
     setEditingId(null);
     setName("");
     setAmount("");
+    setAmountTouched(false);
     setCategoryIds([]);
     setError(null);
   }
@@ -639,9 +642,10 @@ export default function BudgetsPage() {
                   enterKeyHint="done"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  aria-invalid={!!amountError}
+                  onBlur={() => setAmountTouched(true)}
+                  aria-invalid={amountTouched && !!amountError}
                 />
-                {amountError && (
+                {amountTouched && amountError && (
                   <p role="alert" className="mt-1 text-xs text-danger">{amountError}</p>
                 )}
               </div>

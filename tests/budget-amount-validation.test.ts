@@ -18,11 +18,12 @@ describe("budget create-amount validation UX", () => {
     expect(src).toMatch(/!Number\.isFinite\(amountNum\) \|\| amountNum <= 0/);
   });
 
-  it("marks the amount input invalid when there is an error", () => {
-    expect(src).toContain("aria-invalid={!!amountError}");
+  it("marks the amount input invalid only after blur (touched), not on every keystroke", () => {
+    expect(src).toContain("aria-invalid={amountTouched && !!amountError}");
   });
 
-  it("surfaces the error as an accessible alert", () => {
+  it("surfaces the error as an accessible alert gated by touched", () => {
+    expect(src).toContain("{amountTouched && amountError && (");
     expect(src).toContain('role="alert" className="mt-1 text-xs text-danger">{amountError}');
   });
 

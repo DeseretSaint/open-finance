@@ -26,11 +26,12 @@ describe("add-transaction amount validation UX", () => {
     expect(src).not.toContain("parseFloat(addAmount)");
   });
 
-  it("marks the amount input invalid when there is an error", () => {
-    expect(src).toContain("aria-invalid={!!addAmountError}");
+  it("marks the amount input invalid only after blur (touched), not on every keystroke", () => {
+    expect(src).toContain("aria-invalid={amountTouched && !!addAmountError}");
   });
 
-  it("surfaces the error as an accessible alert", () => {
+  it("surfaces the error as an accessible alert gated by touched", () => {
+    expect(src).toContain("{amountTouched && addAmountError && (");
     expect(src).toContain('role="alert" className="mt-1 text-xs text-danger">{addAmountError}');
   });
 

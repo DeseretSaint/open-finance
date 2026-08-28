@@ -83,6 +83,7 @@ export default function TransactionsPage() {
   const [editName, setEditName] = useState("");
   const [editAmount, setEditAmount] = useState("");
   const [editDate, setEditDate] = useState(new Date().toISOString().slice(0, 10));
+  const [editTouched, setEditTouched] = useState(false);
   const editNum = Number(editAmount);
   const editAmountError =
     editAmount !== "" && (!Number.isFinite(editNum) || editNum === 0)
@@ -304,6 +305,7 @@ export default function TransactionsPage() {
     const [addAccount, setAddAccount] = useState("");
     const [addCategory, setAddCategory] = useState("");
     const [addExclude, setAddExclude] = useState(false);
+  const [amountTouched, setAmountTouched] = useState(false);
 
   // Inline amount validation (run-59 budgets pattern): catch non-numeric /
   // zero amounts before they round-trip to the server's generic 400. Number()
@@ -331,6 +333,7 @@ export default function TransactionsPage() {
     onSuccess: () => {
       setAddName("");
       setAddAmount("");
+      setAmountTouched(false);
       setAddCategory("");
       setError(null);
       setShowAdd(false);
@@ -595,9 +598,10 @@ export default function TransactionsPage() {
                   enterKeyHint="done"
                   value={addAmount}
                   onChange={(e) => setAddAmount(e.target.value)}
-                  aria-invalid={!!addAmountError}
+                  onBlur={() => setAmountTouched(true)}
+                  aria-invalid={amountTouched && !!addAmountError}
                 />
-                {addAmountError && (
+                {amountTouched && addAmountError && (
                   <p role="alert" className="mt-1 text-xs text-danger">{addAmountError}</p>
                 )}
               </div>
@@ -721,9 +725,10 @@ export default function TransactionsPage() {
                   enterKeyHint="done"
                   value={editAmount}
                   onChange={(e) => setEditAmount(e.target.value)}
-                  aria-invalid={!!editAmountError}
+                  onBlur={() => setEditTouched(true)}
+                  aria-invalid={editTouched && !!editAmountError}
                 />
-                {editAmountError && (
+                {editTouched && editAmountError && (
                   <p role="alert" className="mt-1 text-xs text-danger">{editAmountError}</p>
                 )}
               </div>
