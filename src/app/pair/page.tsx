@@ -167,9 +167,14 @@ function PairPage() {
       )}
 
       {!importMode && mode === "scan" && (
-        <div className="relative aspect-square w-full max-w-xs overflow-hidden rounded-xl border bg-black">
-          <video ref={videoRef} className="h-full w-full object-cover" muted playsInline />
-          <canvas ref={canvasRef} className="hidden" />
+        <div className="w-full space-y-3">
+          <div className="relative aspect-square w-full max-w-xs overflow-hidden rounded-xl border bg-black">
+            <video ref={videoRef} className="h-full w-full object-cover" muted playsInline />
+            <canvas ref={canvasRef} className="hidden" />
+          </div>
+          <button type="button" onClick={() => setMode("type")} className="w-full text-sm text-muted-foreground underline">
+            Type code instead
+          </button>
         </div>
       )}
 
