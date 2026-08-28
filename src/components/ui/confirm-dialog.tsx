@@ -42,16 +42,17 @@ export function ConfirmDialog({
       onClick={() => !busy && onCancel()}
       role="alertdialog"
       aria-modal="true"
-      aria-label={title}
+      aria-labelledby="confirm-dialog-title"
+      aria-describedby={message ? "confirm-dialog-desc" : undefined}
     >
       <div
-        className="w-full overflow-hidden rounded-t-3xl border border-border bg-surface p-5 shadow-2xl md:max-w-sm md:rounded-3xl"
+        className="mx-auto w-full max-w-[640px] overflow-hidden rounded-t-[28px] border border-border bg-surface p-5 shadow-2xl md:max-w-sm md:rounded-3xl"
         style={{ paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom))" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border md:hidden" />
-        <h3 className="text-base font-semibold text-text">{title}</h3>
-        {message && <p className="mt-1.5 text-sm text-text-muted">{message}</p>}
+        <h3 id="confirm-dialog-title" className="text-base font-semibold text-text">{title}</h3>
+        {message && <p id="confirm-dialog-desc" className="mt-1.5 text-sm text-text-muted">{message}</p>}
         <div className="mt-5 flex gap-3">
           <button
             type="button"
