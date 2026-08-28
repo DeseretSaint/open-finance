@@ -3,13 +3,17 @@ import { z } from "zod";
 import { noContent, ok, parseBody, parseParam, route } from "@/lib/api";
 import { requireCsrf, requireSession } from "@/server/auth/service";
 import { createBudgetsService } from "@/server/domain/budgets";
+import { MAX_AMOUNT_CENTS } from "@/server/domain/money";
 import { getDb } from "@/server/db/adapter";
 
 export const runtime = "nodejs";
 
 const updateSchema = z.object({
   name: z.string().min(1).max(60).optional(),
-  amountCents: z.number().int().positive().optional(),
+  amountCents: z.number().int().positive().refine(
+    (v) => v <= MAX_AMOUNT_CENTS,
+    `Amount magnitude cannot exceed ${MAX_AMOUNT_CENTS.toLocaleString("en-US")} cents.`
+  ).optional(),
   period: z.enum(["weekly", "monthly", "yearly"]).optional(),
   categoryIds: z.array(z.string()).optional(),
 });

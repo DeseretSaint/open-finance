@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createTransactionsService } from "@/server/domain/transactions";
 import { createAccountsService } from "@/server/domain/accounts";
+import { createBudgetsService } from "@/server/domain/budgets";
 import { MAX_AMOUNT_CENTS } from "@/server/domain/money";
 import { createTestDb, seedUser, seedManualAccount } from "./helpers";
 
@@ -61,5 +62,48 @@ describe("money magnitude bounds", () => {
       availableBalanceCents: 100000,
     });
     expect(a.current_balance_cents).toBe(123456);
+  });
+
+  it("budgets.create rejects an amount above MAX_AMOUNT_CENTS and leaves no row", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db, "carol");
+    const svc = createBudgetsService(db);
+    await expect(
+      svc.create(user.id, {
+        name: "Groceries",
+        amountCents: MAX_AMOUNT_CENTS + 1,
+        period: "monthly",
+      })
+    ).rejects.toThrow();
+    const rows = await db.all("SELECT * FROM budgets WHERE user_id = ?", user.id);
+    expect(rows).toHaveLength(0);
+  });
+
+  it("budgets.create accepts a normal amount", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db, "carol");
+    const svc = createBudgetsService(db);
+    const b = await svc.create(user.id, {
+      name: "Groceries",
+      amountCents: 50000,
+      period: "monthly",
+    });
+    expect(b.amount_cents).toBe(50000);
+  });
+
+  it("budgets.update rejects an amount above MAX_AMOUNT_CENTS", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db, "carol");
+    const svc = createBudgetsService(db);
+    const b = await svc.create(user.id, {
+      name: "Groceries",
+      amountCents: 50000,
+      period: "monthly",
+    });
+    await expect(
+      svc.update(user.id, b.id, { amountCents: MAX_AMOUNT_CENTS + 1 })
+    ).rejects.toThrow();
+    const row = await db.get("SELECT amount_cents FROM budgets WHERE id = ?", b.id);
+    expect(row?.amount_cents).toBe(50000);
   });
 });

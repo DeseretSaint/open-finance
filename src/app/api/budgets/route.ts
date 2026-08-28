@@ -4,13 +4,17 @@ import { ok, parseBody, route } from "@/lib/api";
 import { requireCsrf, requireSession } from "@/server/auth/service";
 import { requireSessionOrAgent, agentRoute } from "@/server/authz/agent-auth";
 import { createBudgetsService, type BudgetFrame } from "@/server/domain/budgets";
+import { MAX_AMOUNT_CENTS } from "@/server/domain/money";
 import { getDb } from "@/server/db/adapter";
 
 export const runtime = "nodejs";
 
 const createSchema = z.object({
   name: z.string().min(1).max(60),
-  amountCents: z.number().int().positive(),
+  amountCents: z.number().int().positive().refine(
+    (v) => v <= MAX_AMOUNT_CENTS,
+    `Amount magnitude cannot exceed ${MAX_AMOUNT_CENTS.toLocaleString("en-US")} cents.`
+  ),
   period: z.enum(["weekly", "monthly", "yearly"]).optional(),
   categoryIds: z.array(z.string()).optional(),
 });

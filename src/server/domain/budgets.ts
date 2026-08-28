@@ -1,5 +1,6 @@
 import { randomUUID } from "@/lib/uuid";
 import { apiErrors } from "@/lib/api-error";
+import { assertValidCents } from "@/server/domain/money";
 import { getDb, type Db } from "@/server/db/registry";
 import { todayISO, addMonthsISO } from "@/server/domain/dates";
 import type { TransactionRow } from "@/server/domain/transactions";
@@ -288,6 +289,7 @@ export function createBudgetsService(db: Db = getDb()) {
       if (!Number.isFinite(input.amountCents) || input.amountCents <= 0) {
         throw apiErrors.badRequest("amountCents must be a positive number");
       }
+      assertValidCents(input.amountCents, "amountCents");
       const categoryIds = await assertOwnCategories(db, userId, input.categoryIds ?? []);
       const id = randomUUID();
       await db.run(
@@ -324,6 +326,7 @@ export function createBudgetsService(db: Db = getDb()) {
       if (!Number.isFinite(amountCents) || amountCents <= 0) {
         throw apiErrors.badRequest("amountCents must be a positive number");
       }
+      assertValidCents(amountCents, "amountCents");
       const period = input.period ?? existing.period;
       if (!["weekly", "monthly", "yearly"].includes(period)) {
         throw apiErrors.badRequest("period must be weekly, monthly, or yearly");
