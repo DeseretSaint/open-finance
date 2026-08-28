@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/cn";
+import { useDialogA11y } from "@/lib/use-dialog-a11y";
 
 /**
  * Custom time picker — replaces <input type="time"> (stock Android dialog).
@@ -37,9 +38,28 @@ export function CustomTimePicker({
   ariaLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const dialogRef = useDialogA11y(open, () => setOpen(false));
   const { h24, m } = parseTime(value);
   const [viewH, setViewH] = useState(h24);
   const [viewM, setViewM] = useState(m);
+
+  // Keyboard list-nav: arrow up/down + Home/End move focus across the column
+  // buttons (hour / minute / period) so the picker is reachable without a
+  // pointer. Mirrors the CustomSelect listbox a11y pattern (run 182).
+  function onListKey(e: React.KeyboardEvent<HTMLDivElement>): void {
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
+    const list = e.currentTarget;
+    const items = Array.from(list.querySelectorAll<HTMLButtonElement>("button:not([disabled])"));
+    if (items.length === 0) return;
+    const cur = items.indexOf(document.activeElement as HTMLButtonElement);
+    e.preventDefault();
+    let next = cur < 0 ? 0 : cur;
+    if (e.key === "ArrowDown") next = Math.min(items.length - 1, cur + 1);
+    else if (e.key === "ArrowUp") next = Math.max(0, cur - 1);
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = items.length - 1;
+    items[next]?.focus();
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -74,7 +94,9 @@ export function CustomTimePicker({
         <>
           <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={() => setOpen(false)} />
           <div
+            ref={dialogRef}
             role="dialog"
+            aria-modal="true"
             aria-label="Pick a time"
             className="fixed inset-x-0 bottom-0 z-50 rounded-t-3xl border border-border bg-surface p-4 shadow-2xl md:absolute md:inset-x-auto md:bottom-auto md:mt-1 md:w-72 md:rounded-xl"
             style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
@@ -85,7 +107,7 @@ export function CustomTimePicker({
               {/* Hour column */}
               <div className="flex-1">
                 <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-text-muted">Hour</p>
-                <div className="flex h-32 flex-col gap-1 overflow-y-auto pr-1">
+                <div className="flex h-32 flex-col gap-1 overflow-y-auto pr-1" onKeyDown={onListKey}>
                   {Array.from({ length: 12 }, (_, i) => i + 1).map((h12) => {
                     const h24v = viewH >= 12 ? (h12 === 12 ? 12 : h12 + 12) : h12 === 12 ? 0 : h12;
                     const active = h24v === viewH;
@@ -108,7 +130,7 @@ export function CustomTimePicker({
               {/* Minute column */}
               <div className="flex-1">
                 <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-text-muted">Minute</p>
-                <div className="flex h-32 flex-col gap-1 overflow-y-auto pr-1">
+                <div className="flex h-32 flex-col gap-1 overflow-y-auto pr-1" onKeyDown={onListKey}>
                   {MINUTES.map((mm) => {
                     const active = mm === viewM;
                     return (
@@ -128,7 +150,7 @@ export function CustomTimePicker({
                 </div>
               </div>
               {/* AM/PM */}
-              <div className="flex flex-1 flex-col gap-1">
+              <div className="flex flex-1 flex-col gap-1" onKeyDown={onListKey}>
                 <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-text-muted">Period</p>
                 {(["AM", "PM"] as const).map((p) => {
                   const active = (p === "PM") === (viewH >= 12);
