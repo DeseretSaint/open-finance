@@ -140,7 +140,7 @@ export function CustomSelect({
             tabIndex={0}
             aria-activedescendant={`of-cs-opt-${activeIndex}`}
             onKeyDown={onListKey}
-            className="fixed inset-x-0 bottom-0 z-50 rounded-t-3xl border border-border bg-surface p-3 shadow-2xl outline-none md:absolute md:inset-x-auto md:bottom-auto md:mt-1 md:w-full md:rounded-xl"
+            className="fixed inset-x-0 bottom-0 z-50 mx-auto max-w-[640px] rounded-t-[28px] border border-border bg-surface p-3 shadow-2xl outline-none md:absolute md:inset-x-auto md:bottom-auto md:mt-1 md:w-full md:max-w-full md:rounded-xl"
             style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
           >
             <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-border md:hidden" />

@@ -98,7 +98,7 @@ export function CustomTimePicker({
             role="dialog"
             aria-modal="true"
             aria-label="Pick a time"
-            className="fixed inset-x-0 bottom-0 z-50 rounded-t-3xl border border-border bg-surface p-4 shadow-2xl md:absolute md:inset-x-auto md:bottom-auto md:mt-1 md:w-72 md:rounded-xl"
+            className="fixed inset-x-0 bottom-0 z-50 mx-auto max-w-[640px] rounded-t-[28px] border border-border bg-surface p-4 shadow-2xl md:absolute md:inset-x-auto md:bottom-auto md:mt-1 md:w-72 md:max-w-full md:rounded-xl"
             style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
           >
             <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-border md:hidden" />
