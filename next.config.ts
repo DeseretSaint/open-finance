@@ -80,7 +80,17 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_BASE_PATH: pagesBasePath,
   },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      {
+        // Financial data must never be cached: API responses (transactions,
+        // accounts, the backup download) get no-store so browsers and
+        // intermediate proxies can't persist them on disk. Route handlers that
+        // set their own Cache-Control (the SSE stream) override this.
+        source: "/api/:path*",
+        headers: [{ key: "Cache-Control", value: "no-store" }],
+      },
+    ];
   },
 };
 
