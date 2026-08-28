@@ -47,10 +47,10 @@ export function UndoSnackbar({
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
-      className="fixed inset-x-0 bottom-0 z-[70] flex justify-center p-4 md:bottom-4"
+      className="of-snackbar pointer-events-none fixed inset-x-0 z-[70] flex justify-center p-4"
     >
       <div
-        className="flex w-full max-w-sm items-center gap-4 rounded-xl bg-zinc-900 px-4 py-3 text-sm text-white shadow-2xl"
+        className="pointer-events-auto flex w-full max-w-sm items-center gap-4 rounded-xl bg-zinc-900 px-4 py-3 text-sm text-white shadow-2xl"
         style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
       >
         <span className="flex-1">{message}</span>

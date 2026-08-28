@@ -127,6 +127,19 @@ body {
   --of-motion-ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
+/* ── Snackbar placement (M3: a snackbar sits ABOVE the bottom navigation bar,
+   never covering it). The mobile tab bar is fixed bottom-0 with a 56px min
+   row + safe-area inset, so offset by both on phones; on >=md the tab bar is
+   hidden and the snackbar returns to the normal bottom margin. ───────────── */
+.of-snackbar {
+  bottom: calc(56px + env(safe-area-inset-bottom));
+}
+@media (min-width: 768px) {
+  .of-snackbar {
+    bottom: 1rem;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
