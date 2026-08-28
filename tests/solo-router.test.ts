@@ -190,4 +190,74 @@ describe("solo flow (P8b) — bootstrap → account → category → transaction
     expect((data.rows[0] as { id: string }).id).toBe("pl-1");
     resetSoloDb();
   });
+
+  it("GET/POST/PATCH/DELETE /api/custom-views work in solo mode (dashboard widget parity)", async () => {
+    const solo = createSoloBootstrapService(db);
+    await solo.bootstrap({});
+    setSoloDbForTest(db);
+    const { soloDispatch } = await import("@/lib/solo-router");
+
+    // GET with no widgets -> empty, NOT "Route not found"
+    const empty = await soloDispatch({
+      method: "GET",
+      path: "/api/custom-views",
+      query: new URLSearchParams({ tab: "dashboard" }),
+      body: undefined,
+    });
+    const emptyData = (empty as { data: { views: unknown[] } }).data;
+    expect(emptyData.views).toEqual([]);
+
+    // POST create a stat widget
+    const created = await soloDispatch({
+      method: "POST",
+      path: "/api/custom-views",
+      query: new URLSearchParams(),
+      body: {
+        tab: "dashboard",
+        name: "Net worth",
+        widget: { kind: "stat", title: "Net worth", valueCents: 12345 },
+      },
+    });
+    const createdData = (created as { status: number; data: { view: { id: string; tab: string; name: string } } }).data;
+    expect(createdData.view.name).toBe("Net worth");
+    const id = createdData.view.id;
+
+    // GET now returns it
+    const list = await soloDispatch({
+      method: "GET",
+      path: "/api/custom-views",
+      query: new URLSearchParams({ tab: "dashboard" }),
+      body: undefined,
+    });
+    const listData = (list as { data: { views: unknown[] } }).data;
+    expect(listData.views).toHaveLength(1);
+
+    // PATCH position
+    const patched = await soloDispatch({
+      method: "PATCH",
+      path: `/api/custom-views/${id}`,
+      query: new URLSearchParams(),
+      body: { position: 5 },
+    });
+    const patchedData = (patched as { data: { view: { position: number } } }).data;
+    expect(patchedData.view.position).toBe(5);
+
+    // DELETE removes it
+    await soloDispatch({
+      method: "DELETE",
+      path: `/api/custom-views/${id}`,
+      query: new URLSearchParams(),
+      body: undefined,
+    });
+    const after = await soloDispatch({
+      method: "GET",
+      path: "/api/custom-views",
+      query: new URLSearchParams({ tab: "dashboard" }),
+      body: undefined,
+    });
+    const afterData = (after as { data: { views: unknown[] } }).data;
+    expect(afterData.views).toEqual([]);
+
+    resetSoloDb();
+  });
 });

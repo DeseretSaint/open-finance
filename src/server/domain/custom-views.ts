@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID } from "@/lib/uuid";
 import { apiErrors } from "@/lib/api";
 import type { Db } from "@/server/db/adapter";
 

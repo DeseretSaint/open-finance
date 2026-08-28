@@ -36,6 +36,7 @@ import { createPlanningService } from "@/server/domain/planning";
 import { createProjectionService } from "@/server/domain/projection";
 import { seedSoloDemo } from "@/lib/solo-demo-seed";
 import { createOnboardingService } from "@/server/domain/onboarding";
+import { createCustomViewsService, WIDGET_TABS } from "@/server/domain/custom-views";
 import { createAgentPrefsService, type AgentTab } from "@/server/domain/agent-prefs";
 
 export interface SoloRequest {
@@ -137,6 +138,7 @@ async function handlers(db: Db) {
   const planning = createPlanningService(db);
   const projection = createProjectionService(db);
   const onboarding = createOnboardingService(db);
+  const customViews = createCustomViewsService(db);
 
   async function deviceUserId(): Promise<string> {
     const user = await solo.getDeviceUser();
@@ -156,6 +158,7 @@ async function handlers(db: Db) {
     planning,
     projection,
     onboarding,
+    customViews,
     deviceUserId,
   };
 }
@@ -1248,6 +1251,47 @@ export async function soloDispatch(req: SoloRequest): Promise<SoloResponse> {
         days: Array.isArray(B?.days) ? (B.days as unknown[]).map((d) => Number(d)) : undefined,
       });
       return ok({ paydays });
+    }
+    // ── Custom views (dev:ui) — agent-authored dashboard/budgets/reports
+    // widgets. Solo parity: the dashboard/budgets/reports AgentWidgets
+    // components GET /api/custom-views on every load; without these routes the
+    // phone (solo mode) showed "Route not found in solo mode" on the dashboard.
+    // Widgets are purely local declarative JSON (same service as web). ────────
+    if (method === "GET" && path === "/api/custom-views") {
+      const userId = await h.deviceUserId();
+      const tab = query.get("tab") ?? undefined;
+      const views = await h.customViews.list(
+        userId,
+        tab && (WIDGET_TABS as readonly string[]).includes(tab) ? (tab as (typeof WIDGET_TABS)[number]) : undefined
+      );
+      return ok({ views });
+    }
+    if (method === "POST" && path === "/api/custom-views") {
+      const userId = await h.deviceUserId();
+      const view = await h.customViews.create(userId, null, {
+        tab: typeof B?.tab === "string" ? B.tab : "",
+        name: typeof B?.name === "string" ? B.name : "",
+        widget: B?.widget,
+        position: typeof B?.position === "number" ? B.position : undefined,
+      });
+      return ok({ view }, 201);
+    }
+    if (method === "PATCH" && path.startsWith("/api/custom-views/")) {
+      const userId = await h.deviceUserId();
+      const id = parseId(path, "/api/custom-views/");
+      const view = await h.customViews.update(userId, id, {
+        name: typeof B?.name === "string" ? B.name : undefined,
+        widget: B?.widget,
+        position: typeof B?.position === "number" ? B.position : undefined,
+        enabled: typeof B?.enabled === "boolean" ? B.enabled : undefined,
+      });
+      return ok({ view });
+    }
+    if (method === "DELETE" && path.startsWith("/api/custom-views/")) {
+      const userId = await h.deviceUserId();
+      const id = parseId(path, "/api/custom-views/");
+      await h.customViews.remove(userId, id);
+      return ok({ ok: true });
     }
     if (method === "POST" && path === "/api/agent/categorize-now") {
       // Smart-categorization "Apply" (solo): mirrors the web route. The
