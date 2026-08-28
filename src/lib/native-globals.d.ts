@@ -15,6 +15,8 @@
  * chain. A global `var` is visible on both `window` and `globalThis`.
  */
 
+import type { SoloResponse } from "@/lib/solo-router";
+
 export {};
 
 declare global {
@@ -37,8 +39,8 @@ declare global {
   }
 
   interface OfRemoteServerPlugin {
-    start?: (o: { port: number }) => Promise<unknown>;
-    stop?: () => Promise<unknown>;
+    start?: (o: { port: number }) => Promise<void>;
+    stop?: () => Promise<void>;
     status?: () => Promise<{ running: boolean } | null>;
   }
 
@@ -47,9 +49,9 @@ declare global {
       url: string;
       sha256?: string | null;
       fileName?: string;
-    }) => Promise<unknown>;
+    }) => Promise<void>;
     canInstallUnknownApps?: () => Promise<{ canInstall: boolean }>;
-    openInstallSettings?: () => Promise<unknown>;
+    openInstallSettings?: () => Promise<void>;
   }
 
   interface OfRemoteDispatchRequest {
@@ -71,5 +73,5 @@ declare global {
   /** Native Plaid Link bridge (native only). */
   var PlaidProxy: unknown;
   /** Installed by ensureNativePlugins(): the native HTTP server's dispatch hook. */
-  var __ofRemoteDispatch: ((req: OfRemoteDispatchRequest) => Promise<unknown>) | undefined;
+  var __ofRemoteDispatch: ((req: OfRemoteDispatchRequest) => Promise<SoloResponse>) | undefined;
 }
