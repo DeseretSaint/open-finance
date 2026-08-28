@@ -12,6 +12,7 @@ import { hasWindow } from "@/lib/browser-env";
 import { DeviceLockGate } from "@/components/device-lock-gate";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { UpdateBanner } from "@/components/update-banner";
+import { Button } from "@/components/ui/button";
 
 // First-run only: lazy-loaded so its (demo/sample-data) strings stay out of the
 // shared app-shell chunk and don't load on every other route.
@@ -36,7 +37,7 @@ const OnboardingWizard = dynamic(
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ["me"],
     queryFn: () => api.get<{ user: { display_name: string; username: string | null; is_demo?: boolean } }>("/api/auth/me"),
   });
@@ -47,8 +48,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
-    if (!isLoading && !data) router.replace("/login");
-  }, [isLoading, data, router]);
+    // Only bounce to /login when the session check actually FAILED with no
+    // data — a transient network error must not log a valid session out.
+    if (!isLoading && !data && !error) router.replace("/login");
+  }, [isLoading, data, error, router]);
 
   // Standalone mode: sync immediately on app entry/resume and poll while active.
   useEffect(() => {
@@ -138,6 +141,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.user.display_name, onboarding.data?.completed]);
 
+  // A failed /api/auth/me fetch (transient network/CSRF) with no data must NOT
+  // bounce a valid session to /login and must NOT hang on the skeleton forever
+  // — show a calm retry instead. A background refetch error (data present)
+  // just keeps showing the app.
+  if (error && !data) {
+    return (
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-background p-6 text-center">
+        <p role="alert" className="max-w-md text-sm text-danger">
+          Couldn&apos;t load your account{error instanceof Error && error.message ? ` — ${error.message}` : ""}.
+        </p>
+        <Button variant="secondary" size="sm" onClick={() => refetch()} disabled={isFetching}>
+          {isFetching ? "Retrying…" : "Try again"}
+        </Button>
+      </div>
+    );
+  }
+
   if (isLoading || !data) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-background text-text-muted">
@@ -155,6 +175,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   // First-run walkthrough: gate the app until onboarding completes. Demo users
   // skip it (the demo route marks onboarding complete + is_demo flag).
+  // On an /api/onboarding fetch ERROR we assume the existing user already
+  // completed setup (rather than re-showing the wizard and wiping their flow).
+  const onboardingCompleted = onboarding.data?.completed === false ? false : true;
   if (onboarding.isLoading) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-background text-text-muted">
@@ -170,7 +193,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
   const isDemo = data.user.is_demo === true;
-  if (!isDemo && !onboarding.data?.completed) {
+  if (!isDemo && !onboardingCompleted) {
     // The wizard is rendered inside /dashboard, which is normally part of the
     // user-configurable app shell. First-run is an exception: force its entire
     // route dark here so the wizard cannot inherit a stored Light-mode choice.
