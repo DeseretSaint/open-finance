@@ -60,6 +60,13 @@ export class CapSqliteDb implements Db {
       this.conn = await sqlite.createConnection(this.dbName, false, "no-encryption", 1, false);
       await this.conn.open();
     }
+    // Parity with the server adapter (adapter.ts sets foreign_keys = ON): the
+    // schema's REFERENCES ... ON DELETE CASCADE clauses (migrations 001/022)
+    // must hold on phone-solo DBs too. The pragma is per-connection and never
+    // persisted, so re-apply it on EVERY open or retrieve — a connection left
+    // over from an older app version never had it. solo-backup's restore
+    // window (OFF during import, ON after) relies on this being the baseline.
+    await this.conn.execute("PRAGMA foreign_keys = ON", false);
     return this.conn;
   }
 
