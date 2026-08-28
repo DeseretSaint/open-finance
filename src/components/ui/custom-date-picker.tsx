@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
+import { useDialogA11y } from "@/lib/use-dialog-a11y";
 
 /**
  * Custom date picker — replaces <input type="date"> (stock Android picker).
@@ -35,11 +36,40 @@ export function CustomDatePicker({
   ariaLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const dialogRef = useDialogA11y(open, () => setOpen(false));
+  const gridRef = useRef<HTMLDivElement | null>(null);
   const { y: vy, m: vm } = toParts(value);
   const [viewY, setViewY] = useState(vy);
   const [viewM, setViewM] = useState(vm);
   const today = new Date();
   const todayStr = fmt(today.getFullYear(), today.getMonth() + 1, today.getDate());
+
+  // Grid keyboard nav: arrows move focus between day cells (7-col wrap),
+  // Enter/Space selects the focused day. Mirrors the CustomSelect listbox
+  // a11y pattern so the picker is reachable without a pointer (run 182).
+  function onGridKey(e: React.KeyboardEvent<HTMLDivElement>): void {
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Enter", " "].includes(e.key)) return;
+    const grid = gridRef.current;
+    if (!grid) return;
+    const days = Array.from(grid.querySelectorAll<HTMLButtonElement>("button[data-day]"));
+    if (days.length === 0) return;
+    const cur = days.indexOf(document.activeElement as HTMLButtonElement);
+    if (e.key === "Enter" || e.key === " ") {
+      if (cur >= 0) {
+        e.preventDefault();
+        days[cur].click();
+      }
+      return;
+    }
+    e.preventDefault();
+    const cols = 7;
+    let next = cur < 0 ? 0 : cur;
+    if (e.key === "ArrowRight") next = Math.min(days.length - 1, cur + 1);
+    else if (e.key === "ArrowLeft") next = Math.max(0, cur - 1);
+    else if (e.key === "ArrowDown") next = Math.min(days.length - 1, cur + cols);
+    else if (e.key === "ArrowUp") next = Math.max(0, cur - cols);
+    days[next]?.focus();
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -97,7 +127,9 @@ export function CustomDatePicker({
         <>
           <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={() => setOpen(false)} />
           <div
+            ref={dialogRef}
             role="dialog"
+            aria-modal="true"
             aria-label="Pick a date"
             className="fixed inset-x-0 bottom-0 z-50 rounded-t-3xl border border-border bg-surface p-4 shadow-2xl md:absolute md:inset-x-auto md:bottom-auto md:mt-1 md:w-72 md:rounded-xl"
             style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
@@ -114,7 +146,7 @@ export function CustomDatePicker({
                 <svg viewBox="0 0 12 12" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4.5 2.5L8 6l-3.5 3.5" /></svg>
               </button>
             </div>
-            <div className="grid grid-cols-7 gap-1 text-center">
+            <div className="grid grid-cols-7 gap-1 text-center" ref={gridRef} onKeyDown={onGridKey}>
               {WEEKDAYS.map((w, i) => (
                 <span key={i} className="py-1 text-[10px] font-medium uppercase text-text-muted">{w}</span>
               ))}
@@ -125,6 +157,7 @@ export function CustomDatePicker({
                   <button
                     key={i}
                     type="button"
+                    data-day={c.iso}
                     disabled={c.disabled}
                     onClick={() => {
                       onChange(c.iso);
