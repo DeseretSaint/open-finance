@@ -234,6 +234,12 @@ export default function PlanPage() {
     queryKey: ["planning", "projection", includePending],
     queryFn: () => api.get<Projection>(`/api/planning/projection?months=12${includePending ? "" : "&includePending=0"}`),
   });
+  // Page-level failure sweep (mirrors dashboard/reports/budgets/transactions/accounts):
+  // gated on no-data so a background refetch error never blanks rendered plan data.
+  const failedQueries = [digest, bills, debts, goals, projection].filter((q) => q.isError && !q.data);
+  const hasFailed = failedQueries.length > 0;
+  const isRetrying = failedQueries.some((q) => q.isFetching);
+  const retry = () => failedQueries.forEach((q) => q.refetch());
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["planning"] });
@@ -412,6 +418,20 @@ export default function PlanPage() {
   return (
     <div className="space-y-6">
       {err && <p className="text-sm text-danger">{err}</p>}
+      {hasFailed && (
+        <Card className="border-danger/30 bg-[var(--danger-soft)]">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p role="alert" className="text-sm text-danger">
+              Couldn&apos;t load your plan —{" "}
+              {failedQueries.flatMap((q) => (q.error instanceof Error ? [q.error.message] : [])).join("; ") ||
+                "Request failed"}
+            </p>
+            <Button variant="outline" disabled={isRetrying} onClick={retry}>
+              {isRetrying ? "Retrying…" : "Try again"}
+            </Button>
+          </div>
+        </Card>
+      )}
       {/* Upcoming bills digest */}
       <Card>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
