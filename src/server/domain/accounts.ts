@@ -1,5 +1,6 @@
 import { randomUUID } from "@/lib/uuid";
 import { apiErrors } from "@/lib/api-error";
+import { assertValidCents } from "@/server/domain/money";
 import { getDb, type Db } from "@/server/db/registry";
 
 export interface AccountRow {
@@ -145,6 +146,13 @@ export function createAccountsService(db: Db = getDb()) {
         if (!Number.isInteger(input.currentBalanceCents)) {
           throw apiErrors.badRequest("Current balance must be a whole number of cents.");
         }
+        assertValidCents(input.currentBalanceCents, "Current balance");
+      }
+      if (input.availableBalanceCents !== undefined && input.availableBalanceCents !== null) {
+        if (!Number.isInteger(input.availableBalanceCents)) {
+          throw apiErrors.badRequest("Available balance must be a whole number of cents.");
+        }
+        assertValidCents(input.availableBalanceCents, "Available balance");
       }
       const id = randomUUID();
       await db.run(

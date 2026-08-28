@@ -4,6 +4,7 @@ import { apiErrors, ok, parseBody, route } from "@/lib/api";
 import { requireCsrf, requireSession } from "@/server/auth/service";
 import { requireSessionOrAgent, agentRoute } from "@/server/authz/agent-auth";
 import { createTransactionsService } from "@/server/domain/transactions";
+import { MAX_AMOUNT_CENTS } from "@/server/domain/money";
 import { getDb } from "@/server/db/adapter";
 
 export const runtime = "nodejs";
@@ -22,7 +23,10 @@ const listSchema = z.object({
 
 const createSchema = z.object({
   accountId: z.string().min(1),
-  amountCents: z.number().int().refine((v) => v !== 0, "Amount cannot be zero."),
+  amountCents: z.number().int().refine((v) => v !== 0, "Amount cannot be zero.").refine(
+    (v) => Math.abs(v) <= MAX_AMOUNT_CENTS,
+    `Amount magnitude cannot exceed ${MAX_AMOUNT_CENTS.toLocaleString("en-US")} cents.`
+  ),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD."),
   name: z.string().min(1, "Name is required.").max(200),
   userCategoryId: z.string().nullable().optional(),

@@ -2,6 +2,7 @@ import { randomUUID } from "@/lib/uuid";
 import { apiErrors } from "@/lib/api-error";
 import { getDb, type Db } from "@/server/db/registry";
 import { createCategoriesService } from "@/server/domain/categories";
+import { assertValidCents } from "@/server/domain/money";
 
 export interface TransactionRow {
   id: string;
@@ -151,6 +152,7 @@ export function createTransactionsService(db: Db = getDb()) {
       if (!Number.isInteger(input.amountCents) || input.amountCents === 0) {
         throw apiErrors.badRequest("Amount must be a non-zero whole number of cents.");
       }
+      assertValidCents(input.amountCents);
       if (!DATE_RE.test(input.date)) throw apiErrors.badRequest("Date must be YYYY-MM-DD.");
       const name = input.name.trim().slice(0, 200);
       if (!name) throw apiErrors.badRequest("Transaction name cannot be empty.");
@@ -225,6 +227,7 @@ export function createTransactionsService(db: Db = getDb()) {
           if (!Number.isInteger(input.amountCents) || input.amountCents === 0) {
             throw apiErrors.badRequest("Amount must be a non-zero whole number of cents.");
           }
+          assertValidCents(input.amountCents);
           await db.run("UPDATE transactions SET amount_cents = ? WHERE id = ?", input.amountCents, id);
         }
         if (input.date !== undefined) {
