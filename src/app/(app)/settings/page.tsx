@@ -224,6 +224,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-8">
+      <h1 className="sr-only">Settings</h1>
       <p className="text-xs text-text-muted">Build {process.env.NEXT_PUBLIC_APP_VERSION ?? "0.0.0"}</p>
 
       {settingsErrMsg && (

@@ -298,6 +298,7 @@ export default function BudgetsPage() {
 
   return (
     <div className="space-y-6">
+      <h1 className="sr-only">Budgets</h1>
       {/* Widgets your AI added (dev:ui) */}
       <AgentWidgets tab="budgets" />
 

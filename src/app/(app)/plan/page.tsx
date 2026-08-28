@@ -417,6 +417,7 @@ export default function PlanPage() {
 
   return (
     <div className="space-y-6">
+      <h1 className="sr-only">Plan</h1>
       {err && <p className="text-sm text-danger">{err}</p>}
       {hasFailed && (
         <Card className="border-danger/30 bg-[var(--danger-soft)]">

@@ -314,6 +314,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 overflow-x-clip">
+      <h1 className="sr-only">Dashboard</h1>
       <div className="flex items-center justify-end">
         <button
           type="button"

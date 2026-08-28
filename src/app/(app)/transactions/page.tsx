@@ -352,6 +352,7 @@ export default function TransactionsPage() {
 
   return (
     <div className="space-y-6">
+      <h1 className="sr-only">Transactions</h1>
       {hasFailed && (
         <Card className="border-danger/30 bg-[var(--danger-soft)]">
           <div className="flex flex-wrap items-center justify-between gap-3">

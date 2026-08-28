@@ -222,6 +222,7 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
+      <h1 className="sr-only">Reports</h1>
       {/* Widgets your AI added (dev:ui) */}
       <AgentWidgets tab="reports" />
 
