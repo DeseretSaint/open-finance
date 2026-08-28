@@ -5,7 +5,7 @@ import { usePageTitle } from "@/lib/use-page-title";
 import { useEscapeToClose } from "@/lib/use-escape-to-close";
 import { useDialogA11y } from "@/lib/use-dialog-a11y";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarRange, ChevronDown, Pencil, Trash2, X } from "lucide-react";
+import { AlertCircle, AlertTriangle, CalendarRange, ChevronDown, Pencil, Trash2, X } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/badge";
@@ -548,10 +548,16 @@ export default function BudgetsPage() {
                 </div>
                 <Progress value={b.pct} label={`${b.name} budget usage`} />
                 {over && (
-                  <p className="mt-1.5 text-xs font-medium text-danger">Over budget — {Math.round(b.pct * 100)}% used.</p>
+                  <p className="mt-1.5 flex items-center gap-1 text-xs font-medium text-danger">
+                    <AlertTriangle size={13} aria-hidden className="shrink-0" />
+                    Over budget — {Math.round(b.pct * 100)}% used.
+                  </p>
                 )}
                 {near && (
-                  <p className="mt-1.5 text-xs text-[var(--warning)]">Near limit — {Math.round(b.pct * 100)}% used.</p>
+                  <p className="mt-1.5 flex items-center gap-1 text-xs text-[var(--warning)]">
+                    <AlertCircle size={13} aria-hidden className="shrink-0" />
+                    Near limit — {Math.round(b.pct * 100)}% used.
+                  </p>
                 )}
                 </div>
                 {expanded && (
