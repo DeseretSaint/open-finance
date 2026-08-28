@@ -389,15 +389,17 @@ export default function TransactionsPage() {
 
       {/* Sticky filter bar */}
       <Card className="sticky top-20 z-20 py-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative min-w-48 flex-1">
+        <div className="flex flex-wrap items-center gap-3" role="search">
+          <div className="relative min-w-60 flex-1">
             <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" aria-hidden />
             <Input
+              type="search"
               aria-label="Search transactions"
+              aria-controls="tx-list"
               placeholder="Search transactions…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              className="pl-9 pr-8"
+              className="pl-9 pr-8 [&::-webkit-search-cancel-button]:hidden"
             />
             {q && (
               <button
@@ -974,7 +976,7 @@ export default function TransactionsPage() {
             )}
           </div>
         ) : (
-          <div className="divide-y divide-border">
+          <div id="tx-list" className="divide-y divide-border">
             {data.rows.map((t) => {
               const isExpense = t.amount_cents < 0;
               const expanded = expandedId === t.id;

@@ -29,4 +29,20 @@ describe("transactions search debounce", () => {
     // it lives inside the "No transactions match your filters" empty-state branch
     expect(src).toContain("No transactions match your filters.");
   });
+
+  it("search box uses semantic search semantics (Q36)", () => {
+    const src = read("src/app/(app)/transactions/page.tsx");
+    // it is a real search field, not a bare text box (native searchbox role)
+    expect(src).toContain('type="search"');
+    // the filter bar is labelled as a search region for assistive tech
+    expect(src).toContain('<div className="flex flex-wrap items-center gap-3" role="search">');
+    // the input is ~30ch wide (min-w-60 = 15rem) per the typeahead width guidance
+    expect(src).toContain('className="relative min-w-60 flex-1"');
+    // the input is linked to the results region it filters
+    expect(src).toContain('aria-controls="tx-list"');
+    // the input keeps its accessible name
+    expect(src).toContain('aria-label="Search transactions"');
+    // the results container carries the matching id
+    expect(src).toContain('<div id="tx-list" className="divide-y divide-border">');
+  });
 });
