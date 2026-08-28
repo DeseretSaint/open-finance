@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { X, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardLabel, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/badge";
 import { Money } from "@/components/money";
 
@@ -220,7 +221,19 @@ export function AgentWidgets({ tab }: { tab: "dashboard" | "budgets" | "reports"
   const [confirming, setConfirming] = useState<string | null>(null);
 
   const list = views.data?.views ?? [];
-  if (list.length === 0) return null;
+  const fetchFailed = views.isError && !views.data;
+  if (list.length === 0 && !fetchFailed) return null;
+
+  if (fetchFailed) {
+    return (
+      <div role="alert" className="rounded-xl bg-[var(--danger-soft)] px-4 py-3 text-sm font-medium text-danger">
+        Couldn&apos;t load your widgets{views.error instanceof Error && views.error.message ? ` — ${views.error.message}` : ""}.
+        <Button size="sm" variant="secondary" className="ml-2" disabled={views.isFetching} onClick={() => views.refetch()}>
+          {views.isFetching ? "Retrying…" : "Try again"}
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-label="Widgets from your AI">
