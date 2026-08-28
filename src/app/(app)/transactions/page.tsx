@@ -5,7 +5,7 @@ import { usePageTitle } from "@/lib/use-page-title";
 import { useEscapeToClose } from "@/lib/use-escape-to-close";
 import { useDialogA11y } from "@/lib/use-dialog-a11y";
 import Link from "next/link";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search, X, Trash2, Pencil, ChevronDown, RefreshCw, Upload } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -75,7 +75,6 @@ export default function TransactionsPage() {
     if (!add.isPending) setShowAdd(false);
   });
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string; error?: string } | null>(null);
-  const [limit, setLimit] = useState(200);
 
   // Manual-transaction edit modal (name/amount/date). Bank-imported rows are
   // owned by the source and shouldn't be hand-edited, so only `source==="manual"`
@@ -106,7 +105,7 @@ export default function TransactionsPage() {
   }, [q]);
 
   const params = useMemo(() => {
-    const p = new URLSearchParams({ limit: String(limit) });
+    const p = new URLSearchParams();
     if (debouncedQ.trim()) p.set("q", debouncedQ.trim());
     if (accountId) p.set("accountId", accountId);
     if (categoryId) p.set("categoryId", categoryId);
@@ -114,13 +113,30 @@ export default function TransactionsPage() {
     if (from) p.set("from", from);
     if (to) p.set("to", to);
     return p.toString();
-  }, [debouncedQ, accountId, categoryId, pendingOnly, from, to, limit]);
+  }, [debouncedQ, accountId, categoryId, pendingOnly, from, to]);
 
-  const txQuery = useQuery({
+  // Paginated via offset (server clamps `limit` to 200, so growing `limit`
+  // never revealed more rows — switch to cursor-style offset pages instead).
+  const PAGE_SIZE = 200;
+  const txQuery = useInfiniteQuery({
     queryKey: ["transactions", params],
-    queryFn: () => api.get<{ rows: Txn[]; total: number }>(`/api/transactions?${params}`),
+    queryFn: ({ pageParam }) =>
+      api.get<{ rows: Txn[]; total: number }>(
+        `/api/transactions?${params}&limit=${PAGE_SIZE}&offset=${pageParam}`
+      ),
+    initialPageParam: 0,
+    getNextPageParam: (last, all) => {
+      const loaded = all.reduce((n, p) => n + p.rows.length, 0);
+      return loaded < last.total ? loaded : undefined;
+    },
   });
-  const { data, isLoading } = txQuery;
+  // Synthesize the flat list the rest of the page expects (resets on filter
+  // change because `params` is part of the query key).
+  const data = {
+    rows: txQuery.data?.pages.flatMap((p) => p.rows) ?? [],
+    total: txQuery.data?.pages[0]?.total ?? 0,
+  };
+  const isLoading = txQuery.isLoading;
   const accounts = useQuery({ queryKey: ["accounts"], queryFn: () => api.get<{ accounts: Account[] }>("/api/accounts") });
   const categories = useQuery({ queryKey: ["categories"], queryFn: () => api.get<{ categories: Category[] }>("/api/categories") });
 
@@ -1077,10 +1093,13 @@ export default function TransactionsPage() {
             {data.rows.length < data.total && (
               <button
                 type="button"
-                onClick={() => setLimit((l) => l + 200)}
+                onClick={() => txQuery.fetchNextPage()}
+                disabled={txQuery.isFetchingNextPage}
                 className="mt-2 w-full rounded-lg border border-border bg-surface py-2.5 text-sm font-medium text-text-muted transition-colors hover:text-text"
               >
-                Load more ({data.total - data.rows.length} more)
+                {txQuery.isFetchingNextPage
+                  ? "Loading…"
+                  : `Load more (${data.total - data.rows.length} more)`}
               </button>
             )}
           </div>

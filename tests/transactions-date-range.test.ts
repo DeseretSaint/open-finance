@@ -18,7 +18,7 @@ describe("transactions date-range filter", () => {
     expect(src).toContain('if (from) p.set("from", from);');
     expect(src).toContain('if (to) p.set("to", to);');
     // memo deps include from + to
-    expect(src).toMatch(/\[\s*debouncedQ,\s*accountId,\s*categoryId,\s*pendingOnly,\s*from,\s*to,\s*limit\s*\]/);
+    expect(src).toMatch(/\[\s*debouncedQ,\s*accountId,\s*categoryId,\s*pendingOnly,\s*from,\s*to\s*\]/);
   });
 
   it("Clear filters resets both date bounds", () => {

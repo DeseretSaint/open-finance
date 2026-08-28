@@ -18,7 +18,7 @@ describe("transactions search debounce", () => {
     expect(src).toContain("value={q}");
     expect(src).toContain('onChange={(e) => setQ(e.target.value)}');
     // memo deps reference debouncedQ, not q (from/to were added for date-range)
-    expect(src).toMatch(/\[\s*debouncedQ,\s*accountId,\s*categoryId,\s*pendingOnly,\s*from,\s*to,\s*limit\s*\]/);
+    expect(src).toMatch(/\[\s*debouncedQ,\s*accountId,\s*categoryId,\s*pendingOnly,\s*from,\s*to\s*\]/);
   });
 
   it("Clear filters resets the debounced search immediately", () => {
