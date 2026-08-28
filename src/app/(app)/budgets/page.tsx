@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CustomDatePicker } from "@/components/ui/custom-date-picker";
 import { CustomSelect } from "@/components/ui/custom-select";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { UndoSnackbar } from "@/components/ui/undo-snackbar";
 import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { Money } from "@/components/money";
 import { AgentWidgets } from "@/components/agent-widgets";
@@ -204,7 +204,7 @@ export default function BudgetsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const dialogA11yRef = useDialogA11y(showAdd, closeModal);
-  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string; error?: string } | null>(null);
+  const [undoBudget, setUndoBudget] = useState<Budget | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
 
@@ -233,13 +233,29 @@ export default function BudgetsPage() {
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => api.del(`/api/budgets/${id}`),
-    onSuccess: () => {
+    // Q38: undo > warning — delete immediately, then offer a timed Undo (the
+    // budget is fully reconstructable via POST /api/budgets with its fields).
+    mutationFn: (b: Budget) => api.del(`/api/budgets/${b.id}`),
+    onSuccess: (_d, b) => {
       invalidate();
-      setConfirmDelete(null);
+      setUndoBudget(b);
     },
-    onError: (e) =>
-      setConfirmDelete((c) => (c ? { ...c, error: e instanceof Error ? e.message : "Failed to delete budget." } : c)),
+    onError: (e) => setError(e instanceof Error ? e.message : "Failed to delete budget."),
+  });
+
+  const undoDelete = useMutation({
+    mutationFn: (b: Budget) =>
+      api.post("/api/budgets", {
+        name: b.name,
+        amountCents: b.amount_cents,
+        period: b.period,
+        categoryIds: b.categoryIds,
+      }),
+    onSuccess: () => {
+      setUndoBudget(null);
+      invalidate();
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : "Failed to restore budget."),
   });
 
   const update = useMutation({
@@ -524,7 +540,7 @@ export default function BudgetsPage() {
                     <button
                       aria-label={`Delete budget ${b.name}`}
                       title="Delete budget"
-                      onClick={() => setConfirmDelete({ id: b.id, name: b.name })}
+                      onClick={() => remove.mutate(b)}
                       className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-[var(--danger-soft)] hover:text-danger"
                     >
                       <Trash2 size={15} />
@@ -704,17 +720,12 @@ export default function BudgetsPage() {
       {/* Floating action button — bottom right, above the mobile tab bar */}
       <FloatingAddButton label="Create budget" onClick={() => setShowAdd(true)} hidden={showAdd} />
 
-      {/* Custom delete confirmation */}
-      <ConfirmDialog
-        open={confirmDelete !== null}
-        title="Delete budget?"
-        message={confirmDelete ? `Budget "${confirmDelete.name}" and its category links will be removed.${confirmDelete.error ? ` ${confirmDelete.error}` : ""}` : undefined}
-        confirmLabel="Delete"
-        busy={remove.isPending}
-        onCancel={() => setConfirmDelete(null)}
-        onConfirm={() => {
-          if (confirmDelete) remove.mutate(confirmDelete.id);
-        }}
+      {/* Reversible delete: remove immediately, offer a timed Undo (Q38: undo > warning) */}
+      <UndoSnackbar
+        open={undoBudget !== null}
+        message={undoBudget ? `Budget "${undoBudget.name}" deleted.` : ""}
+        onUndo={() => undoBudget && undoDelete.mutate(undoBudget)}
+        onClose={() => setUndoBudget(null)}
       />
     </div>
   );

@@ -50,21 +50,17 @@ describe("budget edit UX", () => {
     expect(src).toContain("setEditingId(null)");
   });
 
-  it("keeps the delete dialog open while the request is in flight", () => {
-    // The ConfirmDialog's busy prop is wired to the remove mutation so the
-    // spinner shows and the user can't dismiss mid-request.
-    expect(src).toContain("busy={remove.isPending}");
-  });
-
-  it("does not close the dialog before the delete completes", () => {
-    // Regression guard: previously the dialog closed (setConfirmDelete(null))
-    // on confirm, hiding the busy state and silently swallowing any error.
-    expect(src).not.toContain("remove.mutate(confirmDelete.id);\n          setConfirmDelete(null);");
+  it("deletes immediately when the delete button is pressed (Q38: no blocking confirm)", () => {
+    // The delete affordance now removes the budget right away and offers a timed
+    // Undo (the budget is fully reconstructable) instead of a habituated confirm.
+    expect(src).toContain("remove.mutate(b)");
+    expect(src).toContain('<UndoSnackbar');
   });
 
   it("surfaces delete errors to the user", () => {
-    // onError stashes the message on confirmDelete.error, appended to the
-    // dialog's message text so a failed delete is visible (not swallowed).
-    expect(src).toContain("confirmDelete.error");
+    // A failed delete is routed to the page error banner (not silently swallowed),
+    // and Undo recreates the budget via POST /api/budgets.
+    expect(src).toContain('"Failed to delete budget."');
+    expect(src).toContain('api.post("/api/budgets", {');
   });
 });
