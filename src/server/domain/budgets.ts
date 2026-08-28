@@ -151,6 +151,24 @@ async function spendFilter(
   };
 }
 
+/** Reject category ids that are not the user's own categories. Without this,
+ *  budget_categories rows dangle (SQLite FKs are unenforced) and the list JOIN
+ *  leaks another user's category names into this budget. Also dedupes — the
+ *  (budget_id, category_id) PK makes duplicate ids a hard insert error. */
+async function assertOwnCategories(db: Db, userId: string, categoryIds: string[]): Promise<string[]> {
+  const ids = [...new Set(categoryIds)];
+  if (ids.length === 0) return ids;
+  const found = await db.get<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM categories WHERE user_id = ? AND id IN (${ids.map(() => "?").join(", ")})`,
+    userId,
+    ...ids
+  );
+  if ((found?.n ?? 0) !== ids.length) {
+    throw apiErrors.badRequest("One or more categories do not exist.");
+  }
+  return ids;
+}
+
 export function createBudgetsService(db: Db = getDb()) {
   return {
     /**
@@ -270,6 +288,7 @@ export function createBudgetsService(db: Db = getDb()) {
       if (!Number.isFinite(input.amountCents) || input.amountCents <= 0) {
         throw apiErrors.badRequest("amountCents must be a positive number");
       }
+      const categoryIds = await assertOwnCategories(db, userId, input.categoryIds ?? []);
       const id = randomUUID();
       await db.run(
         "INSERT INTO budgets (id, user_id, name, amount_cents, period, created_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -280,7 +299,7 @@ export function createBudgetsService(db: Db = getDb()) {
         period,
         now()
       );
-      for (const catId of input.categoryIds ?? []) {
+      for (const catId of categoryIds) {
         await db.run(
           "INSERT INTO budget_categories (budget_id, category_id) VALUES (?, ?)",
           id,
@@ -309,6 +328,11 @@ export function createBudgetsService(db: Db = getDb()) {
       if (!["weekly", "monthly", "yearly"].includes(period)) {
         throw apiErrors.badRequest("period must be weekly, monthly, or yearly");
       }
+      // Validate BEFORE touching budget_categories so a bad id can't wipe the
+      // existing category set mid-flight.
+      const categoryIds = input.categoryIds
+        ? await assertOwnCategories(db, userId, input.categoryIds)
+        : null;
       await db.run(
         "UPDATE budgets SET name = ?, amount_cents = ?, period = ? WHERE id = ?",
         name,
@@ -316,9 +340,9 @@ export function createBudgetsService(db: Db = getDb()) {
         period,
         id
       );
-      if (input.categoryIds) {
+      if (categoryIds) {
         await db.run("DELETE FROM budget_categories WHERE budget_id = ?", id);
-        for (const catId of input.categoryIds) {
+        for (const catId of categoryIds) {
           await db.run("INSERT INTO budget_categories (budget_id, category_id) VALUES (?, ?)", id, catId);
         }
       }
