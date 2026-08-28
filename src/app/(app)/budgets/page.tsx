@@ -540,6 +540,9 @@ export default function BudgetsPage() {
                   </span>
                 </div>
                 <Progress value={b.pct} label={`${b.name} budget usage`} />
+                {over && (
+                  <p className="mt-1.5 text-xs font-medium text-danger">Over budget — {Math.round(b.pct * 100)}% used.</p>
+                )}
                 {near && (
                   <p className="mt-1.5 text-xs text-[var(--warning)]">Near limit — {Math.round(b.pct * 100)}% used.</p>
                 )}
