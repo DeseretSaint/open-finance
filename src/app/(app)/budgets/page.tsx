@@ -438,7 +438,14 @@ export default function BudgetsPage() {
               <span>{Math.round((summary.data.summary.monthExpenseCents / Math.max(1, summary.data.summary.monthIncomeCents)) * 100)}% of income used</span>
               <span>{(summary.data.summary.monthNetCents / Math.max(1, summary.data.summary.monthIncomeCents)) >= 0 ? "left to spend" : "over income"}</span>
             </div>
-            <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-surface-muted">
+            <div
+              className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-surface-muted"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(Math.min(100, (summary.data.summary.monthExpenseCents / Math.max(1, summary.data.summary.monthIncomeCents)) * 100))}
+              aria-label="Percentage of this period's income spent"
+            >
               <div
                 className="h-full rounded-full transition-all"
                 style={{
