@@ -4,17 +4,18 @@ import { ok, parseBody, route } from "@/lib/api";
 import { requireCsrf, requireSession } from "@/server/auth/service";
 import { requireSessionOrAgent, agentRoute } from "@/server/authz/agent-auth";
 import { createPlanningService } from "@/server/domain/planning";
+import { MAX_AMOUNT_CENTS } from "@/server/domain/money";
 import { getDb } from "@/server/db/adapter";
 
 export const runtime = "nodejs";
 
 const createSchema = z.object({
   name: z.string().min(1).max(100),
-  amountCents: z.number().int().positive(),
+  amountCents: z.number().int().positive().refine((v) => v <= MAX_AMOUNT_CENTS, `Money value cannot exceed ${MAX_AMOUNT_CENTS.toLocaleString("en-US")} cents.`),
   frequency: z.enum(["weekly", "biweekly", "monthly", "quarterly", "yearly", "one-time"]).optional(),
   dueDay: z.number().int().min(1).max(31).nullable().optional(),
   nextDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-  lastPaidAmountCents: z.number().int().positive().nullable().optional(),
+  lastPaidAmountCents: z.number().int().positive().nullable().refine((v) => v === null || v <= MAX_AMOUNT_CENTS, `Money value cannot exceed ${MAX_AMOUNT_CENTS.toLocaleString("en-US")} cents.`).optional(),
   categoryId: z.string().nullable().optional(),
   accountId: z.string().nullable().optional(),
   active: z.boolean().optional(),

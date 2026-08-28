@@ -1,5 +1,6 @@
 import { randomUUID } from "@/lib/uuid";
 import { apiErrors } from "@/lib/api-error";
+import { assertValidCents } from "@/server/domain/money";
 import { getDb, type Db } from "@/server/db/registry";
 import { addDaysISO, addMonthsISO, monthsBetween, todayISO } from "@/server/domain/dates";
 
@@ -306,6 +307,7 @@ export function createPlanningService(db: Db = getDb()) {
       if (!Number.isInteger(amountCents) || amountCents <= 0) {
         throw apiErrors.badRequest("Bill amount must be a positive whole number of cents.");
       }
+      assertValidCents(amountCents, "amountCents");
       const frequency = input.frequency ?? "monthly";
       if (!["weekly", "biweekly", "monthly", "quarterly", "yearly", "one-time"].includes(frequency)) {
         throw apiErrors.badRequest("Frequency must be weekly, biweekly, monthly, quarterly, yearly, or one-time.");
@@ -375,6 +377,7 @@ export function createPlanningService(db: Db = getDb()) {
       if (!Number.isInteger(amountCents) || amountCents <= 0) {
         throw apiErrors.badRequest("Bill amount must be positive cents.");
       }
+      assertValidCents(amountCents, "amountCents");
       const frequency = input.frequency ?? row.frequency;
       const dueDay = input.dueDay !== undefined ? input.dueDay : row.due_day;
       if (dueDay !== null && (!Number.isInteger(dueDay) || dueDay < 1 || dueDay > 31)) {
@@ -422,6 +425,7 @@ export function createPlanningService(db: Db = getDb()) {
       if (!row.active) throw apiErrors.badRequest("Inactive bills cannot be marked paid.");
       const paid = amountCents !== undefined ? amountCents : row.amount_cents;
       if (!Number.isInteger(paid) || paid <= 0) throw apiErrors.badRequest("Paid amount must be positive cents.");
+      assertValidCents(paid, "amountCents");
 
       const nextDue = advanceDueDate(row.frequency, row.next_due_date ?? todayISO());
       await db.run(
@@ -469,10 +473,12 @@ export function createPlanningService(db: Db = getDb()) {
       if (!Number.isInteger(input.principalCents) || input.principalCents <= 0) {
         throw apiErrors.badRequest("Principal must be a positive whole number of cents.");
       }
+      assertValidCents(input.principalCents, "principalCents");
       const aprBps = input.aprBps ?? 0;
       if (!Number.isInteger(aprBps) || aprBps < 0) throw apiErrors.badRequest("APR must be a non-negative integer (basis points).");
       const minPaymentCents = input.minPaymentCents ?? 0;
       if (!Number.isInteger(minPaymentCents) || minPaymentCents < 0) throw apiErrors.badRequest("Minimum payment must be non-negative cents.");
+      assertValidCents(minPaymentCents, "minPaymentCents");
       if (input.termMonths !== null && input.termMonths !== undefined && (!Number.isInteger(input.termMonths) || input.termMonths < 1)) {
         throw apiErrors.badRequest("Term must be a positive number of months.");
       }
@@ -526,10 +532,12 @@ export function createPlanningService(db: Db = getDb()) {
       if (!name) throw apiErrors.badRequest("Debt name cannot be empty.");
       const principal = input.principalCents !== undefined ? input.principalCents : row.principal_cents;
       if (!Number.isInteger(principal) || principal <= 0) throw apiErrors.badRequest("Principal must be positive cents.");
+      assertValidCents(principal, "principalCents");
       const aprBps = input.aprBps !== undefined ? input.aprBps : row.apr_bps;
       if (!Number.isInteger(aprBps) || aprBps < 0) throw apiErrors.badRequest("APR must be non-negative (basis points).");
       const minPayment = input.minPaymentCents !== undefined ? input.minPaymentCents : row.min_payment_cents;
       if (!Number.isInteger(minPayment) || minPayment < 0) throw apiErrors.badRequest("Minimum payment must be non-negative cents.");
+      assertValidCents(minPayment, "minPaymentCents");
       const term = input.termMonths !== undefined ? input.termMonths : row.term_months;
       if (term !== null && (!Number.isInteger(term) || term < 1)) throw apiErrors.badRequest("Term must be a positive number of months.");
 
@@ -607,14 +615,19 @@ export function createPlanningService(db: Db = getDb()) {
       if (!Number.isInteger(input.targetCents) || input.targetCents <= 0) {
         throw apiErrors.badRequest("Target must be a positive whole number of cents.");
       }
+      assertValidCents(input.targetCents, "targetCents");
       const current = input.currentCents ?? 0;
       if (!Number.isInteger(current) || current < 0) throw apiErrors.badRequest("Current amount must be non-negative cents.");
+      assertValidCents(current, "currentCents");
       if (input.targetDate && !/^\d{4}-\d{2}-\d{2}$/.test(input.targetDate)) {
         throw apiErrors.badRequest("Target date must be YYYY-MM-DD.");
       }
       if (input.monthlyContributionCents !== null && input.monthlyContributionCents !== undefined &&
           (!Number.isInteger(input.monthlyContributionCents) || input.monthlyContributionCents < 0)) {
         throw apiErrors.badRequest("Monthly contribution must be non-negative cents.");
+      }
+      if (input.monthlyContributionCents !== null && input.monthlyContributionCents !== undefined) {
+        assertValidCents(input.monthlyContributionCents, "monthlyContributionCents");
       }
       if (input.accountId) {
         const acc = await db.get("SELECT id FROM accounts WHERE id = ? AND user_id = ?", input.accountId, userId);
@@ -681,14 +694,17 @@ export function createPlanningService(db: Db = getDb()) {
       if (!name) throw apiErrors.badRequest("Goal name cannot be empty.");
       const target = input.targetCents !== undefined ? input.targetCents : row.target_cents;
       if (!Number.isInteger(target) || target <= 0) throw apiErrors.badRequest("Target must be positive cents.");
+      assertValidCents(target, "targetCents");
       const current = input.currentCents !== undefined ? input.currentCents : row.current_cents;
       if (!Number.isInteger(current) || current < 0) throw apiErrors.badRequest("Current amount must be non-negative cents.");
+      assertValidCents(current, "currentCents");
       const targetDate = input.targetDate !== undefined ? input.targetDate : row.target_date;
       if (targetDate && !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) throw apiErrors.badRequest("Target date must be YYYY-MM-DD.");
       const contribution = input.monthlyContributionCents !== undefined ? input.monthlyContributionCents : row.monthly_contribution_cents;
       if (contribution !== null && (!Number.isInteger(contribution) || contribution < 0)) {
         throw apiErrors.badRequest("Monthly contribution must be non-negative cents.");
       }
+      if (contribution !== null) assertValidCents(contribution, "monthlyContributionCents");
       const contributionMode = input.contributionMode !== undefined ? validateContributionMode(input.contributionMode) : row.contribution_mode;
       const contributionInterval = input.contributionInterval !== undefined ? input.contributionInterval : row.contribution_interval;
       // SAFETY: the cast narrows only to satisfy includes()'s parameter type;

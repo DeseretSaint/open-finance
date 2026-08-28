@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createTransactionsService } from "@/server/domain/transactions";
 import { createAccountsService } from "@/server/domain/accounts";
 import { createBudgetsService } from "@/server/domain/budgets";
+import { createPlanningService } from "@/server/domain/planning";
 import { MAX_AMOUNT_CENTS } from "@/server/domain/money";
 import { createTestDb, seedUser, seedManualAccount } from "./helpers";
 
@@ -105,5 +106,46 @@ describe("money magnitude bounds", () => {
     ).rejects.toThrow();
     const row = await db.get("SELECT amount_cents FROM budgets WHERE id = ?", b.id);
     expect(row?.amount_cents).toBe(50000);
+  });
+
+  it("planning createBill rejects an amount above MAX_AMOUNT_CENTS and leaves no row", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db, "dave");
+    const svc = createPlanningService(db);
+    await expect(
+      svc.createBill(user.id, { name: "Rent", amountCents: MAX_AMOUNT_CENTS + 1 })
+    ).rejects.toThrow();
+    const rows = await db.all("SELECT * FROM bills WHERE user_id = ?", user.id);
+    expect(rows).toHaveLength(0);
+  });
+
+  it("planning createDebt rejects a principal above MAX_AMOUNT_CENTS", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db, "erin");
+    const svc = createPlanningService(db);
+    await expect(
+      svc.createDebt(user.id, { name: "Mortgage", principalCents: MAX_AMOUNT_CENTS + 1 })
+    ).rejects.toThrow();
+  });
+
+  it("planning createGoal rejects a target above MAX_AMOUNT_CENTS", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db, "frank");
+    const svc = createPlanningService(db);
+    await expect(
+      svc.createGoal(user.id, { name: "House", targetCents: -(MAX_AMOUNT_CENTS + 1) })
+    ).rejects.toThrow();
+  });
+
+  it("planning updateGoal rejects a target above MAX_AMOUNT_CENTS and leaves the value unchanged", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db, "grace");
+    const svc = createPlanningService(db);
+    const g = await svc.createGoal(user.id, { name: "Car", targetCents: 2000000 });
+    await expect(
+      svc.updateGoal(user.id, g.id, { targetCents: MAX_AMOUNT_CENTS + 1 })
+    ).rejects.toThrow();
+    const row = await db.get("SELECT target_cents FROM goals WHERE id = ?", g.id);
+    expect(row?.target_cents).toBe(2000000);
   });
 });

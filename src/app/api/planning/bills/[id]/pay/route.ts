@@ -3,12 +3,13 @@ import { z } from "zod";
 import { ok, parseBody, parseParam, route } from "@/lib/api";
 import { requireCsrf, requireSession } from "@/server/auth/service";
 import { createPlanningService } from "@/server/domain/planning";
+import { MAX_AMOUNT_CENTS } from "@/server/domain/money";
 import { getDb } from "@/server/db/adapter";
 
 export const runtime = "nodejs";
 
 const paySchema = z.object({
-  amountCents: z.number().int().positive().optional(),
+  amountCents: z.number().int().positive().refine((v) => v <= MAX_AMOUNT_CENTS, `Money value cannot exceed ${MAX_AMOUNT_CENTS.toLocaleString("en-US")} cents.`).optional(),
 });
 
 /** Mark a bill paid: remembers the actual amount and advances the next due date. */
