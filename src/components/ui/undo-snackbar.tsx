@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 /**
  * M3 Snackbar with a single UNDO action. Used for reversible deletes so the
@@ -23,17 +23,30 @@ export function UndoSnackbar({
   undoLabel?: string;
   duration?: number;
 }) {
+  // WCAG 2.2.1 (Timing Adjustable): the Undo action is the ONLY recovery path,
+  // so the auto-dismiss timer pauses while the user is hovering or keyboard-
+  // focused inside the snackbar (M3 also specifies pause-on-hover/focus).
+  const [paused, setPaused] = useState(false);
+
   useEffect(() => {
-    if (!open) return;
+    if (!open || paused) return;
     const id = setTimeout(onClose, duration);
     return () => clearTimeout(id);
-  }, [open, duration, onClose]);
+  }, [open, paused, duration, onClose]);
+
+  useEffect(() => {
+    if (!open) setPaused(false);
+  }, [open]);
 
   if (!open) return null;
   return (
     <div
       role="status"
       aria-live="polite"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
       className="fixed inset-x-0 bottom-0 z-[70] flex justify-center p-4 md:bottom-4"
     >
       <div
@@ -47,7 +60,7 @@ export function UndoSnackbar({
             onUndo();
             onClose();
           }}
-          className="shrink-0 rounded-md px-2 py-1 text-sm font-semibold text-[var(--accent)] transition-colors hover:brightness-110"
+          className="min-h-11 min-w-11 shrink-0 rounded-md px-3 py-2 text-sm font-semibold text-[var(--accent)] transition-colors hover:brightness-110"
         >
           {undoLabel}
         </button>
