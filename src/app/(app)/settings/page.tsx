@@ -24,6 +24,21 @@ import { storeHubUrl } from "@/lib/mobile-storage";
 import { UpdatesCard } from "@/components/updates-card";
 import { PlaidLinkLauncher } from "@/components/plaid-link-launcher";
 
+// Inline fetch-failure surface for a settings sub-card query: a calm alert + retry,
+// shown only when the query errored AND has no data (a background refetch error never
+// blanks already-rendered card content). Mirrors the page-level settings error banner.
+function SubcardQueryError({ q, what }: { q: { isError?: boolean; isFetching: boolean; data?: unknown; refetch: () => void }; what: string }) {
+  if (!q.isError || q.data) return null;
+  return (
+    <div role="alert" className="mt-3 rounded-xl bg-[var(--danger-soft)] px-4 py-2 text-sm font-medium text-danger">
+      Couldn&apos;t load {what}.
+      <Button size="sm" variant="secondary" className="ml-2" disabled={q.isFetching} onClick={() => q.refetch()}>
+        {q.isFetching ? "Retrying…" : "Try again"}
+      </Button>
+    </div>
+  );
+}
+
 interface Me {
   user: { display_name: string; username: string | null; email: string | null };
 }
@@ -797,6 +812,8 @@ function NotificationsSecurityCard({ setMsg, setErr }: { setMsg: (s: string | nu
   return (
     <Card className="lg:col-span-2">
       <CardTitle>Notifications &amp; security</CardTitle>
+      <SubcardQueryError q={prefs} what="notification preferences" />
+      <SubcardQueryError q={lock} what="device lock status" />
 
       {/* Push (local) notifications */}
       <h4 className="mt-5 text-sm font-semibold text-text">Push notifications</h4>
@@ -976,6 +993,7 @@ function CategoriesCard({ setMsg, setErr }: { setMsg: (s: string | null) => void
         </div>
         <Button size="sm" variant="secondary" onClick={() => setShowAdd((v) => !v)}>{showAdd ? "Cancel" : "Add category"}</Button>
       </div>
+      <SubcardQueryError q={categories} what="categories" />
       {showAdd && (
         <form className="mt-4 flex gap-2" onSubmit={(e) => { e.preventDefault(); create.mutate(); }}>
           <Input aria-label="New category name" placeholder="e.g. Kids activities" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
@@ -1558,6 +1576,7 @@ function PaydaysCard({ setMsg, setErr }: { setMsg: (s: string | null) => void; s
         Tell the app when you get paid so the Plan tab&apos;s &ldquo;Next paycheck&rdquo; horizon and the 12-month
         projection are accurate — especially if you track manually. Auto mode guesses from your income transactions.
       </p>
+      <SubcardQueryError q={paydays} what="paydays" />
       <div className="mt-3 flex flex-wrap gap-1.5">
         {(
           [
@@ -1839,6 +1858,8 @@ function HubPanel({ setMsg, setErr }: { setMsg: (s: string | null) => void; setE
       <p className="mt-1 text-sm text-text-muted">
         Use Open Finance just on this computer, or let it be the base your phone talks to. Pick one — no technical setup needed.
       </p>
+      <SubcardQueryError q={diagnostics} what="hub diagnostics" />
+      <SubcardQueryError q={detect} what="hub detection" />
 
       <div className="mt-4 flex flex-wrap gap-3">
         <button
