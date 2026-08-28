@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CustomDatePicker } from "@/components/ui/custom-date-picker";
 import { CustomSelect } from "@/components/ui/custom-select";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { UndoSnackbar } from "@/components/ui/undo-snackbar";
 import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { Money } from "@/components/money";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
@@ -74,7 +74,7 @@ export default function TransactionsPage() {
   const addDialogA11yRef = useDialogA11y(showAdd, () => {
     if (!add.isPending) setShowAdd(false);
   });
-  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string; error?: string } | null>(null);
+  const [undoTxn, setUndoTxn] = useState<Txn | null>(null);
 
   // Manual-transaction edit modal (name/amount/date). Bank-imported rows are
   // owned by the source and shouldn't be hand-edited, so only `source==="manual"`
@@ -173,13 +173,28 @@ export default function TransactionsPage() {
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => api.del(`/api/transactions/${id}`),
-    onSuccess: () => {
-      setConfirmDelete(null);
+    mutationFn: (txn: Txn) => api.del(`/api/transactions/${txn.id}`),
+    onSuccess: (_d, txn) => {
+      setUndoTxn(txn);
       invalidate();
     },
-    onError: (e) =>
-      setConfirmDelete((c) => (c ? { ...c, error: e instanceof Error ? e.message : "Failed to delete transaction." } : c)),
+    onError: (e) => setError(e instanceof Error ? e.message : "Failed to delete transaction."),
+  });
+  const undoDelete = useMutation({
+    mutationFn: (txn: Txn) =>
+      api.post("/api/transactions", {
+        accountId: txn.account_id,
+        amountCents: txn.amount_cents,
+        date: txn.date,
+        name: txn.name,
+        userCategoryId: txn.user_category_id,
+        excludeFromBudgets: txn.exclude_from_budgets === 1,
+      }),
+    onSuccess: () => {
+      setUndoTxn(null);
+      invalidate();
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : "Failed to restore transaction."),
   });
 
   // Manual-row edit (name/amount/date) — PATCH /api/transactions/:id already
@@ -905,17 +920,12 @@ export default function TransactionsPage() {
           Hidden while the add modal is open; rises above the keyboard. */}
       <FloatingAddButton label="Add transaction" onClick={() => setShowAdd(true)} hidden={showAdd} />
 
-      {/* Custom delete confirmation (replaces the stock Android dialog) */}
-      <ConfirmDialog
-        open={confirmDelete !== null}
-        title="Delete transaction?"
-        message={confirmDelete ? `"${confirmDelete.name}" will be permanently removed. This cannot be undone.${confirmDelete.error ? ` ${confirmDelete.error}` : ""}` : undefined}
-        confirmLabel="Delete"
-        busy={remove.isPending}
-        onCancel={() => setConfirmDelete(null)}
-        onConfirm={() => {
-          if (confirmDelete) remove.mutate(confirmDelete.id);
-        }}
+      {/* Reversible delete: remove immediately, offer a timed Undo (Q38: undo > warning) */}
+      <UndoSnackbar
+        open={undoTxn !== null}
+        message={undoTxn ? `"${undoTxn.name}" deleted.` : ""}
+        onUndo={() => undoTxn && undoDelete.mutate(undoTxn)}
+        onClose={() => setUndoTxn(null)}
       />
 
       {/* List */}
@@ -1085,7 +1095,7 @@ export default function TransactionsPage() {
                         <button
                           aria-label={`Delete ${t.name}`}
                           title="Delete transaction"
-                          onClick={() => setConfirmDelete({ id: t.id, name: t.name })}
+                          onClick={() => remove.mutate(t)}
                           className="flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-text-muted transition-colors hover:bg-[var(--danger-soft)] hover:text-danger"
                         >
                           <Trash2 size={14} />

@@ -48,12 +48,16 @@ describe("confirm dialog stays open through the request", () => {
     expect(src).toMatch(/onError: \(e\) =>\s*setConfirmDelete\(\(c\)/);
   });
 
-  it("transactions: remove closes only on success and surfaces errors", () => {
+  it("transactions: reversible delete uses undo (no early-close confirm, error surfaced)", () => {
     const src = readFileSync(path.resolve(__dirname, "../", paths.transactions), "utf8");
-    const dlg = onConfirmBody(dialogFragment(src, "Delete transaction?"));
-    expect(dlg).not.toContain("setConfirmDelete(null)");
-    expect(src).toMatch(/onSuccess: \(\) => \{\s*setConfirmDelete\(null\);\s*invalidate\(\);/);
-    expect(src).toMatch(/onError: \(e\) =>\s*setConfirmDelete\(\(c\)/);
+    // the bare confirm was replaced by immediate delete + timed Undo (Q38: undo > warning)
+    expect(src).not.toContain('title="Delete transaction?"');
+    expect(src).toContain("remove.mutate(t)");
+    expect(src).toContain("setUndoTxn(");
+    // delete errors are still surfaced (not silently swallowed)
+    expect(src).toContain('"Failed to delete transaction."');
+    // Undo recreates the deleted row
+    expect(src).toContain('api.post("/api/transactions", {');
   });
 
   it("plan: all three removes close only on success and surface errors", () => {
