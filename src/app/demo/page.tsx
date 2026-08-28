@@ -38,7 +38,7 @@ export default function DemoPage() {
         <p className="mt-2 text-sm text-text-muted">
           Three months of seeded transactions, bills, debts, goals and a projection — no sign-up, no bank connection.
         </p>
-        {error && <p className="mt-4 text-sm text-danger">{error}</p>}
+        {error && <p role="alert" className="mt-4 text-sm text-danger">{error}</p>}
         <Button onClick={enter} disabled={busy} className="mt-6 w-full">
           {busy ? "Entering demo…" : "Enter the demo"}
         </Button>

@@ -137,11 +137,11 @@ export default function LoginPage() {
         <div className="mb-4">
           <MotifHero compact />
         </div>
-        <form onSubmit={submit} className="space-y-4 rounded-2xl border border-border bg-surface p-6 shadow-[var(--shadow-card)]">
+        <form onSubmit={submit} aria-busy={busy} className="space-y-4 rounded-2xl border border-border bg-surface p-6 shadow-[var(--shadow-card)]">
           {solo ? (
             <>
               {lock.data?.biometricEnabled && (
-                <Button type="button" variant="secondary" onClick={unlockWithBiometric} disabled={bioBusy} className="w-full" size="lg">
+                <Button type="button" variant="secondary" onClick={unlockWithBiometric} disabled={bioBusy || busy} className="w-full" size="lg">
                   {bioBusy ? "Checking…" : "Unlock with biometrics"}
                 </Button>
               )}
