@@ -153,6 +153,15 @@ export function UpdatesCard() {
         )}
       </div>
 
+      {status.isError && !status.data && (
+        <div role="alert" className="mt-3 rounded-xl bg-[var(--danger-soft)] px-4 py-2 text-sm font-medium text-danger">
+          Couldn&apos;t load update status.
+          <Button size="sm" variant="secondary" className="ml-2" disabled={status.isFetching} onClick={() => status.refetch()}>
+            {status.isFetching ? "Retrying…" : "Try again"}
+          </Button>
+        </div>
+      )}
+
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <Button variant="secondary" onClick={() => act.mutate({ action: "check" })} disabled={act.isPending}>
           Check for updates
