@@ -45,6 +45,8 @@ export function tabWrapTarget(
  */
 export function useDialogA11y(open: boolean): RefObject<HTMLDivElement | null> {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  // Keep the underlying page from scrolling behind the open dialog (mobile).
+  useBodyScrollLock(open);
 
   useEffect(() => {
     if (!open) return;
@@ -92,4 +94,22 @@ export function useDialogA11y(open: boolean): RefObject<HTMLDivElement | null> {
   }, [open]);
 
   return containerRef;
+}
+
+/**
+ * Lock background scroll while a modal is open. On mobile (<md) the app shell
+ * scrolls on the documentElement, so a sheet open over the page would let the
+ * underlying list drift on swipe without this. Desktop scrolls an inner
+ * container (body never scrolls) so this is a harmless no-op there. Restores
+ * the prior overflow on close — never leaves the page stuck non-scrollable.
+ */
+function useBodyScrollLock(open: boolean): void {
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
 }
