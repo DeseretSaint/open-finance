@@ -39,7 +39,19 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const passwordError = !solo ? registerPasswordError(password, username) : null;
+
+  async function copyRecovery() {
+    if (!recoveryCode) return;
+    try {
+      await navigator.clipboard.writeText(recoveryCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  }
 
   useEffect(() => {
     if (hasWindow()) {
@@ -97,6 +109,14 @@ export default function RegisterPage() {
               <p className="mt-1 rounded-lg bg-background p-3 font-mono text-sm tracking-widest text-accent-text">
                 {recoveryCode}
               </p>
+              <div className="mt-3 flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={copyRecovery} aria-label="Copy recovery code" disabled={copied}>
+                  {copied ? "Copied!" : "Copy code"}
+                </Button>
+                <span className="text-xs text-text-muted" role={copied ? "status" : undefined}>
+                  {copied ? "Saved to clipboard" : "Tap to copy it somewhere safe"}
+                </span>
+              </div>
               <p className="mt-2 text-xs text-text-muted">
                 If you forget your PIN, this code is the only way to reset it. It is shown
                 once and never again. You&apos;ll set your PIN in the next step.
