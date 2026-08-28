@@ -117,6 +117,7 @@ export function DeviceLockGate({ children }: { children: React.ReactNode }) {
         <Input aria-label={"Device PIN"}
           type="password"
           inputMode="numeric"
+          enterKeyHint="done"
           autoFocus
           placeholder="••••"
           value={pin}

@@ -575,6 +575,7 @@ export default function TransactionsPage() {
                   id="add-amount"
                   placeholder="0.00"
                   inputMode="decimal"
+                  enterKeyHint="done"
                   value={addAmount}
                   onChange={(e) => setAddAmount(e.target.value)}
                   aria-invalid={!!addAmountError}
@@ -700,6 +701,7 @@ export default function TransactionsPage() {
                 <Input
                   id="edit-amount"
                   inputMode="decimal"
+                  enterKeyHint="done"
                   value={editAmount}
                   onChange={(e) => setEditAmount(e.target.value)}
                   aria-invalid={!!editAmountError}

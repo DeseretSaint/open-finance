@@ -612,6 +612,7 @@ export default function BudgetsPage() {
                   id="budget-amount"
                   placeholder="0.00"
                   inputMode="decimal"
+                  enterKeyHint="done"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   aria-invalid={!!amountError}

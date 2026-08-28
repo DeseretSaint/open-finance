@@ -520,6 +520,7 @@ export default function AccountsPage() {
                   id="acc-balance"
                   placeholder="0.00"
                   inputMode="decimal"
+                  enterKeyHint="done"
                   value={balance}
                   onChange={(e) => setBalance(e.target.value)}
                   aria-invalid={!!balanceError}
