@@ -17,9 +17,14 @@ export async function register() {
     console.error("Env bootstrap failed:", e);
   }
   try {
-    const { startUpdateScheduler } = await import("@/server/domain/updates");
+    const { startUpdateScheduler, clearStaleRunning } = await import("@/server/domain/updates");
     const { getDb } = await import("@/server/db/adapter");
     const db = getDb();
+    // A stale `update.running` flag from a previous process would otherwise
+    // stick the banner on "updating…" forever and block every future update
+    // (the detached script relaunches a fresh server, so a new boot provably
+    // has no update in flight). Clear it before the scheduler starts.
+    await clearStaleRunning(db).catch(() => {});
     const timer = startUpdateScheduler(db);
     if (timer) timer.unref();
   } catch (e) {

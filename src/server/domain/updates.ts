@@ -240,6 +240,22 @@ export function createUpdatesService(db: Db = getDb()) {
 }
 
 /**
+ * Clear a stale `update.running` flag at server boot. `apply()` sets
+ * `running = "1"` and relies on the detached update script to clear it via
+ * `markDone()` — but the script never calls back (it kills this server and
+ * launches a *new* one on success, or rolls back and relaunches on failure),
+ * so the flag is never reset in-process. Left alone, it would make the banner
+ * report "updating…" forever and block every future `apply()` (including
+ * scheduled ones) with a conflict error. A freshly-started process provably
+ * has no update subprocess mid-flight, so clearing on boot is always safe.
+ * Intentionally does NOT touch `scheduled_at` — a pending schedule must
+ * survive a restart.
+ */
+export async function clearStaleRunning(db: Db = getDb()): Promise<void> {
+  await setState(db, "running", null);
+}
+
+/**
  * Scheduler: runs once a minute; fires a scheduled update when due. The server
  * process may restart during the update — the script is detached, and
  * `running` state survives in the DB so the banner shows progress.

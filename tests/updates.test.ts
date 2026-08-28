@@ -1,5 +1,9 @@
+import { writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  clearStaleRunning,
   createUpdatesService,
   isNewerVersion,
   upcomingThreeAm,
@@ -67,6 +71,42 @@ describe("updates — decision lifecycle", () => {
       else process.env.UPDATE_SCRIPT = prev;
     }
     expect((await svc.status()).running).toBe(false);
+  });
+
+  it("apply sets running=1; stale flag now cleared on boot so future updates aren't blocked", async () => {
+    const db = createTestDb();
+    await seedUser(db);
+    const svc = createUpdatesService(db);
+    await db.run(
+      "INSERT INTO app_state (key, value, updated_at) VALUES ('update.latest_version', '9.9.9', ?)",
+      new Date().toISOString()
+    );
+
+    // A real (no-op) script so apply() actually spawns it and sets running=1.
+    const prev = process.env.UPDATE_SCRIPT;
+    const scriptPath = join(tmpdir(), `of-update-noop-${process.pid}.sh`);
+    writeFileSync(scriptPath, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+    process.env.UPDATE_SCRIPT = scriptPath;
+    try {
+      const res = await svc.apply();
+      expect(res.started).toBe(true);
+      expect((await svc.status()).running).toBe(true);
+
+      // A second apply while running would (correctly) conflict.
+      await expect(svc.apply()).rejects.toThrow();
+
+      // Boot-time reset (clearStaleRunning) clears the stale flag…
+      await clearStaleRunning(db);
+      expect((await svc.status()).running).toBe(false);
+
+      // …and a subsequent apply is allowed again (bug regression guard).
+      const res2 = await svc.apply();
+      expect(res2.started).toBe(true);
+    } finally {
+      if (prev === undefined) delete process.env.UPDATE_SCRIPT;
+      else process.env.UPDATE_SCRIPT = prev;
+      await clearStaleRunning(db);
+    }
   });
 
   it("rejects scheduling without a known update", async () => {
