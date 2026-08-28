@@ -254,7 +254,7 @@ export default function ReportsPage() {
           <Button variant="secondary" size="sm" onClick={() => setMonthOffset((o) => o - 1)} aria-label="Previous month">
             <ChevronLeft size={16} />
           </Button>
-          <div className="text-center">
+          <div className="text-center" aria-live="polite" role="status">
             <p className="text-base font-semibold text-text">{monthLabel}</p>
             <p className="text-xs text-text-muted">
               {isPast ? "full month" : isCurrentMonth ? "month to date" : "future month (no transactions yet)"}
