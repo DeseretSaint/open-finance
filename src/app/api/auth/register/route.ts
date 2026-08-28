@@ -18,7 +18,7 @@ export const runtime = "nodejs";
 
 const schema = z.object({
   username: z.string().min(1),
-  display_name: z.string().optional(),
+  display_name: z.string().max(50).optional(),
   password: z.string().min(1),
 });
 

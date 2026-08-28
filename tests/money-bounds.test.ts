@@ -170,3 +170,36 @@ describe("money magnitude bounds", () => {
     expect(rows[0].name).toBe("Coffee");
   });
 });
+
+describe("account name length bounds", () => {
+  it("createManual rejects an account name over 100 characters and writes no row", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db, "ivan");
+    const svc = createAccountsService(db);
+    await expect(
+      svc.createManual(user.id, { name: "x".repeat(101) })
+    ).rejects.toThrow();
+    const rows = await db.all("SELECT * FROM accounts WHERE user_id = ?", user.id);
+    expect(rows).toHaveLength(0);
+  });
+
+  it("createManual accepts a normal account name", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db, "judy");
+    const svc = createAccountsService(db);
+    const a = await svc.createManual(user.id, { name: "Checking" });
+    expect(a.name).toBe("Checking");
+  });
+
+  it("rename rejects an account name over 100 characters and leaves the old name", async () => {
+    const db = createTestDb();
+    const user = await seedUser(db, "karl");
+    const svc = createAccountsService(db);
+    const a = await svc.createManual(user.id, { name: "Savings" });
+    await expect(
+      svc.rename(user.id, a.id, "y".repeat(101))
+    ).rejects.toThrow();
+    const row = await db.get("SELECT name FROM accounts WHERE id = ?", a.id);
+    expect(row?.name).toBe("Savings");
+  });
+});

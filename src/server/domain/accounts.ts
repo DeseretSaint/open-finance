@@ -134,8 +134,9 @@ export function createAccountsService(db: Db = getDb()) {
         currency?: string;
       }
     ): Promise<AccountRow> {
-      const name = input.name.trim().slice(0, 100);
+      const name = input.name.trim();
       if (!name) throw apiErrors.badRequest("Account name cannot be empty.");
+      if (name.length > 100) throw apiErrors.badRequest("Account name cannot exceed 100 characters.");
       const type = input.type ?? "other";
       // SAFETY: widens only the includes() parameter type so an arbitrary user string
       // can be membership-checked against the literal tuple; tuple contents unchanged.
@@ -189,8 +190,9 @@ export function createAccountsService(db: Db = getDb()) {
 
     async rename(userId: string, id: string, name: string): Promise<AccountRow> {
       await this.get(userId, id);
-      const clean = name.trim().slice(0, 100);
+      const clean = name.trim();
       if (!clean) throw apiErrors.badRequest("Account name cannot be empty.");
+      if (clean.length > 100) throw apiErrors.badRequest("Account name cannot exceed 100 characters.");
       await db.run("UPDATE accounts SET name = ?, name_override = ? WHERE id = ?", clean, clean, id);
       return this.get(userId, id);
     },

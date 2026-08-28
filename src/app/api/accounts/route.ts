@@ -10,7 +10,7 @@ import { repairAccountRows } from "@/server/domain/account-repair";
 export const runtime = "nodejs";
 
 const createSchema = z.object({
-  name: z.string().min(1, "Account name is required."),
+  name: z.string().min(1, "Account name is required.").max(100, "Account name cannot exceed 100 characters."),
   type: z.string().optional(),
   subtype: z.string().nullable().optional(),
   mask: z.string().nullable().optional(),

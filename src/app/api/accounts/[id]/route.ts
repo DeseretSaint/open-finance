@@ -8,7 +8,7 @@ import { getDb } from "@/server/db/adapter";
 export const runtime = "nodejs";
 
 const patchSchema = z.object({
-  name: z.string().min(1, "Account name is required.").optional(),
+  name: z.string().min(1, "Account name is required.").max(100, "Account name cannot exceed 100 characters.").optional(),
   type: z.enum(["depository", "credit", "investment", "loan", "other"]).optional(),
   includeInNetWorth: z.boolean().optional(),
   description: z.string().max(300).nullable().optional(),
