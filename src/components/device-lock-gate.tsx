@@ -74,7 +74,27 @@ export function DeviceLockGate({ children }: { children: React.ReactNode }) {
     }
   }
 
-  if (!isMobile || lock.isLoading || !lock.data) return <>{children}</>;
+  if (!isMobile || lock.isLoading) return <>{children}</>;
+
+  // FAIL CLOSED: if the lock-status fetch errored (or settled with no data),
+  // do NOT render the app — a failed /api/device-lock call must never
+  // silently unlock the device. Show a calm error + retry instead.
+  if (lock.isError || !lock.data) {
+    return (
+      <div
+        className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-background p-6"
+        style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <h1 className="text-xl font-semibold">Device lock unavailable</h1>
+        <p className="text-sm text-muted-foreground">
+          Couldn&apos;t verify your device lock status.
+        </p>
+        <Button onClick={() => lock.refetch()} disabled={lock.isFetching} className="w-48">
+          {lock.isFetching ? "Retrying…" : "Try again"}
+        </Button>
+      </div>
+    );
+  }
 
   // No PIN configured → not locked, nothing to show (setup lives in the
   // onboarding wizard / Settings).
