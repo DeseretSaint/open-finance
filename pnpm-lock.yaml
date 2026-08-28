@@ -19,8 +19,8 @@ importers:
   .:
     dependencies:
       '@aparajita/capacitor-biometric-auth':
-        specifier: 9.1.2
-        version: 9.1.2
+        specifier: 10.0.0
+        version: 10.0.0
       '@capacitor-community/sqlite':
         specifier: ^8.1.0
         version: 8.1.0(@capacitor/core@7.6.8)
@@ -179,8 +179,8 @@ packages:
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
     engines: {node: '>=10'}
 
-  '@aparajita/capacitor-biometric-auth@9.1.2':
-    resolution: {integrity: sha512-cDcTFOQW4iI1+/AwkA0hRfiP53BuCSWvoxxkyp2NC7Hf0tNSg5fZ4zmXI/PcpLKUR7cd91TxnAxWYAAGJKOBig==}
+  '@aparajita/capacitor-biometric-auth@10.0.0':
+    resolution: {integrity: sha512-azjWaRucB8x1/gSzSTp/NxelaOZyg+m765gSzjwUkSQgg30RrZPmPq6pyLeeXVSZNDY3Rxf5Hj8obgZaXirCFQ==}
     engines: {node: '>=20.0.0'}
 
   '@babel/code-frame@7.29.7':
@@ -206,10 +206,20 @@ packages:
     peerDependencies:
       '@capacitor/core': ^7.6.0
 
+  '@capacitor/android@8.5.0':
+    resolution: {integrity: sha512-Rb3prJeQiTp0pQhSSOReJuG9VgibOGMG4ECs+UhMwr6TCCHZ3NCZO811bDA0HxD0xrT/gCrJAsY5yfEATu84JQ==}
+    peerDependencies:
+      '@capacitor/core': ^8.5.0
+
   '@capacitor/app@7.1.2':
     resolution: {integrity: sha512-d4I/oF/PRu4megL7/IGKYfe5j7yzSON1FRFgq6kH+m5kH6g7V+wyjHRLauCzGNjdRx4S+nWOumINds0qcRBtKg==}
     peerDependencies:
       '@capacitor/core': '>=7.0.0'
+
+  '@capacitor/app@8.1.1':
+    resolution: {integrity: sha512-xM2ZTX5jK60tFtmjsmJv+Cdj1Qsb6NcavkqmdEnCPQBeya9oKhamZJxYOnQNj1ZvcJM7sWfG6BEtSLx42pisbA==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
 
   '@capacitor/cli@7.6.8':
     resolution: {integrity: sha512-sJYLoSS1wVHjDPwRc0grtNZcQZnkQc7TJKoVZdHL2HI5TPCq+27WBrMAo0mXvQQSH2axPYCz5cyRrcqqakOvxQ==}
@@ -219,10 +229,18 @@ packages:
   '@capacitor/core@7.6.8':
     resolution: {integrity: sha512-x1xfxvNcTSnj6OoYaAB0n0a0HRvi5f2YjcVnMLxpMhbHDgGDAzzN9z8cnPCYV+SKTvqGF1hezHm82Op32XaAGg==}
 
+  '@capacitor/core@8.5.0':
+    resolution: {integrity: sha512-Ca4krtqH1hothjtBIwf2J2TW7IhYq1ujp8QeItTiJohNsqij8ja2DYYH3DU0l8RmxCWaBAFTGA2TgOgOMCSNsQ==}
+
   '@capacitor/ios@7.6.8':
     resolution: {integrity: sha512-TAM1FdI1Cfl8e/wLBo7x5m61V/J1fMEpyxU2psZzHzsa436k2pwEME6CQoBRYdw6Q6gud0jZSPwOVrNn+MI7Ag==}
     peerDependencies:
       '@capacitor/core': ^7.6.0
+
+  '@capacitor/ios@8.5.0':
+    resolution: {integrity: sha512-7k1TfohJu5BzRXc1F3g04Q8QQ0fyQgms6h1AvhnHb04VaNr9EdHOx03hL8O+OigEKMQnyJd1ZOjTPPNHCqL5Yw==}
+    peerDependencies:
+      '@capacitor/core': ^8.5.0
 
   '@capacitor/local-notifications@7.0.7':
     resolution: {integrity: sha512-3qSpa8PpVMONHqBOaJ4RbA/lB5vOdEngtep0myGmP3S56gShPScDCotbw7dwmQy3NCdY4Up9nH3ySrGvUh2jZg==}
@@ -4048,12 +4066,12 @@ snapshots:
 
   '@alloc/quick-lru@5.2.0': {}
 
-  '@aparajita/capacitor-biometric-auth@9.1.2':
+  '@aparajita/capacitor-biometric-auth@10.0.0':
     dependencies:
-      '@capacitor/android': 7.6.8(@capacitor/core@7.6.8)
-      '@capacitor/app': 7.1.2(@capacitor/core@7.6.8)
-      '@capacitor/core': 7.6.8
-      '@capacitor/ios': 7.6.8(@capacitor/core@7.6.8)
+      '@capacitor/android': 8.5.0(@capacitor/core@8.5.0)
+      '@capacitor/app': 8.1.1(@capacitor/core@8.5.0)
+      '@capacitor/core': 8.5.0
+      '@capacitor/ios': 8.5.0(@capacitor/core@8.5.0)
 
   '@babel/code-frame@7.29.7':
     dependencies:
@@ -4074,9 +4092,17 @@ snapshots:
     dependencies:
       '@capacitor/core': 7.6.8
 
+  '@capacitor/android@8.5.0(@capacitor/core@8.5.0)':
+    dependencies:
+      '@capacitor/core': 8.5.0
+
   '@capacitor/app@7.1.2(@capacitor/core@7.6.8)':
     dependencies:
       '@capacitor/core': 7.6.8
+
+  '@capacitor/app@8.1.1(@capacitor/core@8.5.0)':
+    dependencies:
+      '@capacitor/core': 8.5.0
 
   '@capacitor/cli@7.6.8(supports-color@7.2.0)':
     dependencies:
@@ -4104,9 +4130,17 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
+  '@capacitor/core@8.5.0':
+    dependencies:
+      tslib: 2.8.1
+
   '@capacitor/ios@7.6.8(@capacitor/core@7.6.8)':
     dependencies:
       '@capacitor/core': 7.6.8
+
+  '@capacitor/ios@8.5.0(@capacitor/core@8.5.0)':
+    dependencies:
+      '@capacitor/core': 8.5.0
 
   '@capacitor/local-notifications@7.0.7(@capacitor/core@7.6.8)':
     dependencies:
