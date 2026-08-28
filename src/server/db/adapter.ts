@@ -14,6 +14,11 @@ export class SqliteDb implements Db {
     this.db = new Database(path);
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("busy_timeout = 5000");
+    // SQLite defaults foreign_keys=OFF per connection; the schema's REFERENCES
+    // ... ON DELETE CASCADE clauses (001/022) are dead letters without this, so
+    // orphan child rows (budget_categories, category_learnings, ...) could be
+    // inserted and would survive parent deletion. Enforce them on every handle.
+    this.db.pragma("foreign_keys = ON");
   }
 
   async all<T = DbRow>(sql: string, ...params: unknown[]): Promise<T[]> {

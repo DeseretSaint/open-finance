@@ -12,6 +12,9 @@ function runMigrations(db, dir = __dirname) {
     .sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
 
   db.pragma("journal_mode = WAL");
+  // Enforce FK constraints during migration application too (matches the
+  // SqliteDb adapter); no migration inserts child rows without parents.
+  db.pragma("foreign_keys = ON");
   db.exec(
     "CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)"
   );
