@@ -75,7 +75,10 @@ export function ReviewWidget() {
   });
 
   const count = review.data?.total ?? list.length;
-  if (!open && count === 0) return null; // nothing to review — stay invisible
+  // A fetch failure must not silently hide the queue (count would read 0 and
+  // the widget would vanish) — surface it with a retry instead.
+  const fetchFailed = review.isError && !review.data;
+  if (!open && count === 0 && !fetchFailed) return null; // nothing to review — stay invisible
 
   return (
     <Card className="border-accent/30">
@@ -91,12 +94,21 @@ export function ReviewWidget() {
           <div>
             <CardLabel>Review transactions</CardLabel>
             <p className="text-sm font-medium text-text">
-              {count > 0 ? `${count} need a category` : "All caught up"}
+              {fetchFailed ? "Couldn't load your review queue" : count > 0 ? `${count} need a category` : "All caught up"}
             </p>
           </div>
         </div>
         <span className="text-xs text-text-muted">{open ? "Hide" : "Review"}</span>
       </button>
+
+      {fetchFailed && (
+        <div role="alert" className="mt-3 rounded-xl bg-[var(--danger-soft)] px-4 py-2 text-sm font-medium text-danger">
+          Couldn&apos;t load your review queue.
+          <Button size="sm" variant="secondary" className="ml-2" disabled={review.isFetching} onClick={() => review.refetch()}>
+            {review.isFetching ? "Retrying…" : "Try again"}
+          </Button>
+        </div>
+      )}
 
       {open && count > 0 && (
         <div className="mt-4 space-y-3">
