@@ -66,7 +66,7 @@ function typeIcon(type: string | null) {
 
 function AccountsSkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" role="status" aria-busy="true" aria-label="Loading your accounts">
       {[0, 1, 2].map((i) => (
         <div key={i} className="skeleton h-32" />
       ))}

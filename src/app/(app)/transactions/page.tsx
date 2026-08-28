@@ -45,7 +45,7 @@ interface Category {
 
 function RowSkeleton() {
   return (
-    <div className="space-y-1 divide-y divide-border">
+    <div className="space-y-1 divide-y divide-border" role="status" aria-busy="true" aria-label="Loading your transactions">
       {[0, 1, 2, 3, 4, 5].map((i) => (
         <div key={i} className="flex items-center gap-3 px-5 py-4">
           <div className="skeleton h-9 flex-1" />

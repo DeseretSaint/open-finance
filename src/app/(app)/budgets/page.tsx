@@ -72,7 +72,7 @@ const FRAME_PILLS: Array<{ kind: FrameKind; label: string }> = [
 
 function BudgetsSkeleton() {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" role="status" aria-busy="true" aria-label="Loading your budgets">
       {[0, 1, 2].map((i) => (
         <div key={i} className="skeleton h-36" />
       ))}
