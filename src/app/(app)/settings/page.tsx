@@ -39,6 +39,18 @@ export default function SettingsPage() {
   const creds = useQuery({ queryKey: ["plaid-creds"], queryFn: () => api.get<{ environments: Array<{ environment: string; hasKeys: boolean; updatedAt: string }> }>("/api/plaid/credentials") });
   const items = useQuery({ queryKey: ["plaid-items"], queryFn: () => api.get<{ items: Array<{ id: string; institution_name: string | null; environment: string; status: string; accounts: Array<{ name: string }> }> }>("/api/plaid/items") });
 
+  // Page-level fetch-failure sweep (run-167, mirrors dashboard/reports/budgets/transactions/agents/accounts/plan):
+  // any failed top-level query left the page silently half-rendered (empty device list, empty Plaid sections,
+  // missing display name). Gate on no-data so a background refetch error never blanks already-rendered settings.
+  const settingsQueries = [me, sessions, creds, items];
+  const settingsFailed = settingsQueries.filter((q) => q.isError && !q.data);
+  const settingsRetrying = settingsFailed.some((q) => q.isFetching);
+  const settingsErrMsg = settingsFailed.length
+    ? `Couldn't load your settings${settingsFailed.length > 1 ? ` (${settingsFailed.length} sections)` : ""} — ${
+        settingsFailed[0].error instanceof Error ? settingsFailed[0].error.message : "request failed"
+      }.`
+    : null;
+
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [confirmLogoutAll, setConfirmLogoutAll] = useState(false);
@@ -198,6 +210,15 @@ export default function SettingsPage() {
   return (
     <div className="space-y-8">
       <p className="text-xs text-text-muted">Build {process.env.NEXT_PUBLIC_APP_VERSION ?? "0.0.0"}</p>
+
+      {settingsErrMsg && (
+        <div role="alert" className="rounded-xl bg-[var(--danger-soft)] px-4 py-3 text-sm font-medium text-danger">
+          <p>{settingsErrMsg}</p>
+          <Button variant="secondary" className="mt-2" disabled={settingsRetrying} onClick={() => settingsFailed.forEach((q) => q.refetch())}>
+            {settingsRetrying ? "Retrying…" : "Try again"}
+          </Button>
+        </div>
+      )}
 
       <SettingsGroup title="Account" description="Your identity and active sessions.">
         <Card>
