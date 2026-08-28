@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { usePageTitle } from "@/lib/use-page-title";
 import { useEscapeToClose } from "@/lib/use-escape-to-close";
 import { useDialogA11y } from "@/lib/use-dialog-a11y";
@@ -147,6 +147,25 @@ export default function BudgetsPage() {
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
   const [includePending] = useIncludePending();
+
+  // Keyboard navigation for the "Budget time frame" ARIA tablist (WAI-ARIA APG
+  // pattern): only the active tab sits in the tab sequence (tabIndex 0); Arrow
+  // Left/Right/Up/Down + Home/End move focus AND select. The custom-range pill
+  // is the last tab in the order.
+  const FRAME_ORDER: FrameKind[] = [...FRAME_PILLS.map((p) => p.kind), "custom"];
+  const frameTabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const onFrameKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, idx: number) => {
+    let next = idx;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") next = (idx + 1) % FRAME_ORDER.length;
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") next = (idx - 1 + FRAME_ORDER.length) % FRAME_ORDER.length;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = FRAME_ORDER.length - 1;
+    else return;
+    e.preventDefault();
+    const kind = FRAME_ORDER[next];
+    setFrame(kind);
+    frameTabRefs.current[next]?.focus();
+  };
 
   const params = new URLSearchParams({ frame });
   if (frame === "custom") {
@@ -321,12 +340,15 @@ export default function BudgetsPage() {
               role="tablist"
               aria-label="Budget time frame"
             >
-              {FRAME_PILLS.map(({ kind, label }) => (
+              {FRAME_PILLS.map(({ kind, label }, i) => (
                 <button
                   key={kind}
+                  ref={(el) => { frameTabRefs.current[i] = el; }}
                   role="tab"
                   aria-selected={frame === kind}
+                  tabIndex={frame === kind ? 0 : -1}
                   onClick={() => setFrame(kind)}
+                  onKeyDown={(e) => onFrameKeyDown(e, i)}
                   className={`h-9 rounded-lg px-3.5 text-sm transition-colors ${
                     frame === kind
                       ? "bg-surface font-medium text-text shadow-sm"
@@ -338,9 +360,12 @@ export default function BudgetsPage() {
               ))}
             </div>
             <button
+              ref={(el) => { frameTabRefs.current[FRAME_PILLS.length] = el; }}
               role="tab"
               aria-selected={frame === "custom"}
+              tabIndex={frame === "custom" ? 0 : -1}
               onClick={() => setFrame(frame === "custom" ? "month" : "custom")}
+              onKeyDown={(e) => onFrameKeyDown(e, FRAME_PILLS.length)}
               className={`h-9 rounded-xl border px-3.5 text-sm transition-colors ${
                 frame === "custom"
                   ? "border-accent bg-accent/10 font-medium text-accent-text"
