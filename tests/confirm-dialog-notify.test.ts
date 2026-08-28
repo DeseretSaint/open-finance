@@ -60,28 +60,25 @@ describe("confirm dialog stays open through the request", () => {
     expect(src).toContain('api.post("/api/transactions", {');
   });
 
-  it("plan: all three removes close only on success and surface errors", () => {
+  it("plan: all three removes use immediate-delete + Undo (no early-close confirm; error surfaced)", () => {
     const src = readFileSync(path.resolve(__dirname, "../", paths.plan), "utf8");
-    // plan's title is a JSX expression (Delete ${kind}?), not a string literal — match by marker
-    const start = src.indexOf("Delete ${confirmDelete.kind}");
-    if (start < 0) throw new Error("plan dialog title not found");
-    const fragEnd = src.indexOf("/>", start);
-    const dlg = onConfirmBody(src.slice(start, fragEnd));
-    expect(dlg).not.toContain("setConfirmDelete(null)");
-    for (const kind of ["bill", "debt", "goal"]) {
-      const m = src.indexOf(`remove${kind[0].toUpperCase()}${kind.slice(1)} = useMutation(`);
-      expect(m).toBeGreaterThan(-1);
-      // brace-matched slice of the whole mutation object
-      let i = src.indexOf("{", m) + 1;
-      let depth = 1;
-      for (; i < src.length && depth > 0; i++) {
-        if (src[i] === "{") depth++;
-        else if (src[i] === "}") depth--;
-      }
-      const body = src.slice(m, i);
-      expect(body).toContain("setConfirmDelete(null)");
-      expect(body).toContain("invalidate()");
-    }
+    // the bare confirm was replaced by immediate delete + timed Undo (Q38: undo > warning)
+    expect(src).not.toContain("setConfirmDelete");
+    expect(src).not.toContain("<ConfirmDialog");
+    expect(src).toContain("removeBill.mutate(b)");
+    expect(src).toContain("removeDebt.mutate(d)");
+    expect(src).toContain("removeGoal.mutate(g)");
+    expect(src).toContain("setUndoBill(");
+    expect(src).toContain("setUndoDebt(");
+    expect(src).toContain("setUndoGoal(");
+    // delete errors are still surfaced (not silently swallowed)
+    expect(src).toContain('"Failed to delete bill."');
+    expect(src).toContain('"Failed to delete debt."');
+    expect(src).toContain('"Failed to delete goal."');
+    // Undo recreates each deleted entity
+    expect(src).toContain('api.post("/api/planning/bills", {');
+    expect(src).toContain('api.post("/api/planning/debts", {');
+    expect(src).toContain('api.post("/api/planning/goals", {');
   });
 
   it("settings: logout-all and remove-item close only on success", () => {

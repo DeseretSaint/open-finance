@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CustomDatePicker } from "@/components/ui/custom-date-picker";
 import { CustomSelect } from "@/components/ui/custom-select";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { UndoSnackbar } from "@/components/ui/undo-snackbar";
 import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { useKeyboardHeight } from "@/lib/use-keyboard-height";
 import { useIncludePending } from "@/lib/pending-pref";
@@ -286,7 +286,26 @@ export default function PlanPage() {
     onSuccess: invalidate,
     onError: (e) => setErr(e instanceof Error ? e.message : "Failed to mark bill paid."),
   });
-  const removeBill = useMutation({ mutationFn: (id: string) => api.del(`/api/planning/bills/${id}`), onSuccess: () => { setConfirmDelete(null); invalidate(); }, onError: (e) => setConfirmDelete((c) => (c ? { ...c, error: e instanceof Error ? e.message : "Failed to delete bill." } : c)) });
+  // Q38: undo > warning — delete immediately, then offer a timed Undo (the bill is
+  // fully reconstructable via POST /api/planning/bills with its fields).
+  const removeBill = useMutation({
+    mutationFn: (b: Bill) => api.del(`/api/planning/bills/${b.id}`),
+    onSuccess: (_d, b) => { invalidate(); setUndoBill(b); },
+    onError: (e) => setErr(e instanceof Error ? e.message : "Failed to delete bill."),
+  });
+  const undoDeleteBill = useMutation({
+    mutationFn: (b: Bill) => api.post(`/api/planning/bills`, {
+      name: b.name,
+      amountCents: b.amount_cents,
+      frequency: b.frequency,
+      nextDueDate: b.next_due_date,
+      dueDay: b.next_due_date ? parseInt(b.next_due_date.slice(8, 10), 10) : null,
+      lastPaidAmountCents: b.last_paid_amount_cents,
+      active: b.active,
+    }),
+    onSuccess: () => { setUndoBill(null); invalidate(); },
+    onError: (e) => setErr(e instanceof Error ? e.message : "Failed to restore bill."),
+  });
 
   // ── Debt form ──
   const [debtName, setDebtName] = useState("");
@@ -315,7 +334,23 @@ export default function PlanPage() {
     },
     onError: (e) => setDebtError(e instanceof Error ? e.message : "Failed to create debt."),
   });
-  const removeDebt = useMutation({ mutationFn: (id: string) => api.del(`/api/planning/debts/${id}`), onSuccess: () => { setConfirmDelete(null); invalidate(); }, onError: (e) => setConfirmDelete((c) => (c ? { ...c, error: e instanceof Error ? e.message : "Failed to delete debt." } : c)) });
+  // Q38: undo > warning — delete immediately, then offer a timed Undo (the debt is
+  // fully reconstructable via POST /api/planning/debts with its fields).
+  const removeDebt = useMutation({
+    mutationFn: (d: Debt) => api.del(`/api/planning/debts/${d.id}`),
+    onSuccess: (_d, d) => { invalidate(); setUndoDebt(d); },
+    onError: (e) => setErr(e instanceof Error ? e.message : "Failed to delete debt."),
+  });
+  const undoDeleteDebt = useMutation({
+    mutationFn: (d: Debt) => api.post(`/api/planning/debts`, {
+      name: d.name,
+      principalCents: d.principal_cents,
+      aprBps: d.apr_bps,
+      minPaymentCents: d.min_payment_cents,
+    }),
+    onSuccess: () => { setUndoDebt(null); invalidate(); },
+    onError: (e) => setErr(e instanceof Error ? e.message : "Failed to restore debt."),
+  });
 
   // ── Goal form (savings) ──
   const [goalName, setGoalName] = useState("");
@@ -395,10 +430,33 @@ export default function PlanPage() {
     },
     onError: (e) => setExpError(e instanceof Error ? e.message : "Failed to create expense."),
   });
-  const removeGoal = useMutation({ mutationFn: (id: string) => api.del(`/api/planning/goals/${id}`), onSuccess: () => { setConfirmDelete(null); invalidate(); }, onError: (e) => setConfirmDelete((c) => (c ? { ...c, error: e instanceof Error ? e.message : "Failed to delete goal." } : c)) });
+  // Q38: undo > warning — delete immediately, then offer a timed Undo (the goal is
+  // fully reconstructable via POST /api/planning/goals with its fields).
+  const removeGoal = useMutation({
+    mutationFn: (g: Goal) => api.del(`/api/planning/goals/${g.id}`),
+    onSuccess: (_d, g) => { invalidate(); setUndoGoal(g); },
+    onError: (e) => setErr(e instanceof Error ? e.message : "Failed to delete goal."),
+  });
+  const undoDeleteGoal = useMutation({
+    mutationFn: (g: Goal) => api.post(`/api/planning/goals`, {
+      name: g.name,
+      type: g.type,
+      targetCents: g.target_cents,
+      targetDate: g.target_date,
+      currentCents: g.current_cents,
+      monthlyContributionCents: g.monthly_contribution_cents,
+      contributionMode: g.contribution_mode,
+      contributionInterval: g.contribution_interval,
+      contributionDays: g.contribution_days ? JSON.parse(g.contribution_days) : null,
+    }),
+    onSuccess: () => { setUndoGoal(null); invalidate(); },
+    onError: (e) => setErr(e instanceof Error ? e.message : "Failed to restore goal."),
+  });
 
   // ── Custom delete confirmations ──
-  const [confirmDelete, setConfirmDelete] = useState<{ kind: "bill" | "debt" | "goal"; id: string; name: string; error?: string } | null>(null);
+    const [undoBill, setUndoBill] = useState<Bill | null>(null);
+  const [undoDebt, setUndoDebt] = useState<Debt | null>(null);
+  const [undoGoal, setUndoGoal] = useState<Goal | null>(null);
 
   const chartData = (projection.data?.points ?? []).map((p) => ({ month: p.month, Balance: p.balanceCents / 100 }));
 
@@ -704,7 +762,7 @@ export default function PlanPage() {
                     </Button>
                   )}
                   <button
-                    onClick={() => setConfirmDelete({ kind: "bill", id: b.id, name: b.name })}
+                    onClick={() => removeBill.mutate(b)}
                     className="text-text-muted hover:text-danger"
                     aria-label={`Delete bill ${b.name}`}
                   >
@@ -730,7 +788,7 @@ export default function PlanPage() {
                   <div className="flex items-center gap-2">
                     <Money cents={d.principal_cents} />
                     <button
-                      onClick={() => setConfirmDelete({ kind: "debt", id: d.id, name: d.name })}
+                      onClick={() => removeDebt.mutate(d)}
                       className="text-text-muted hover:text-danger"
                       aria-label={`Delete debt ${d.name}`}
                     >
@@ -768,7 +826,7 @@ export default function PlanPage() {
                   </p>
                 </div>
                 <button
-                  onClick={() => setConfirmDelete({ kind: "goal", id: g.id, name: g.name })}
+                  onClick={() => removeGoal.mutate(g)}
                   className="text-text-muted hover:text-danger"
                   aria-label={`Delete expense ${g.name}`}
                 >
@@ -815,7 +873,7 @@ export default function PlanPage() {
                   </p>
                 </div>
                 <button
-                  onClick={() => setConfirmDelete({ kind: "goal", id: g.id, name: g.name })}
+                  onClick={() => removeGoal.mutate(g)}
                   className="text-text-muted hover:text-danger"
                   aria-label={`Delete goal ${g.name}`}
                 >
@@ -1254,21 +1312,24 @@ export default function PlanPage() {
       {/* Floating action button — standard placement, bottom-right */}
       <FloatingAddButton label="Add to plan" onClick={() => setShowAdd(true)} hidden={showAdd} />
 
-      {/* Custom delete confirmations */}
-      <ConfirmDialog
-        open={confirmDelete !== null}
-        title={confirmDelete ? `Delete ${confirmDelete.kind}?` : "Delete?"}
-        message={confirmDelete ? `"${confirmDelete.name}" will be removed from your plan.${confirmDelete.error ? ` ${confirmDelete.error}` : ""}` : undefined}
-        confirmLabel="Delete"
-        busy={(confirmDelete?.kind === "bill" && removeBill.isPending) || (confirmDelete?.kind === "debt" && removeDebt.isPending) || (confirmDelete?.kind === "goal" && removeGoal.isPending)}
-        onCancel={() => setConfirmDelete(null)}
-        onConfirm={() => {
-          if (!confirmDelete) return;
-          const { kind, id } = confirmDelete;
-          if (kind === "bill") removeBill.mutate(id);
-          if (kind === "debt") removeDebt.mutate(id);
-          if (kind === "goal") removeGoal.mutate(id);
-        }}
+      {/* Reversible deletes: remove immediately, offer a timed Undo (Q38: undo > warning) */}
+      <UndoSnackbar
+        open={undoBill !== null}
+        message={undoBill ? `Bill "${undoBill.name}" deleted.` : ""}
+        onUndo={() => undoBill && undoDeleteBill.mutate(undoBill)}
+        onClose={() => setUndoBill(null)}
+      />
+      <UndoSnackbar
+        open={undoDebt !== null}
+        message={undoDebt ? `Debt "${undoDebt.name}" deleted.` : ""}
+        onUndo={() => undoDebt && undoDeleteDebt.mutate(undoDebt)}
+        onClose={() => setUndoDebt(null)}
+      />
+      <UndoSnackbar
+        open={undoGoal !== null}
+        message={undoGoal ? `Goal "${undoGoal.name}" deleted.` : ""}
+        onUndo={() => undoGoal && undoDeleteGoal.mutate(undoGoal)}
+        onClose={() => setUndoGoal(null)}
       />
     </div>
   );
