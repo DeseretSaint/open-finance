@@ -39,6 +39,6 @@ describe("Q38 undo-over-warning: plan reversible deletes", () => {
     expect(snackbar).toContain('aria-live="polite"');
     expect(snackbar).toContain("Undo");
     // timed auto-dismiss (M3 LONG = 2750ms)
-    expect(snackbar).toContain("setTimeout(onClose, duration)");
+    expect(snackbar).toContain("setTimeout(() => onCloseRef.current(), duration)");
   });
 });

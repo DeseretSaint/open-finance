@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * M3 Snackbar with a single UNDO action. Used for reversible deletes so the
@@ -28,11 +28,22 @@ export function UndoSnackbar({
   // focused inside the snackbar (M3 also specifies pause-on-hover/focus).
   const [paused, setPaused] = useState(false);
 
+  // The auto-dismiss timer must NOT depend on the callback identities: every
+  // call site passes inline arrows (`onClose={() => setUndoTxn(null)}`), so a
+  // callback dep would restart the countdown on EVERY parent re-render (list
+  // refetch, debounce tick, …) and the snackbar could linger indefinitely.
+  const onCloseRef = useRef(onClose);
+  const onUndoRef = useRef(onUndo);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+    onUndoRef.current = onUndo;
+  }, [onClose, onUndo]);
+
   useEffect(() => {
     if (!open || paused) return;
-    const id = setTimeout(onClose, duration);
+    const id = setTimeout(() => onCloseRef.current(), duration);
     return () => clearTimeout(id);
-  }, [open, paused, duration, onClose]);
+  }, [open, paused, duration]);
 
   useEffect(() => {
     if (!open) setPaused(false);
@@ -57,8 +68,8 @@ export function UndoSnackbar({
         <button
           type="button"
           onClick={() => {
-            onUndo();
-            onClose();
+            onUndoRef.current();
+            onCloseRef.current();
           }}
           className="min-h-11 min-w-11 shrink-0 rounded-md px-3 py-2 text-sm font-semibold text-[var(--accent)] transition-colors hover:brightness-110"
         >
